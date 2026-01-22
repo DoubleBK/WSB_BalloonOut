@@ -1,10 +1,16 @@
 /**
- * Arrow Puzzle - Level Generator v6 (Dependency Chain)
+ * Arrow Puzzle - Level Generator v7 (Density Control + Auto)
  *
  * 핵심 아이디어: "먼저 배치한 화살표의 Body가 나중 화살표의 탈출 경로를 막는다"
  * - 첫 번째 화살표: 즉시 탈출 가능
  * - 이후 화살표: 이전 화살표의 Body에 의해 막힘
  * - 다양한 방향(U/D/L/R) 사용
+ *
+ * v7 추가:
+ * - 확장된 파라미터 범위
+ * - 밀도 목표 기반 생성
+ * - 빈 공간 필러
+ * - Grid 크기 기반 Auto 계산
  */
 
 const GENERATOR_COLORS = ['R', 'G', 'Y', 'P'];
@@ -17,16 +23,107 @@ const DIR_VECTORS = {
     R: { dx: 1, dy: 0 }
 };
 
+// 확장된 파라미터 범위
+const PARAM_RANGES = {
+    gridSize: { min: 5, max: 12 },
+    laneCount: { min: 1, max: 6 },
+    balloonsPerLane: { min: 1, max: 8 },
+    missArrowCount: { min: 0, max: 10 },
+    minBlockLength: { min: 1, max: 5 },
+    maxBlockLength: { min: 2, max: 6 },
+    targetDensity: { min: 0.2, max: 0.8 }
+};
+
 const DEFAULT_CONFIG = {
+    // 그리드
     gridSize: 8,
+
+    // Queue 설정
     laneCount: 2,
     balloonsPerLane: 2,
     missArrowCount: 1,
+
+    // 화살표 길이
     minBlockLength: 2,
     maxBlockLength: 3,
-    branchingMode: false,  // 분기형 레벨 생성 모드
-    branchingChance: 0.4   // 분기 확률 (0~1)
+
+    // 밀도 제어
+    targetDensity: 0.5,       // 목표 밀도 (0.2 ~ 0.8)
+    densityMode: 'fill',      // 'auto' | 'manual' | 'fill'
+
+    // 필러 설정
+    fillerEnabled: true,
+    fillerMinLength: 1,
+    fillerMaxLength: 2,
+
+    // 기존 설정
+    branchingMode: false,
+    branchingChance: 0.4
 };
+
+/**
+ * Grid 크기 기반 Auto 파라미터 계산
+ * @param {number} gridSize - 그리드 크기
+ * @param {number} targetDensity - 목표 밀도 (선택적)
+ * @returns {object} 자동 계산된 파라미터
+ */
+function calculateAutoParams(gridSize, targetDensity = 0.5) {
+    const totalCells = gridSize * gridSize;
+
+    // 그리드 크기별 기본 설정
+    const sizeCategory = gridSize <= 6 ? 'small' : gridSize <= 9 ? 'medium' : 'large';
+
+    const presets = {
+        small: {  // 5-6
+            laneCount: 2,
+            balloonsPerLane: 2,
+            missArrowCount: 1,
+            minBlockLength: 2,
+            maxBlockLength: 3
+        },
+        medium: { // 7-9
+            laneCount: 3,
+            balloonsPerLane: 3,
+            missArrowCount: 2,
+            minBlockLength: 2,
+            maxBlockLength: 4
+        },
+        large: {  // 10-12
+            laneCount: 4,
+            balloonsPerLane: 4,
+            missArrowCount: 3,
+            minBlockLength: 2,
+            maxBlockLength: 4
+        }
+    };
+
+    const preset = presets[sizeCategory];
+
+    // 목표 밀도에 맞춰 조정
+    const avgLength = (preset.minBlockLength + preset.maxBlockLength) / 2;
+    const baseArrowCount = preset.laneCount * preset.balloonsPerLane + preset.missArrowCount;
+    const baseDensity = (baseArrowCount * avgLength) / totalCells;
+
+    // 밀도 조정이 필요한 경우
+    if (targetDensity > baseDensity + 0.1) {
+        // 밀도를 높여야 함 - 화살표 수 증가
+        const targetArrows = Math.floor((targetDensity * totalCells) / avgLength);
+        const additionalArrows = targetArrows - baseArrowCount;
+
+        if (additionalArrows > 0) {
+            // Miss 화살표로 추가
+            preset.missArrowCount += Math.min(additionalArrows, 5);
+        }
+    }
+
+    return {
+        ...preset,
+        targetDensity: targetDensity,
+        fillerEnabled: true,
+        fillerMinLength: 1,
+        fillerMaxLength: Math.min(2, preset.maxBlockLength - 1)
+    };
+}
 
 function randomPick(arr) {
     return arr[Math.floor(Math.random() * arr.length)];
@@ -231,6 +328,70 @@ function placeFallback(color, length, gridSize, occupiedSet) {
     return randomPick(candidates);
 }
 
+/**
+ * 빈 공간 필러 배치
+ * 목표 밀도에 도달할 때까지 빈 공간에 추가 화살표 배치
+ * @param {Array} blocks - 기존 배치된 블록들
+ * @param {Set} occupiedSet - 점유된 셀 Set
+ * @param {object} cfg - 설정
+ * @returns {Array} 추가된 필러 블록들
+ */
+function placeFillersForDensity(blocks, occupiedSet, cfg) {
+    const fillers = [];
+    const totalCells = cfg.gridSize * cfg.gridSize;
+    const targetOccupied = Math.floor(totalCells * cfg.targetDensity);
+
+    let currentOccupied = occupiedSet.size;
+    let attempts = 0;
+    const maxAttempts = 100;
+
+    console.log(`  Filler: Current density ${(currentOccupied / totalCells * 100).toFixed(1)}%, target ${(cfg.targetDensity * 100).toFixed(1)}%`);
+
+    while (currentOccupied < targetOccupied && attempts < maxAttempts) {
+        attempts++;
+
+        // 랜덤 색상, 길이 선택
+        const color = randomPick(GENERATOR_COLORS);
+        const length = randomInt(cfg.fillerMinLength, cfg.fillerMaxLength);
+
+        // 빈 공간에 배치 시도
+        const placement = placeFallback(color, length, cfg.gridSize, occupiedSet);
+
+        if (placement) {
+            const fillerBlock = {
+                x: placement.x,
+                y: placement.y,
+                c: color,
+                d: placement.dir,
+                l: length,
+                cells: placement.cells,
+                isFiller: true  // 필러 표시
+            };
+
+            fillers.push(fillerBlock);
+
+            // 점유 셀 업데이트
+            for (const c of placement.cells) {
+                occupiedSet.add(`${c.x},${c.y}`);
+            }
+
+            currentOccupied = occupiedSet.size;
+            console.log(`  Filler ${fillers.length}: ${color} at (${placement.x},${placement.y}) dir=${placement.dir} len=${length}`);
+        }
+    }
+
+    console.log(`  Filler: Added ${fillers.length} fillers, final density ${(currentOccupied / totalCells * 100).toFixed(1)}%`);
+
+    return fillers;
+}
+
+/**
+ * 현재 밀도 계산
+ */
+function calculateDensity(occupiedSet, gridSize) {
+    return occupiedSet.size / (gridSize * gridSize);
+}
+
 // 레벨 검증: 시뮬레이션으로 풀 수 있는지 확인 + 실제 탈출 순서 반환
 function validateGeneratedLevel(blocks, lanes, gridSize) {
     try {
@@ -338,10 +499,19 @@ function validateGeneratedLevel(blocks, lanes, gridSize) {
 
 // 메인 레벨 생성 함수
 function generateLevel(config = {}) {
-    const cfg = { ...DEFAULT_CONFIG, ...config };
+    let cfg = { ...DEFAULT_CONFIG, ...config };
 
-    console.log("=== Generator v6 (Dependency Chain) ===");
+    // densityMode에 따른 처리
+    if (cfg.densityMode === 'auto') {
+        // Auto 모드: 목표 밀도에 맞춰 화살표 수 자동 조정
+        const autoParams = calculateAutoParams(cfg.gridSize, cfg.targetDensity);
+        cfg = { ...cfg, ...autoParams };
+        console.log("Auto mode: Calculated params", autoParams);
+    }
+
+    console.log("=== Generator v7 (Density Control) ===");
     console.log("Config:", cfg);
+    console.log(`Target density: ${(cfg.targetDensity * 100).toFixed(1)}%`);
 
     const maxAttempts = 50;
 
@@ -418,8 +588,22 @@ function generateLevel(config = {}) {
 
         if (!success) continue;
 
-        // Step 4: 검증
-        const validation = validateGeneratedLevel(blocks, lanes, cfg.gridSize);
+        // Step 4: 필러 추가 (fill 모드 또는 fillerEnabled)
+        let allBlocks = [...blocks];
+        const mainBlockCount = blocks.length;
+
+        if (cfg.fillerEnabled && (cfg.densityMode === 'fill' || cfg.densityMode === 'auto')) {
+            const currentDensity = calculateDensity(occupiedSet, cfg.gridSize);
+            console.log(`  Current density before filler: ${(currentDensity * 100).toFixed(1)}%`);
+
+            if (currentDensity < cfg.targetDensity) {
+                const fillers = placeFillersForDensity(allBlocks, occupiedSet, cfg);
+                allBlocks = [...blocks, ...fillers];
+            }
+        }
+
+        // Step 5: 검증
+        const validation = validateGeneratedLevel(allBlocks, lanes, cfg.gridSize);
         console.log("Validation:", validation);
 
         if (validation.valid) {
@@ -433,25 +617,35 @@ function generateLevel(config = {}) {
                 orderMap.set(originalIdx, seqIdx + 1);  // 1부터 시작
             });
 
-            const cleanBlocks = blocks.map((b, idx) => ({
+            const cleanBlocks = allBlocks.map((b, idx) => ({
                 x: b.x,
                 y: b.y,
                 c: b.c,
                 d: b.d,
                 l: b.l,
-                order: orderMap.get(idx) || 0  // 실제 탈출 순서
+                order: orderMap.get(idx) || 0,  // 실제 탈출 순서
+                isFiller: b.isFiller || false   // 필러 여부
             }));
 
+            const finalDensity = calculateDensity(occupiedSet, cfg.gridSize);
             console.log("=== Generation Successful! ===");
+            console.log(`Final density: ${(finalDensity * 100).toFixed(1)}%`);
+            console.log(`Main arrows: ${mainBlockCount}, Fillers: ${allBlocks.length - mainBlockCount}`);
             console.log("Escape sequence:", escapeSequence.map((idx, i) =>
-                `${i + 1}: Block ${idx} (${blocks[idx].c})`
+                `${i + 1}: Block ${idx} (${allBlocks[idx].c})`
             ).join(', '));
 
             return {
                 name: `Gen.${Date.now() % 10000}`,
                 size: cfg.gridSize,
                 lanes: lanes,
-                blocks: cleanBlocks
+                blocks: cleanBlocks,
+                stats: {
+                    density: finalDensity,
+                    mainArrows: mainBlockCount,
+                    fillers: allBlocks.length - mainBlockCount,
+                    totalArrows: allBlocks.length
+                }
             };
         }
     }
@@ -462,7 +656,9 @@ function generateLevel(config = {}) {
 // Export
 window.LevelGenerator = {
     generateLevel,
-    DEFAULT_CONFIG
+    calculateAutoParams,
+    DEFAULT_CONFIG,
+    PARAM_RANGES
 };
 
-console.log("Generator v6 (Dependency Chain) loaded. Use LevelGenerator.generateLevel()");
+console.log("Generator v7 (Density Control + Auto) loaded. Use LevelGenerator.generateLevel()");

@@ -40,33 +40,133 @@
 
     <!-- Generator Modal -->
     <div class="modal" id="gen-modal">
-        <div class="modal-content">
-            <h3>Level Generator</h3>
+        <div class="modal-content modal-content-wide">
+            <h3>Level Generator v7</h3>
             <div class="gen-form">
-                <label>
-                    Grid Size (6-12):
-                    <input type="number" id="gen-size" value="8" min="6" max="12">
-                </label>
-                <label>
-                    Queue Lanes (1-3):
-                    <input type="number" id="gen-lanes" value="2" min="1" max="3">
-                </label>
-                <label>
-                    Balloons per Lane (1-3):
-                    <input type="number" id="gen-balloons" value="2" min="1" max="3">
-                </label>
-                <label>
-                    Miss Arrows (0-3):
-                    <input type="number" id="gen-miss" value="1" min="0" max="3">
-                </label>
-                <label style="margin-top: 10px; padding-top: 10px; border-top: 1px solid #444;">
-                    <span>Branching Mode:</span>
-                    <input type="checkbox" id="gen-branching" style="width: auto;">
-                </label>
-                <p style="font-size: 0.75rem; color: #666; margin: 0;">
-                    분기 모드: 여러 화살표가 동시에 탈출 가능, 잘못 선택하면 막힘
-                </p>
+                <!-- Grid Size (Auto 없음 - 기준이 되는 값) -->
+                <div class="param-row">
+                    <label>
+                        <span class="param-label">Grid Size (5-12):</span>
+                        <input type="number" id="gen-size" value="8" min="5" max="12" onchange="onGridSizeChange()">
+                    </label>
+                </div>
+
+                <!-- Target Density -->
+                <div class="param-row">
+                    <label>
+                        <span class="param-label">Target Density:</span>
+                        <div class="param-input-group">
+                            <input type="range" id="gen-density" value="50" min="20" max="80" class="density-slider" oninput="updateDensityLabel()">
+                            <span id="density-label" class="density-label">50%</span>
+                        </div>
+                    </label>
+                </div>
+
+                <div class="section-divider">
+                    <span>Queue Settings</span>
+                    <label class="auto-all-label">
+                        <input type="checkbox" id="auto-all" onchange="toggleAutoAll()">
+                        <span>Auto All</span>
+                    </label>
+                </div>
+
+                <!-- Queue Lanes -->
+                <div class="param-row">
+                    <label>
+                        <span class="param-label">Queue Lanes (1-6):</span>
+                        <div class="param-input-group">
+                            <input type="number" id="gen-lanes" value="2" min="1" max="6">
+                            <label class="auto-checkbox">
+                                <input type="checkbox" id="auto-lanes" onchange="onAutoChange('lanes')">
+                                <span>Auto</span>
+                            </label>
+                        </div>
+                    </label>
+                </div>
+
+                <!-- Balloons per Lane -->
+                <div class="param-row">
+                    <label>
+                        <span class="param-label">Balloons/Lane (1-8):</span>
+                        <div class="param-input-group">
+                            <input type="number" id="gen-balloons" value="2" min="1" max="8">
+                            <label class="auto-checkbox">
+                                <input type="checkbox" id="auto-balloons" onchange="onAutoChange('balloons')">
+                                <span>Auto</span>
+                            </label>
+                        </div>
+                    </label>
+                </div>
+
+                <!-- Miss Arrows -->
+                <div class="param-row">
+                    <label>
+                        <span class="param-label">Miss Arrows (0-10):</span>
+                        <div class="param-input-group">
+                            <input type="number" id="gen-miss" value="1" min="0" max="10">
+                            <label class="auto-checkbox">
+                                <input type="checkbox" id="auto-miss" onchange="onAutoChange('miss')">
+                                <span>Auto</span>
+                            </label>
+                        </div>
+                    </label>
+                </div>
+
+                <div class="section-divider">
+                    <span>Arrow Settings</span>
+                </div>
+
+                <!-- Min Block Length -->
+                <div class="param-row">
+                    <label>
+                        <span class="param-label">Min Length (1-5):</span>
+                        <div class="param-input-group">
+                            <input type="number" id="gen-min-len" value="2" min="1" max="5">
+                            <label class="auto-checkbox">
+                                <input type="checkbox" id="auto-min-len" onchange="onAutoChange('minLen')">
+                                <span>Auto</span>
+                            </label>
+                        </div>
+                    </label>
+                </div>
+
+                <!-- Max Block Length -->
+                <div class="param-row">
+                    <label>
+                        <span class="param-label">Max Length (2-6):</span>
+                        <div class="param-input-group">
+                            <input type="number" id="gen-max-len" value="3" min="2" max="6">
+                            <label class="auto-checkbox">
+                                <input type="checkbox" id="auto-max-len" onchange="onAutoChange('maxLen')">
+                                <span>Auto</span>
+                            </label>
+                        </div>
+                    </label>
+                </div>
+
+                <div class="section-divider">
+                    <span>Advanced</span>
+                </div>
+
+                <!-- Filler -->
+                <div class="param-row">
+                    <label class="checkbox-label">
+                        <span class="param-label">Enable Filler:</span>
+                        <input type="checkbox" id="gen-filler" checked>
+                    </label>
+                    <span class="param-hint">빈 공간에 장애물 화살표 추가</span>
+                </div>
+
+                <!-- Branching Mode -->
+                <div class="param-row">
+                    <label class="checkbox-label">
+                        <span class="param-label">Branching Mode:</span>
+                        <input type="checkbox" id="gen-branching">
+                    </label>
+                    <span class="param-hint">여러 화살표 동시 탈출 가능</span>
+                </div>
             </div>
+
             <div class="modal-buttons">
                 <button class="btn" onclick="runGenerator()">Generate</button>
                 <button class="btn btn-cancel" onclick="closeGeneratorUI()">Cancel</button>

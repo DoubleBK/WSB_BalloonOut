@@ -337,11 +337,12 @@ function updateRestartButton() {
 }
 
 // ============================================================
-// Level Generator UI Integration
+// Level Generator UI Integration (v7)
 // ============================================================
 
 function showGeneratorUI() {
     document.getElementById('gen-modal').style.display = 'flex';
+    updateDensityLabel();
 }
 
 function closeGeneratorUI() {
@@ -353,18 +354,119 @@ function closeGeneratorUI() {
     document.getElementById('gen-modal').style.display = 'none';
 }
 
+// Density 슬라이더 라벨 업데이트
+function updateDensityLabel() {
+    const slider = document.getElementById('gen-density');
+    const label = document.getElementById('density-label');
+    label.textContent = `${slider.value}%`;
+}
+
+// Grid 크기 변경 시 Auto 값 업데이트
+function onGridSizeChange() {
+    updateAutoValues();
+}
+
+// 개별 Auto 체크박스 변경
+function onAutoChange(param) {
+    const checkbox = document.getElementById(`auto-${param}`);
+    const inputMap = {
+        'lanes': 'gen-lanes',
+        'balloons': 'gen-balloons',
+        'miss': 'gen-miss',
+        'minLen': 'gen-min-len',
+        'maxLen': 'gen-max-len'
+    };
+
+    const input = document.getElementById(inputMap[param]);
+    if (input) {
+        input.disabled = checkbox.checked;
+    }
+
+    if (checkbox.checked) {
+        updateAutoValues();
+    }
+
+    // Auto All 상태 업데이트
+    updateAutoAllState();
+}
+
+// Auto All 토글
+function toggleAutoAll() {
+    const autoAll = document.getElementById('auto-all').checked;
+    const autoCheckboxes = ['auto-lanes', 'auto-balloons', 'auto-miss', 'auto-min-len', 'auto-max-len'];
+
+    autoCheckboxes.forEach(id => {
+        const cb = document.getElementById(id);
+        if (cb) {
+            cb.checked = autoAll;
+            // 연결된 input 비활성화/활성화
+            const param = id.replace('auto-', '');
+            onAutoChange(param.replace('-', ''));
+        }
+    });
+
+    if (autoAll) {
+        updateAutoValues();
+    }
+}
+
+// Auto All 체크박스 상태 동기화
+function updateAutoAllState() {
+    const autoCheckboxes = ['auto-lanes', 'auto-balloons', 'auto-miss', 'auto-min-len', 'auto-max-len'];
+    const allChecked = autoCheckboxes.every(id => {
+        const cb = document.getElementById(id);
+        return cb && cb.checked;
+    });
+    document.getElementById('auto-all').checked = allChecked;
+}
+
+// Auto 값 계산 및 UI 업데이트
+function updateAutoValues() {
+    const gridSize = parseInt(document.getElementById('gen-size').value) || 8;
+    const targetDensity = parseInt(document.getElementById('gen-density').value) / 100;
+
+    // Generator의 Auto 계산 함수 사용
+    const autoParams = LevelGenerator.calculateAutoParams(gridSize, targetDensity);
+
+    // Auto가 체크된 필드만 업데이트
+    if (document.getElementById('auto-lanes').checked) {
+        document.getElementById('gen-lanes').value = autoParams.laneCount;
+    }
+    if (document.getElementById('auto-balloons').checked) {
+        document.getElementById('gen-balloons').value = autoParams.balloonsPerLane;
+    }
+    if (document.getElementById('auto-miss').checked) {
+        document.getElementById('gen-miss').value = autoParams.missArrowCount;
+    }
+    if (document.getElementById('auto-min-len').checked) {
+        document.getElementById('gen-min-len').value = autoParams.minBlockLength;
+    }
+    if (document.getElementById('auto-max-len').checked) {
+        document.getElementById('gen-max-len').value = autoParams.maxBlockLength;
+    }
+}
+
 function runGenerator() {
     const branchingMode = document.getElementById('gen-branching').checked;
+    const fillerEnabled = document.getElementById('gen-filler').checked;
+    const targetDensity = parseInt(document.getElementById('gen-density').value) / 100;
+
+    const gridSize = parseInt(document.getElementById('gen-size').value) || 8;
 
     const config = {
-        gridSize: parseInt(document.getElementById('gen-size').value) || 8,
+        gridSize: gridSize,
         laneCount: parseInt(document.getElementById('gen-lanes').value) || 2,
         balloonsPerLane: parseInt(document.getElementById('gen-balloons').value) || 2,
         missArrowCount: parseInt(document.getElementById('gen-miss').value) || 1,
-        minBlockLength: 2,
-        maxBlockLength: 3,
+        minBlockLength: parseInt(document.getElementById('gen-min-len').value) || 2,
+        maxBlockLength: parseInt(document.getElementById('gen-max-len').value) || 3,
+        targetDensity: targetDensity,
+        densityMode: fillerEnabled ? 'fill' : 'manual',
+        fillerEnabled: fillerEnabled,
+        fillerMinLength: 1,
+        fillerMaxLength: 2,
         branchingMode: branchingMode,
-        branchingChance: branchingMode ? 0.5 : 0  // 분기 모드일 때 50% 확률로 자유 배치
+        branchingChance: branchingMode ? 0.5 : 0
     };
 
     try {
@@ -377,7 +479,13 @@ function runGenerator() {
         initLevel(LEVELS.length - 1);
         closeGeneratorUI();
 
-        showToast("Generated!");
+        // 통계 표시
+        if (level.stats) {
+            const msg = `Density: ${(level.stats.density * 100).toFixed(0)}%`;
+            showToast(msg);
+        } else {
+            showToast("Generated!");
+        }
     } catch (e) {
         console.error("Generation failed:", e);
         alert("Generation failed: " + e.message);
