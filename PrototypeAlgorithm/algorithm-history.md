@@ -404,6 +404,231 @@ const cleanBlocks = blocks.map((b, idx) => ({
 
 ---
 
+### v7: 밀도 제어 및 Auto 파라미터
+
+**목표:** 밀도 20% → 50%+ 달성, 사용자 편의성 향상
+
+#### 1. 확장된 파라미터 범위
+
+```javascript
+const PARAM_RANGES = {
+    gridSize: { min: 5, max: 12 },
+    laneCount: { min: 1, max: 6 },
+    balloonsPerLane: { min: 1, max: 8 },
+    missArrowCount: { min: 0, max: 10 },
+    minBlockLength: { min: 1, max: 5 },
+    maxBlockLength: { min: 2, max: 6 },
+    targetDensity: { min: 0.2, max: 0.8 }
+};
+```
+
+#### 2. Grid 크기 기반 Auto 파라미터 계산
+
+```javascript
+function calculateAutoParams(gridSize, targetDensity = 0.5) {
+    const sizeCategory = gridSize <= 6 ? 'small' : gridSize <= 9 ? 'medium' : 'large';
+
+    const presets = {
+        small: { laneCount: 2, balloonsPerLane: 2, missArrowCount: 1, ... },
+        medium: { laneCount: 3, balloonsPerLane: 3, missArrowCount: 2, ... },
+        large: { laneCount: 4, balloonsPerLane: 4, missArrowCount: 3, ... }
+    };
+
+    // 목표 밀도에 맞춰 조정
+    if (targetDensity > baseDensity + 0.1) {
+        preset.missArrowCount += Math.min(additionalArrows, 5);
+    }
+
+    return { ...preset, fillerEnabled: true, ... };
+}
+```
+
+#### 3. 빈 공간 필러 배치
+
+목표 밀도에 도달할 때까지 빈 공간에 장애물 화살표 추가:
+
+```javascript
+function placeFillersForDensity(blocks, occupiedSet, cfg) {
+    const targetOccupied = Math.floor(totalCells * cfg.targetDensity);
+
+    while (currentOccupied < targetOccupied && attempts < maxAttempts) {
+        const placement = placeFallback(color, length, gridSize, occupiedSet);
+        if (placement) {
+            fillers.push({ ...placement, isFiller: true });
+            // 점유 셀 업데이트
+        }
+    }
+    return fillers;
+}
+```
+
+#### 4. UI 개선 - Auto 체크박스
+
+각 파라미터에 Auto 체크박스 추가:
+- Grid Size 변경 시 Auto 체크된 필드 자동 업데이트
+- "Auto All" 체크박스로 일괄 토글
+- Auto 체크 시 입력 필드 비활성화
+
+**결과:** 밀도 제어 가능, 사용자 편의성 향상
+
+---
+
+### v8: ReverseGrowth (꺾이는 화살표)
+
+**목표:** 직선 화살표 → 꺾이는 화살표로 FillRate 및 시각적 복잡도 향상
+
+#### 1. ReverseGrowth 알고리즘 개념
+
+```
+"직진을 선호하지만, 막히면 옆으로 꺾는다"
+
+우선순위:
+1순위: 현재 방향으로 직진
+2순위: 직진 불가 → 좌/우 중 랜덤 선택
+금지:  왔던 방향으로 되돌아가기 (지그재그 방지)
+
+예시:
+●●●→        (직진만)
+
+●●●
+  ↓→        (한 번 꺾임)
+
+●
+↓
+●●→        (두 번 꺾임)
+```
+
+#### 2. 방향 우선순위 상수
+
+```javascript
+// 방향 전환 우선순위 (직진 > 좌/우, 뒤로 가기 금지)
+const TURN_PRIORITY = {
+    U: ['U', 'L', 'R'],  // 위 → 위/좌/우 (아래 금지)
+    D: ['D', 'R', 'L'],  // 아래 → 아래/우/좌 (위 금지)
+    L: ['L', 'D', 'U'],  // 왼쪽 → 왼/아래/위 (오른쪽 금지)
+    R: ['R', 'U', 'D']   // 오른쪽 → 오른/위/아래 (왼쪽 금지)
+};
+
+const OPPOSITE = { U: 'D', D: 'U', L: 'R', R: 'L' };
+```
+
+#### 3. 핵심 함수: growArrowReverse()
+
+Head에서 시작하여 반대 방향으로 Body를 성장:
+
+```javascript
+function growArrowReverse(headX, headY, headDir, targetLength, occupiedSet, gridSize) {
+    const path = [{ x: headX, y: headY }];
+    let currentDir = OPPOSITE[headDir];  // 성장 방향 = 탈출 방향의 반대
+
+    for (let i = 1; i < targetLength; i++) {
+        const next = findNextGrowthCell(currentX, currentY, currentDir, occupiedSet, gridSize);
+        if (!next) break;  // 더 이상 성장 불가
+
+        path.push({ x: next.x, y: next.y });
+        currentDir = next.dir;  // 꺾였으면 방향 변경
+    }
+
+    return path.length >= 2 ? { path, headDir } : null;
+}
+```
+
+#### 4. 다음 셀 찾기: findNextGrowthCell()
+
+```javascript
+function findNextGrowthCell(x, y, preferredDir, occupiedSet, gridSize) {
+    const priority = TURN_PRIORITY[preferredDir];
+    // 직진 우선, 좌우는 랜덤 순서
+    const searchOrder = [priority[0], ...shuffle([priority[1], priority[2]])];
+
+    for (const dir of searchOrder) {
+        const d = DIR_VECTORS[dir];
+        const nx = x + d.dx, ny = y + d.dy;
+
+        if (isInBounds(nx, ny, gridSize) && !occupiedSet.has(`${nx},${ny}`)) {
+            return { x: nx, y: ny, dir };
+        }
+    }
+    return null;  // 모든 방향 막힘
+}
+```
+
+#### 5. 블록 데이터 구조 확장
+
+```javascript
+const block = {
+    x: headX,
+    y: headY,
+    c: color,
+    d: headDir,           // 탈출 방향 (headDir을 d로 저장하여 기존 코드와 호환)
+    l: path.length,       // 실제 길이
+    path: path,           // 꺾이는 화살표: 셀 경로 배열
+    isBending: true       // 꺾이는 화살표 여부
+};
+```
+
+#### 6. game.js 수정 - path 기반 렌더링
+
+```javascript
+// initLevel()에서 path 처리
+if (b.path) {
+    // 꺾이는 화살표: path를 직접 cells로 사용
+    cells = b.path.map(p => ({ x: p.x, y: p.y }));
+} else {
+    // 직선 화살표: 기존 방식으로 계산
+    cells = calculateCellsFromDir(b.x, b.y, b.d, b.l);
+}
+```
+
+#### 7. 파라미터 확장 (v8 밸런스 조정)
+
+```javascript
+// 확장된 범위
+const PARAM_RANGES = {
+    minBlockLength: { min: 1, max: 8 },
+    maxBlockLength: { min: 2, max: 20 },  // Bending 모드에서 20칸까지 가능
+};
+
+// Bending 모드 프리셋 (적은 화살표, 긴 길이)
+const bendingPresets = {
+    small: { laneCount: 2, balloonsPerLane: 2, minBlockLength: 3, maxBlockLength: 6 },
+    medium: { laneCount: 2, balloonsPerLane: 3, minBlockLength: 4, maxBlockLength: 8 },
+    large: { laneCount: 3, balloonsPerLane: 3, minBlockLength: 5, maxBlockLength: 10 }
+};
+```
+
+#### 8. 필러도 Bending 모드 지원
+
+```javascript
+function placeFillersForDensity(blocks, occupiedSet, cfg) {
+    const useBending = cfg.bendingEnabled && cfg.bendingChance > 0;
+
+    const placement = useBending
+        ? placeFallbackBending(color, length, cfg.gridSize, occupiedSet)
+        : placeFallback(color, length, cfg.gridSize, occupiedSet);
+
+    if (placement) {
+        const isBending = !!placement.path;
+        fillerBlock.path = isBending ? placement.path : null;
+        fillerBlock.isBending = isBending;
+    }
+}
+```
+
+**특징:**
+- 꺾이는 화살표로 미로 형태 생성
+- 높은 FillRate 달성 (70-90%)
+- 시각적 복잡도 증가
+- 기존 직선 화살표와 호환 (headDir을 d로 저장)
+
+**알려진 이슈:**
+- Overlap 에러 가끔 발생 (필러 배치 시 겹침 감지 실패 가능)
+- 복잡한 path로 인해 렌더링 성능 약간 저하
+
+**결과:** FillRate 향상, 시각적 난이도 증가
+
+---
+
 ## 핵심 교훈
 
 ### 1. 단순함이 최선
@@ -461,6 +686,8 @@ PRD에서 목표한 70%+ 밀도를 위해서는 더 정교한 배치 알고리�
 | v6.1 | 충돌 바운스 시스템 | - | 게임 로직 개선 |
 | v6.2 | UI 개선 | - | 순서 번호, 솔루션 박스, 재시작 |
 | v6.3 | Solution Order 수정 | - | 실제 클릭 순서 표시 |
+| v7 | 밀도 제어 + Auto 파라미터 | ~90% | Filler로 밀도 향상, Auto 체크박스 |
+| v8 | ReverseGrowth (Bending) | ~85% | 꺾이는 화살표, 간헐적 Overlap 이슈 |
 
 ---
 
@@ -481,3 +708,4 @@ arrow-puzzle/
 *문서 작성일: 2026-01-22*
 *v6 추가: 2026-01-22*
 *v6.1, v6.2, v6.3 추가: 2026-01-22*
+*v7, v8 추가: 2026-01-22*

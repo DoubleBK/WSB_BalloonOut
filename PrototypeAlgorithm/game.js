@@ -433,9 +433,10 @@ function updateAutoAllState() {
 function updateAutoValues() {
     const gridSize = parseInt(document.getElementById('gen-size').value) || 8;
     const targetDensity = parseInt(document.getElementById('gen-density').value) / 100;
+    const bendingEnabled = document.getElementById('gen-bending').checked;
 
-    // Generator의 Auto 계산 함수 사용
-    const autoParams = LevelGenerator.calculateAutoParams(gridSize, targetDensity);
+    // Generator의 Auto 계산 함수 사용 (v8: bendingEnabled 전달)
+    const autoParams = LevelGenerator.calculateAutoParams(gridSize, targetDensity, bendingEnabled);
 
     // Auto가 체크된 필드만 업데이트
     if (document.getElementById('auto-lanes').checked) {
@@ -463,18 +464,24 @@ function runGenerator() {
 
     const gridSize = parseInt(document.getElementById('gen-size').value) || 8;
 
+    const maxLen = parseInt(document.getElementById('gen-max-len').value) || 8;
+
+    // Bending 모드에서는 더 긴 필러 사용
+    const fillerMin = bendingEnabled ? 2 : 1;
+    const fillerMax = bendingEnabled ? Math.min(6, maxLen - 2) : Math.min(3, maxLen - 1);
+
     const config = {
         gridSize: gridSize,
         laneCount: parseInt(document.getElementById('gen-lanes').value) || 2,
         balloonsPerLane: parseInt(document.getElementById('gen-balloons').value) || 2,
         missArrowCount: parseInt(document.getElementById('gen-miss').value) || 1,
-        minBlockLength: parseInt(document.getElementById('gen-min-len').value) || 2,
-        maxBlockLength: parseInt(document.getElementById('gen-max-len').value) || 3,
+        minBlockLength: parseInt(document.getElementById('gen-min-len').value) || 3,
+        maxBlockLength: maxLen,
         targetDensity: targetDensity,
         densityMode: fillerEnabled ? 'fill' : 'manual',
         fillerEnabled: fillerEnabled,
-        fillerMinLength: 1,
-        fillerMaxLength: 2,
+        fillerMinLength: fillerMin,
+        fillerMaxLength: Math.max(2, fillerMax),
         bendingEnabled: bendingEnabled,
         bendingChance: bendingEnabled ? 1.0 : 0,
         branchingMode: branchingMode,

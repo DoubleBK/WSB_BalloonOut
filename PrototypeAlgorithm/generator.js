@@ -39,14 +39,14 @@ const TURN_PRIORITY = {
 // 반대 방향 매핑
 const OPPOSITE = { U: 'D', D: 'U', L: 'R', R: 'L' };
 
-// 확장된 파라미터 범위
+// 확장된 파라미터 범위 (v8: 더 긴 화살표 지원)
 const PARAM_RANGES = {
     gridSize: { min: 5, max: 12 },
     laneCount: { min: 1, max: 6 },
     balloonsPerLane: { min: 1, max: 8 },
     missArrowCount: { min: 0, max: 10 },
-    minBlockLength: { min: 1, max: 5 },
-    maxBlockLength: { min: 2, max: 6 },
+    minBlockLength: { min: 1, max: 8 },
+    maxBlockLength: { min: 2, max: 20 },   // Bending 모드에서 20칸까지 가능
     targetDensity: { min: 0.2, max: 0.8 }
 };
 
@@ -59,9 +59,9 @@ const DEFAULT_CONFIG = {
     balloonsPerLane: 2,
     missArrowCount: 1,
 
-    // 화살표 길이
-    minBlockLength: 2,
-    maxBlockLength: 3,
+    // 화살표 길이 (v8: Bending 모드에서 더 긴 화살표)
+    minBlockLength: 3,
+    maxBlockLength: 8,
 
     // 밀도 제어
     targetDensity: 0.5,       // 목표 밀도 (0.2 ~ 0.8)
@@ -69,8 +69,8 @@ const DEFAULT_CONFIG = {
 
     // 필러 설정
     fillerEnabled: true,
-    fillerMinLength: 1,
-    fillerMaxLength: 2,
+    fillerMinLength: 2,
+    fillerMaxLength: 5,
 
     // ReverseGrowth (꺾이는 화살표) 설정
     bendingEnabled: true,     // 꺾이는 화살표 사용 여부
@@ -82,38 +82,63 @@ const DEFAULT_CONFIG = {
 };
 
 /**
- * Grid 크기 기반 Auto 파라미터 계산
+ * Grid 크기 기반 Auto 파라미터 계산 (v8: 적은 수의 긴 화살표)
  * @param {number} gridSize - 그리드 크기
  * @param {number} targetDensity - 목표 밀도 (선택적)
+ * @param {boolean} bendingEnabled - 꺾이는 화살표 사용 여부
  * @returns {object} 자동 계산된 파라미터
  */
-function calculateAutoParams(gridSize, targetDensity = 0.5) {
+function calculateAutoParams(gridSize, targetDensity = 0.5, bendingEnabled = true) {
     const totalCells = gridSize * gridSize;
 
-    // 그리드 크기별 기본 설정
+    // 그리드 크기별 기본 설정 (v8: 적은 화살표, 긴 길이)
     const sizeCategory = gridSize <= 6 ? 'small' : gridSize <= 9 ? 'medium' : 'large';
 
-    const presets = {
+    // Bending 모드: 긴 화살표 + 적당한 개수 (밸런스 조정)
+    const presets = bendingEnabled ? {
+        small: {  // 5-6 (25-36셀)
+            laneCount: 2,
+            balloonsPerLane: 2,
+            missArrowCount: 1,
+            minBlockLength: 3,
+            maxBlockLength: 6
+        },
+        medium: { // 7-9 (49-81셀)
+            laneCount: 2,
+            balloonsPerLane: 3,
+            missArrowCount: 2,
+            minBlockLength: 4,
+            maxBlockLength: 8
+        },
+        large: {  // 10-12 (100-144셀)
+            laneCount: 3,
+            balloonsPerLane: 3,
+            missArrowCount: 3,
+            minBlockLength: 5,
+            maxBlockLength: 10
+        }
+    } : {
+        // 직선 화살표 모드
         small: {  // 5-6
             laneCount: 2,
             balloonsPerLane: 2,
             missArrowCount: 1,
             minBlockLength: 2,
-            maxBlockLength: 3
+            maxBlockLength: 4
         },
         medium: { // 7-9
-            laneCount: 3,
+            laneCount: 2,
             balloonsPerLane: 3,
             missArrowCount: 2,
             minBlockLength: 2,
-            maxBlockLength: 4
+            maxBlockLength: 5
         },
         large: {  // 10-12
-            laneCount: 4,
-            balloonsPerLane: 4,
+            laneCount: 3,
+            balloonsPerLane: 3,
             missArrowCount: 3,
-            minBlockLength: 2,
-            maxBlockLength: 4
+            minBlockLength: 3,
+            maxBlockLength: 6
         }
     };
 
@@ -125,23 +150,25 @@ function calculateAutoParams(gridSize, targetDensity = 0.5) {
     const baseDensity = (baseArrowCount * avgLength) / totalCells;
 
     // 밀도 조정이 필요한 경우
-    if (targetDensity > baseDensity + 0.1) {
-        // 밀도를 높여야 함 - 화살표 수 증가
-        const targetArrows = Math.floor((targetDensity * totalCells) / avgLength);
-        const additionalArrows = targetArrows - baseArrowCount;
-
-        if (additionalArrows > 0) {
-            // Miss 화살표로 추가
-            preset.missArrowCount += Math.min(additionalArrows, 5);
+    if (targetDensity > baseDensity + 0.15) {
+        // 밀도를 높여야 함 - Bending 모드에서는 길이 증가 우선
+        if (bendingEnabled) {
+            preset.maxBlockLength = Math.min(preset.maxBlockLength + 3, 20);
+        } else {
+            // 직선 모드에서는 화살표 수 약간 증가
+            preset.missArrowCount += Math.min(2, 5 - preset.missArrowCount);
         }
     }
+
+    // 필러 설정도 Bending 모드에서는 더 길게
+    const fillerMaxLen = bendingEnabled ? Math.min(6, preset.maxBlockLength - 2) : Math.min(3, preset.maxBlockLength - 1);
 
     return {
         ...preset,
         targetDensity: targetDensity,
         fillerEnabled: true,
-        fillerMinLength: 1,
-        fillerMaxLength: Math.min(2, preset.maxBlockLength - 1)
+        fillerMinLength: bendingEnabled ? 2 : 1,
+        fillerMaxLength: Math.max(2, fillerMaxLen)
     };
 }
 
@@ -574,7 +601,10 @@ function placeFillersForDensity(blocks, occupiedSet, cfg) {
     let attempts = 0;
     const maxAttempts = 100;
 
+    const useBending = cfg.bendingEnabled && cfg.bendingChance > 0;
+
     console.log(`  Filler: Current density ${(currentOccupied / totalCells * 100).toFixed(1)}%, target ${(cfg.targetDensity * 100).toFixed(1)}%`);
+    console.log(`  Filler: Using ${useBending ? 'bending' : 'straight'} mode`);
 
     while (currentOccupied < targetOccupied && attempts < maxAttempts) {
         attempts++;
@@ -583,18 +613,23 @@ function placeFillersForDensity(blocks, occupiedSet, cfg) {
         const color = randomPick(GENERATOR_COLORS);
         const length = randomInt(cfg.fillerMinLength, cfg.fillerMaxLength);
 
-        // 빈 공간에 배치 시도
-        const placement = placeFallback(color, length, cfg.gridSize, occupiedSet);
+        // Bending 모드에 따라 다른 배치 함수 사용
+        const placement = useBending
+            ? placeFallbackBending(color, length, cfg.gridSize, occupiedSet)
+            : placeFallback(color, length, cfg.gridSize, occupiedSet);
 
         if (placement) {
+            const isBending = !!placement.path;
             const fillerBlock = {
                 x: placement.x,
                 y: placement.y,
                 c: color,
-                d: placement.dir,
-                l: length,
+                d: isBending ? placement.headDir : placement.dir,
+                l: placement.cells.length,  // 실제 길이 사용
                 cells: placement.cells,
-                isFiller: true  // 필러 표시
+                isFiller: true,
+                path: isBending ? placement.path : null,
+                isBending: isBending
             };
 
             fillers.push(fillerBlock);
@@ -605,7 +640,8 @@ function placeFillersForDensity(blocks, occupiedSet, cfg) {
             }
 
             currentOccupied = occupiedSet.size;
-            console.log(`  Filler ${fillers.length}: ${color} at (${placement.x},${placement.y}) dir=${placement.dir} len=${length}`);
+            const bendLabel = isBending ? ' [bending]' : '';
+            console.log(`  Filler ${fillers.length}: ${color} at (${placement.x},${placement.y}) dir=${fillerBlock.d} len=${fillerBlock.l}${bendLabel}`);
         }
     }
 
@@ -733,7 +769,7 @@ function generateLevel(config = {}) {
     // densityMode에 따른 처리
     if (cfg.densityMode === 'auto') {
         // Auto 모드: 목표 밀도에 맞춰 화살표 수 자동 조정
-        const autoParams = calculateAutoParams(cfg.gridSize, cfg.targetDensity);
+        const autoParams = calculateAutoParams(cfg.gridSize, cfg.targetDensity, cfg.bendingEnabled);
         cfg = { ...cfg, ...autoParams };
         console.log("Auto mode: Calculated params", autoParams);
     }
