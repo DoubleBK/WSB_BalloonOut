@@ -1,5 +1,5 @@
 /**
- * Arrow Puzzle - Level Generator v7 (Density Control + Auto)
+ * Arrow Puzzle - Level Generator v8 (ReverseGrowth + Bending)
  *
  * 핵심 아이디어: "먼저 배치한 화살표의 Body가 나중 화살표의 탈출 경로를 막는다"
  * - 첫 번째 화살표: 즉시 탈출 가능
@@ -11,6 +11,11 @@
  * - 밀도 목표 기반 생성
  * - 빈 공간 필러
  * - Grid 크기 기반 Auto 계산
+ *
+ * v8 추가:
+ * - ReverseGrowth 알고리즘 (꺾이는 화살표)
+ * - "직진 선호 + 막히면 꺾음" 방식
+ * - 높은 FillRate 달성 (70-90%)
  */
 
 const GENERATOR_COLORS = ['R', 'G', 'Y', 'P'];
@@ -22,6 +27,17 @@ const DIR_VECTORS = {
     L: { dx: -1, dy: 0 },
     R: { dx: 1, dy: 0 }
 };
+
+// ReverseGrowth: 방향 전환 우선순위 (직진 > 좌/우, 뒤로 가기 금지)
+const TURN_PRIORITY = {
+    U: ['U', 'L', 'R'],  // 위 → 위/좌/우 (아래 금지)
+    D: ['D', 'R', 'L'],  // 아래 → 아래/우/좌 (위 금지)
+    L: ['L', 'D', 'U'],  // 왼쪽 → 왼/아래/위 (오른쪽 금지)
+    R: ['R', 'U', 'D']   // 오른쪽 → 오른/위/아래 (왼쪽 금지)
+};
+
+// 반대 방향 매핑
+const OPPOSITE = { U: 'D', D: 'U', L: 'R', R: 'L' };
 
 // 확장된 파라미터 범위
 const PARAM_RANGES = {
@@ -55,6 +71,10 @@ const DEFAULT_CONFIG = {
     fillerEnabled: true,
     fillerMinLength: 1,
     fillerMaxLength: 2,
+
+    // ReverseGrowth (꺾이는 화살표) 설정
+    bendingEnabled: true,     // 꺾이는 화살표 사용 여부
+    bendingChance: 1.0,       // 꺾이는 화살표 비율 (0~1, 1.0 = 모두 꺾이는 방식)
 
     // 기존 설정
     branchingMode: false,
@@ -328,6 +348,215 @@ function placeFallback(color, length, gridSize, occupiedSet) {
     return randomPick(candidates);
 }
 
+// ============================================================
+// ReverseGrowth: 꺾이는 화살표 생성 알고리즘
+// "직진을 선호하지만, 막히면 옆으로 꺾는다"
+// ============================================================
+
+/**
+ * 다음 성장 셀 찾기 (우선순위: 직진 > 좌/우 랜덤 > 실패)
+ * @param {number} x - 현재 x 좌표
+ * @param {number} y - 현재 y 좌표
+ * @param {string} preferredDir - 선호 방향 (현재 진행 방향)
+ * @param {Set} occupiedSet - 점유된 셀들
+ * @param {number} gridSize - 그리드 크기
+ * @returns {object|null} { x, y, dir } 또는 null
+ */
+function findNextGrowthCell(x, y, preferredDir, occupiedSet, gridSize) {
+    const priority = TURN_PRIORITY[preferredDir];
+    // 직진 우선, 좌우는 랜덤 순서
+    const shuffledTurns = shuffle([priority[1], priority[2]]);
+    const searchOrder = [priority[0], ...shuffledTurns];
+
+    for (const dir of searchOrder) {
+        const d = DIR_VECTORS[dir];
+        const nx = x + d.dx;
+        const ny = y + d.dy;
+
+        if (isInBounds(nx, ny, gridSize) && !occupiedSet.has(`${nx},${ny}`)) {
+            return { x: nx, y: ny, dir };
+        }
+    }
+    return null;  // 모든 방향 막힘
+}
+
+/**
+ * ReverseGrowth 방식으로 화살표 경로 생성
+ * Head에서 시작하여 반대 방향으로 Body를 성장
+ * @param {number} headX - Head의 x 좌표
+ * @param {number} headY - Head의 y 좌표
+ * @param {string} headDir - Head의 탈출 방향 (U/D/L/R)
+ * @param {number} targetLength - 목표 길이
+ * @param {Set} occupiedSet - 점유된 셀들
+ * @param {number} gridSize - 그리드 크기
+ * @returns {object|null} { path: [{x,y}], headDir: string } 또는 null
+ */
+function growArrowReverse(headX, headY, headDir, targetLength, occupiedSet, gridSize) {
+    const path = [{ x: headX, y: headY }];
+
+    // 성장 방향 = 탈출 방향의 반대
+    let currentDir = OPPOSITE[headDir];
+    let currentX = headX;
+    let currentY = headY;
+
+    for (let i = 1; i < targetLength; i++) {
+        const next = findNextGrowthCell(currentX, currentY, currentDir, occupiedSet, gridSize);
+
+        if (!next) {
+            // 더 이상 성장 불가 - 현재까지의 경로 반환
+            break;
+        }
+
+        path.push({ x: next.x, y: next.y });
+        currentX = next.x;
+        currentY = next.y;
+        currentDir = next.dir;  // 꺾였으면 방향 변경
+    }
+
+    // 최소 2칸 이상이어야 유효
+    if (path.length >= 2) {
+        return { path, headDir };
+    }
+    return null;
+}
+
+/**
+ * 그리드 가장자리 위치 반환 (해당 방향으로 즉시 탈출 가능한 위치들)
+ * @param {string} dir - 탈출 방향
+ * @param {number} gridSize - 그리드 크기
+ * @returns {Array} [{x, y}, ...]
+ */
+function getEdgePositions(dir, gridSize) {
+    const positions = [];
+
+    switch (dir) {
+        case 'U':  // 위로 탈출 → y=0 라인
+            for (let x = 0; x < gridSize; x++) positions.push({ x, y: 0 });
+            break;
+        case 'D':  // 아래로 탈출 → y=gridSize-1 라인
+            for (let x = 0; x < gridSize; x++) positions.push({ x, y: gridSize - 1 });
+            break;
+        case 'L':  // 왼쪽으로 탈출 → x=0 라인
+            for (let y = 0; y < gridSize; y++) positions.push({ x: 0, y });
+            break;
+        case 'R':  // 오른쪽으로 탈출 → x=gridSize-1 라인
+            for (let y = 0; y < gridSize; y++) positions.push({ x: gridSize - 1, y });
+            break;
+    }
+
+    return shuffle(positions);
+}
+
+/**
+ * 꺾이는 첫 번째 화살표 배치 (즉시 탈출 가능)
+ */
+function placeFirstArrowBending(color, length, gridSize, occupiedSet) {
+    const candidates = [];
+    const dirs = shuffle(DIRECTIONS);
+
+    for (const headDir of dirs) {
+        // 해당 방향으로 탈출 가능한 가장자리 위치들
+        const edgePositions = getEdgePositions(headDir, gridSize);
+
+        for (const { x, y } of edgePositions) {
+            if (occupiedSet.has(`${x},${y}`)) continue;
+
+            // ReverseGrowth 시도
+            const result = growArrowReverse(x, y, headDir, length, occupiedSet, gridSize);
+
+            if (result && result.path.length >= Math.min(length, 2)) {
+                // 탈출 경로 확인 (Head 앞에 장애물 없는지)
+                const escapePath = getEscapePath(x, y, headDir, gridSize);
+                const blocked = escapePath.some(p => occupiedSet.has(`${p.x},${p.y}`));
+
+                if (!blocked) {
+                    candidates.push({
+                        x, y,
+                        headDir: result.headDir,
+                        path: result.path,
+                        cells: result.path  // cells = path
+                    });
+                }
+            }
+        }
+    }
+
+    if (candidates.length === 0) return null;
+    return randomPick(candidates);
+}
+
+/**
+ * 꺾이는 화살표를 이전 화살표에 의해 막히는 위치에 배치
+ */
+function findBlockedPositionBending(color, length, gridSize, occupiedSet, blockerCells) {
+    const candidates = [];
+    const blockerSet = new Set(blockerCells.map(c => `${c.x},${c.y}`));
+
+    for (let x = 0; x < gridSize; x++) {
+        for (let y = 0; y < gridSize; y++) {
+            if (occupiedSet.has(`${x},${y}`)) continue;
+
+            for (const headDir of shuffle(DIRECTIONS)) {
+                // ReverseGrowth 시도
+                const result = growArrowReverse(x, y, headDir, length, occupiedSet, gridSize);
+
+                if (!result || result.path.length < Math.min(length, 2)) continue;
+
+                // 탈출 경로가 blocker를 지나가는지 확인
+                const escapePath = getEscapePath(x, y, headDir, gridSize);
+                const blockedByBlocker = escapePath.some(p => blockerSet.has(`${p.x},${p.y}`));
+
+                if (blockedByBlocker) {
+                    // 다른 화살표(blocker 제외)에 의해 추가로 막히지 않는지 확인
+                    const otherOccupied = new Set([...occupiedSet].filter(k => !blockerSet.has(k)));
+                    const blockedByOthers = escapePath.some(p => otherOccupied.has(`${p.x},${p.y}`));
+
+                    if (!blockedByOthers) {
+                        candidates.push({
+                            x, y,
+                            headDir: result.headDir,
+                            path: result.path,
+                            cells: result.path
+                        });
+                    }
+                }
+            }
+        }
+    }
+
+    if (candidates.length === 0) return null;
+    return randomPick(candidates);
+}
+
+/**
+ * 꺾이는 화살표 폴백: 아무 곳에나 배치
+ */
+function placeFallbackBending(color, length, gridSize, occupiedSet) {
+    const candidates = [];
+
+    for (let x = 0; x < gridSize; x++) {
+        for (let y = 0; y < gridSize; y++) {
+            if (occupiedSet.has(`${x},${y}`)) continue;
+
+            for (const headDir of shuffle(DIRECTIONS)) {
+                const result = growArrowReverse(x, y, headDir, length, occupiedSet, gridSize);
+
+                if (result && result.path.length >= Math.min(length, 2)) {
+                    candidates.push({
+                        x, y,
+                        headDir: result.headDir,
+                        path: result.path,
+                        cells: result.path
+                    });
+                }
+            }
+        }
+    }
+
+    if (candidates.length === 0) return null;
+    return randomPick(candidates);
+}
+
 /**
  * 빈 공간 필러 배치
  * 목표 밀도에 도달할 때까지 빈 공간에 추가 화살표 배치
@@ -509,7 +738,8 @@ function generateLevel(config = {}) {
         console.log("Auto mode: Calculated params", autoParams);
     }
 
-    console.log("=== Generator v7 (Density Control) ===");
+    console.log("=== Generator v8 (ReverseGrowth) ===");
+    console.log(`Bending: ${cfg.bendingEnabled ? 'enabled' : 'disabled'} (chance: ${cfg.bendingChance})`);
     console.log("Config:", cfg);
     console.log(`Target density: ${(cfg.targetDensity * 100).toFixed(1)}%`);
 
@@ -536,10 +766,15 @@ function generateLevel(config = {}) {
             const length = randomInt(cfg.minBlockLength, cfg.maxBlockLength);
 
             let placement = null;
+            const useBending = cfg.bendingEnabled && Math.random() < cfg.bendingChance;
 
             if (i === 0) {
                 // 첫 번째: 즉시 탈출 가능한 위치
-                placement = placeFirstArrow(color, length, cfg.gridSize, occupiedSet);
+                if (useBending) {
+                    placement = placeFirstArrowBending(color, length, cfg.gridSize, occupiedSet);
+                } else {
+                    placement = placeFirstArrow(color, length, cfg.gridSize, occupiedSet);
+                }
             } else {
                 // 분기 모드: 일정 확률로 폴백(자유 배치) 사용
                 const useBranching = cfg.branchingMode && Math.random() < cfg.branchingChance;
@@ -547,17 +782,29 @@ function generateLevel(config = {}) {
                 if (useBranching) {
                     // 분기 모드: 막히지 않는 자유로운 위치에 배치
                     console.log(`  Arrow ${i}: Branching mode - free placement`);
-                    placement = placeFirstArrow(color, length, cfg.gridSize, occupiedSet);
+                    if (useBending) {
+                        placement = placeFirstArrowBending(color, length, cfg.gridSize, occupiedSet);
+                    } else {
+                        placement = placeFirstArrow(color, length, cfg.gridSize, occupiedSet);
+                    }
                 } else {
                     // 일반 모드: 이전 화살표에 의해 막히는 위치
                     const prevBlock = blocks[i - 1];
-                    placement = findBlockedPosition(color, length, cfg.gridSize, occupiedSet, prevBlock.cells);
+                    if (useBending) {
+                        placement = findBlockedPositionBending(color, length, cfg.gridSize, occupiedSet, prevBlock.cells);
+                    } else {
+                        placement = findBlockedPosition(color, length, cfg.gridSize, occupiedSet, prevBlock.cells);
+                    }
                 }
 
                 // 못 찾으면 폴백
                 if (!placement) {
                     console.log(`  Arrow ${i}: Fallback (couldn't find blocked position)`);
-                    placement = placeFallback(color, length, cfg.gridSize, occupiedSet);
+                    if (useBending) {
+                        placement = placeFallbackBending(color, length, cfg.gridSize, occupiedSet);
+                    } else {
+                        placement = placeFallback(color, length, cfg.gridSize, occupiedSet);
+                    }
                 }
             }
 
@@ -567,14 +814,17 @@ function generateLevel(config = {}) {
                 break;
             }
 
-            // 배치
+            // 배치 - 꺾이는 화살표는 headDir을 d로, path를 저장
+            const isBending = !!placement.path;
             const block = {
                 x: placement.x,
                 y: placement.y,
                 c: color,
-                d: placement.dir,
-                l: length,
-                cells: placement.cells
+                d: isBending ? placement.headDir : placement.dir,  // headDir을 d로 저장 (호환성)
+                l: placement.cells.length,  // 실제 길이
+                cells: placement.cells,
+                path: isBending ? placement.path : null,  // 꺾이는 화살표만 path 저장
+                isBending: isBending
             };
             blocks.push(block);
 
@@ -583,7 +833,8 @@ function generateLevel(config = {}) {
                 occupiedSet.add(`${c.x},${c.y}`);
             }
 
-            console.log(`  Arrow ${i}: ${color} at (${placement.x},${placement.y}) dir=${placement.dir} len=${length}`);
+            const bendingLabel = isBending ? ' [bending]' : '';
+            console.log(`  Arrow ${i}: ${color} at (${placement.x},${placement.y}) dir=${block.d} len=${block.l}${bendingLabel}`);
         }
 
         if (!success) continue;
@@ -617,15 +868,25 @@ function generateLevel(config = {}) {
                 orderMap.set(originalIdx, seqIdx + 1);  // 1부터 시작
             });
 
-            const cleanBlocks = allBlocks.map((b, idx) => ({
-                x: b.x,
-                y: b.y,
-                c: b.c,
-                d: b.d,
-                l: b.l,
-                order: orderMap.get(idx) || 0,  // 실제 탈출 순서
-                isFiller: b.isFiller || false   // 필러 여부
-            }));
+            const cleanBlocks = allBlocks.map((b, idx) => {
+                const block = {
+                    x: b.x,
+                    y: b.y,
+                    c: b.c,
+                    d: b.d,
+                    l: b.l,
+                    order: orderMap.get(idx) || 0,  // 실제 탈출 순서
+                    isFiller: b.isFiller || false   // 필러 여부
+                };
+
+                // 꺾이는 화살표는 path 포함
+                if (b.path) {
+                    block.path = b.path;
+                    block.isBending = true;
+                }
+
+                return block;
+            });
 
             const finalDensity = calculateDensity(occupiedSet, cfg.gridSize);
             console.log("=== Generation Successful! ===");
@@ -657,8 +918,9 @@ function generateLevel(config = {}) {
 window.LevelGenerator = {
     generateLevel,
     calculateAutoParams,
+    growArrowReverse,  // 테스트용 export
     DEFAULT_CONFIG,
     PARAM_RANGES
 };
 
-console.log("Generator v7 (Density Control + Auto) loaded. Use LevelGenerator.generateLevel()");
+console.log("Generator v8 (ReverseGrowth + Bending) loaded. Use LevelGenerator.generateLevel()");

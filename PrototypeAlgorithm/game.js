@@ -62,14 +62,23 @@ function initLevel(idx) {
     solutionOrder = [];  // 초기화
 
     lvl.blocks.forEach((b, i) => {
-        const cells = [];
-        const dParams = DIRS[b.d];
-        for (let k = 0; k < b.l; k++) {
-            cells.push({
-                x: b.x - (dParams.dx * k),
-                y: b.y - (dParams.dy * k)
-            });
+        let cells;
+
+        if (b.path) {
+            // 꺾이는 화살표: path를 직접 cells로 사용
+            cells = b.path.map(p => ({ x: p.x, y: p.y }));
+        } else {
+            // 직선 화살표: 기존 방식으로 계산
+            cells = [];
+            const dParams = DIRS[b.d];
+            for (let k = 0; k < b.l; k++) {
+                cells.push({
+                    x: b.x - (dParams.dx * k),
+                    y: b.y - (dParams.dy * k)
+                });
+            }
         }
+
         const block = { ...b, id: i, cells: cells, state: 'normal' };
         blocks.push(block);
 
@@ -449,6 +458,7 @@ function updateAutoValues() {
 function runGenerator() {
     const branchingMode = document.getElementById('gen-branching').checked;
     const fillerEnabled = document.getElementById('gen-filler').checked;
+    const bendingEnabled = document.getElementById('gen-bending').checked;
     const targetDensity = parseInt(document.getElementById('gen-density').value) / 100;
 
     const gridSize = parseInt(document.getElementById('gen-size').value) || 8;
@@ -465,6 +475,8 @@ function runGenerator() {
         fillerEnabled: fillerEnabled,
         fillerMinLength: 1,
         fillerMaxLength: 2,
+        bendingEnabled: bendingEnabled,
+        bendingChance: bendingEnabled ? 1.0 : 0,
         branchingMode: branchingMode,
         branchingChance: branchingMode ? 0.5 : 0
     };
