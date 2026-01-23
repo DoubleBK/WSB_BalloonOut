@@ -116,6 +116,33 @@ namespace BalloonOut.UI
             return count;
         }
 
+        /// <summary>
+        /// 특정 색상의 풍선 월드 좌표 반환 (HomingArrow 타겟용)
+        /// 해당 색상의 Head 풍선(마지막 풍선) 위치를 반환
+        /// </summary>
+        public Vector3 GetBalloonWorldPosition(GameColor color)
+        {
+            for (int laneIdx = 0; laneIdx < _lanes.Count; laneIdx++)
+            {
+                var lane = _lanes[laneIdx];
+                if (lane.Count > 0 && lane[lane.Count - 1] == color)
+                {
+                    // 해당 레인의 마지막 풍선 (Head)
+                    if (_balloonImages.Count > laneIdx && _balloonImages[laneIdx].Count > 0)
+                    {
+                        var balloonList = _balloonImages[laneIdx];
+                        var headBalloon = balloonList[balloonList.Count - 1];
+                        if (headBalloon != null)
+                        {
+                            return headBalloon.transform.position;
+                        }
+                    }
+                }
+            }
+
+            return Vector3.zero;
+        }
+
         // ========== 내부 유틸리티 ==========
 
         /// <summary>
@@ -136,7 +163,9 @@ namespace BalloonOut.UI
                 else
                 {
                     laneObj = new GameObject($"Lane_{laneIdx}");
-                    laneObj.transform.SetParent(_lanesContainer);
+                    laneObj.transform.SetParent(_lanesContainer, false);
+                    laneObj.AddComponent<RectTransform>();
+                    laneObj.transform.localScale = Vector3.one;
                     var layout = laneObj.AddComponent<HorizontalLayoutGroup>();
                     layout.spacing = _balloonSpacing;
                     layout.childAlignment = TextAnchor.MiddleCenter;
@@ -168,20 +197,56 @@ namespace BalloonOut.UI
         private GameObject CreateBalloon(Transform parent, GameColor color)
         {
             GameObject balloonObj;
+            float targetWidth;
+            float targetHeight;
 
             if (_balloonPrefab != null)
             {
                 balloonObj = Instantiate(_balloonPrefab, parent);
+
+                // 프리팹의 원본 크기 사용
+                var prefabRect = balloonObj.GetComponent<RectTransform>();
+                if (prefabRect != null)
+                {
+                    targetWidth = prefabRect.sizeDelta.x;
+                    targetHeight = prefabRect.sizeDelta.y;
+                }
+                else
+                {
+                    targetWidth = _balloonSize;
+                    targetHeight = _balloonSize;
+                }
             }
             else
             {
                 balloonObj = new GameObject("Balloon");
-                balloonObj.transform.SetParent(parent);
+                balloonObj.transform.SetParent(parent, false);
+                balloonObj.AddComponent<Image>();
 
-                var image = balloonObj.AddComponent<Image>();
+                // _balloonSize 사용
+                targetWidth = _balloonSize;
+                targetHeight = _balloonSize;
+
                 var rect = balloonObj.GetComponent<RectTransform>();
-                rect.sizeDelta = new Vector2(_balloonSize, _balloonSize);
+                if (rect != null)
+                {
+                    rect.sizeDelta = new Vector2(targetWidth, targetHeight);
+                }
             }
+
+            // localScale 보정
+            balloonObj.transform.localScale = Vector3.one;
+
+            // LayoutElement로 크기 고정
+            var layoutElement = balloonObj.GetComponent<LayoutElement>();
+            if (layoutElement == null)
+            {
+                layoutElement = balloonObj.AddComponent<LayoutElement>();
+            }
+            layoutElement.minWidth = targetWidth;
+            layoutElement.minHeight = targetHeight;
+            layoutElement.preferredWidth = targetWidth;
+            layoutElement.preferredHeight = targetHeight;
 
             // 색상 설정
             var img = balloonObj.GetComponent<Image>();
@@ -194,21 +259,18 @@ namespace BalloonOut.UI
         }
 
         /// <summary>
-        /// Head 풍선 강조
+        /// Head 풍선 강조 (현재 비활성화 - 모든 풍선 동일 크기)
         /// </summary>
         private void UpdateHeadHighlights()
         {
+            // 모든 풍선 동일 크기 유지
             for (int laneIdx = 0; laneIdx < _balloonImages.Count; laneIdx++)
             {
                 var lane = _balloonImages[laneIdx];
                 for (int i = 0; i < lane.Count; i++)
                 {
-                    bool isHead = (i == lane.Count - 1);
                     var balloon = lane[i];
-
-                    // Head 강조 (스케일)
-                    float scale = isHead ? 1.2f : 1f;
-                    balloon.transform.localScale = Vector3.one * scale;
+                    balloon.transform.localScale = Vector3.one;
                 }
             }
         }

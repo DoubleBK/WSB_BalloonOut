@@ -54,8 +54,8 @@ MonoBehaviour:
   _collider: {fileID: 4197109924360535689}
   _moveSpeed: 20
   _moveEase: 6
-  _launchPunchScale: 0.15
-  _launchPunchDuration: 0.1
+  _launchPunchScale: 0
+  _launchPunchDuration: 0
 --- !u!114 &-8690141840393885430
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -68,13 +68,15 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: fe7af0e0c91d2d548b2dbc766da7d23b, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  _shapeController: {fileID: 0}
+  _shapeRenderer: {fileID: 0}
   _lineRenderer: {fileID: 9008595528271327410}
   _headRenderer: {fileID: 1606016314437030341}
-  _lineWidth: 0.3
+  _lineWidth: 0.2
+  _headTailOffset: 0.2
+  _headScale: 0.75
   _numCapVertices: 10
   _numCornerVertices: 5
-  _headTailOffset: 0.35
-  _headScale: 1
 --- !u!114 &-6855559475930686023
 MonoBehaviour:
   m_ObjectHideFlags: 0

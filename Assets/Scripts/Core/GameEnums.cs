@@ -182,5 +182,26 @@ namespace BalloonOut.Core
         {
             return Colors.TryGetValue(gameColor, out var color) ? color : Color.white;
         }
+
+        public static string ToString(GameColor gameColor)
+        {
+            return gameColor switch
+            {
+                GameColor.Red => "R",
+                GameColor.Blue => "B",
+                GameColor.Green => "G",
+                GameColor.Yellow => "Y",
+                GameColor.Purple => "P",
+                GameColor.Orange => "O",
+                GameColor.Cyan => "C",
+                GameColor.Pink => "K",
+                GameColor.Brown => "W",
+                GameColor.Lime => "L",
+                GameColor.Navy => "N",
+                GameColor.Magenta => "M",
+                GameColor.Black => "X",
+                _ => "R"
+            };
+        }
     }
 }

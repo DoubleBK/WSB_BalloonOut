@@ -19,15 +19,20 @@ namespace BalloonOut.Core
         public System.Action<GameState> OnGameStateChanged;
         public System.Action<GameColor, bool> OnArrowEscaped;  // color, wasMatch
         public System.Action OnLevelCleared;
+        public System.Action OnLevelFailed;
 
         // ========== 인스펙터 노출 변수 ==========
         [Header("References")]
         [SerializeField] private GridSystem _gridSystem;
         [SerializeField] private QueueUI _queueUI;
         [SerializeField] private Transform _arrowContainer;
+        [SerializeField] private HomingArrowSpawner _homingArrowSpawner;
 
         [Header("Prefabs")]
         [SerializeField] private GameObject _arrowPrefab;
+
+        [Header("Homing Arrow Settings")]
+        [SerializeField] private bool _useHomingArrow = true;
 
         [Header("Test Level")]
         [SerializeField] private string _testLevelName = "Test_001";
@@ -37,6 +42,17 @@ namespace BalloonOut.Core
         private LevelData _currentLevel;
         private List<ArrowController> _arrows = new List<ArrowController>();
         private bool _isProcessing = false;
+
+        // ========== 에디터 테스트용 ==========
+        private static LevelData _editorTestLevel;
+
+        /// <summary>
+        /// 에디터에서 테스트할 레벨 설정 (Play Mode 진입 전 호출)
+        /// </summary>
+        public static void SetEditorTestLevel(LevelData levelData)
+        {
+            _editorTestLevel = levelData;
+        }
 
         // ========== 프로퍼티 ==========
         public GameState State => _state;
@@ -55,7 +71,15 @@ namespace BalloonOut.Core
 
         private void Start()
         {
-            // 테스트 레벨 로드
+            // 에디터에서 설정한 테스트 레벨이 있으면 우선 사용
+            if (_editorTestLevel != null)
+            {
+                InitializeLevel(_editorTestLevel);
+                _editorTestLevel = null; // 사용 후 초기화
+                return;
+            }
+
+            // 기본 테스트 레벨 로드
             LoadLevel(_testLevelName);
         }
 
@@ -97,6 +121,14 @@ namespace BalloonOut.Core
             if (_queueUI != null && levelData.lanes != null)
             {
                 _queueUI.Initialize(levelData.lanes);
+            }
+
+            // HomingArrowSpawner 초기화
+            if (_homingArrowSpawner != null && _queueUI != null)
+            {
+                _homingArrowSpawner.Initialize(_queueUI);
+                _homingArrowSpawner.OnHomingHitTarget -= OnHomingHitTargetHandler;
+                _homingArrowSpawner.OnHomingHitTarget += OnHomingHitTargetHandler;
             }
 
             // 화살표 스폰
@@ -162,7 +194,24 @@ namespace BalloonOut.Core
             controller.Initialize(id, data);
             controller.OnTapped += OnArrowTapped;
 
+            // HomingArrow 사용 시 탈출 시작 이벤트 구독
+            if (_useHomingArrow && _homingArrowSpawner != null)
+            {
+                controller.OnExtractionStarted += OnArrowExtractionStartedHandler;
+            }
+
             _arrows.Add(controller);
+        }
+
+        /// <summary>
+        /// 화살표 탈출 시작 이벤트 핸들러 (HomingArrow 전환용)
+        /// </summary>
+        private void OnArrowExtractionStartedHandler(ArrowController arrow, Vector2 headPos, ArrowDirection exitDir)
+        {
+            if (_homingArrowSpawner != null)
+            {
+                _homingArrowSpawner.HandleArrowExtractionStarted(arrow, headPos, exitDir);
+            }
         }
 
         /// <summary>
@@ -236,23 +285,46 @@ namespace BalloonOut.Core
         /// </summary>
         private void OnArrowEscapedHandler(ArrowController arrow)
         {
-            // 풍선 팝 시도
+            // HomingArrow 사용 시 풍선 팝은 HomingArrow가 처리
+            if (_useHomingArrow && _homingArrowSpawner != null)
+            {
+                // 화살표 목록에서 제거만 수행
+                _arrows.Remove(arrow);
+                Debug.Log($"Arrow extracted, waiting for HomingArrow to hit balloon. Color: {arrow.Color}");
+                return;
+            }
+
+            // HomingArrow 미사용 시 기존 로직
             bool wasMatch = false;
             if (_queueUI != null)
             {
                 wasMatch = _queueUI.TryPopBalloon(arrow.Color);
             }
 
-            // 이벤트 발생
             OnArrowEscaped?.Invoke(arrow.Color, wasMatch);
-
-            // 화살표 목록에서 제거 (ArrowController가 자체 파괴함)
             _arrows.Remove(arrow);
-
-            // 승리 조건 확인
             CheckWinCondition();
 
             Debug.Log(wasMatch ? "POP!" : "FLY AWAY");
+        }
+
+        /// <summary>
+        /// HomingArrow 타겟 도달 이벤트 핸들러
+        /// </summary>
+        private void OnHomingHitTargetHandler(HomingArrow homingArrow, GameColor color)
+        {
+            // 풍선 팝 시도
+            bool wasMatch = false;
+            if (_queueUI != null)
+            {
+                wasMatch = _queueUI.TryPopBalloon(color);
+            }
+
+            OnArrowEscaped?.Invoke(color, wasMatch);
+            CheckWinCondition();
+
+            Debug.Log(wasMatch ? $"HomingArrow POP! Color: {color}" : $"HomingArrow missed! Color: {color}");
+            _isProcessing = false;
         }
 
         /// <summary>
@@ -265,6 +337,30 @@ namespace BalloonOut.Core
                 SetState(GameState.Clear);
                 OnLevelCleared?.Invoke();
                 Debug.Log("LEVEL CLEARED!");
+                return;
+            }
+
+            // 승리가 아니면 패배 조건 확인
+            CheckFailCondition();
+        }
+
+        /// <summary>
+        /// 패배 조건 확인
+        /// </summary>
+        private void CheckFailCondition()
+        {
+            // 이미 게임이 끝났으면 체크하지 않음
+            if (_state != GameState.Playing) return;
+
+            // 풍선이 남아있는데 화살표가 없으면 패배
+            bool hasRemainingBalloons = _queueUI != null && !_queueUI.IsAllCleared();
+            bool hasNoArrows = _arrows.Count == 0;
+
+            if (hasRemainingBalloons && hasNoArrows)
+            {
+                SetState(GameState.Failed);
+                OnLevelFailed?.Invoke();
+                Debug.Log("LEVEL FAILED! No more arrows.");
             }
         }
 
