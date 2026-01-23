@@ -41,9 +41,9 @@ namespace BalloonOut.Data
         public Vector2Int HeadPosition => new Vector2Int(x, y);
 
         /// <summary>
-        /// Direction enum 반환
+        /// ArrowDirection enum 반환
         /// </summary>
-        public Direction Direction => DirectionHelper.FromString(direction);
+        public ArrowDirection Direction => DirectionHelper.FromString(direction);
 
         /// <summary>
         /// GameColor enum 반환

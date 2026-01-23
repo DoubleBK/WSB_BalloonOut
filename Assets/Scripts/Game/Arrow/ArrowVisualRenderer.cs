@@ -6,10 +6,8 @@ using BalloonOut.Game.Grid;
 namespace BalloonOut.Game.Arrow
 {
     /// <summary>
-    /// 화살표 비주얼 렌더러 (ArrowPopBall 방식 복사)
-    /// cells[0] = TAIL, cells[last] = HEAD
-    /// transform.position = TAIL 위치 (첫 번째 셀)
-    /// LineRenderer는 로컬 좌표 사용
+    /// 화살표 시각적 렌더링 담당 (LineRenderer, Head 스프라이트, 색상)
+    /// ArrowController에서 분리됨
     /// </summary>
     public class ArrowVisualRenderer : MonoBehaviour
     {
@@ -32,40 +30,38 @@ namespace BalloonOut.Game.Arrow
         public float HeadTailOffset => _headTailOffset;
 
         // ========== 공개 인터페이스 ==========
-
         /// <summary>
         /// 초기 시각 설정
         /// </summary>
-        public void Initialize(GameColor color, Direction direction)
+        public void Initialize(GameColor color, ArrowDirection headDirection)
         {
-            UnityEngine.Color unityColor = ColorHelper.GetColor(color);
+            Color unityColor = GetUnityColor(color);
             SetupLineRenderer(unityColor);
-            SetupHeadRenderer(unityColor, direction);
+            SetupHeadRenderer(unityColor, headDirection);
         }
 
         /// <summary>
         /// LineRenderer 업데이트 (월드 좌표 기반)
-        /// positions[0] = TAIL, positions[last] = HEAD
         /// </summary>
-        public void UpdateLineRenderer(List<Vector3> cellWorldPositions, Vector2Int moveDirection)
+        public void UpdateLineRenderer(List<Vector2> cellWorldPositions, Vector2Int moveDirection)
         {
             if (_lineRenderer == null || cellWorldPositions == null || cellWorldPositions.Count == 0)
                 return;
 
-            // Transform 위치를 첫 번째 셀(TAIL)로 설정
+            // Transform 위치를 첫 번째 셀로 설정
             transform.position = cellWorldPositions[0];
 
             // 오프셋 계산
             float cellSize = GridSystem.Instance != null ? GridSystem.Instance.CellSize : 1f;
             float offsetAmount = cellSize * _headTailOffset;
 
-            // Head 방향 (이동 방향)
-            Vector2 headOffsetVec = new Vector2(moveDirection.x, moveDirection.y) * offsetAmount;
+            // Head 방향
+            Vector2 headOffsetVec = (Vector2)moveDirection * offsetAmount;
 
-            // Tail 방향 계산 (Head 반대 방향)
+            // Tail 방향 계산
             Vector2 tailOffsetVec = CalculateTailOffset(cellWorldPositions, headOffsetVec, offsetAmount);
 
-            // LineRenderer 포인트 설정 (로컬 좌표)
+            // LineRenderer 포인트 설정
             SetLineRendererPositions(cellWorldPositions, headOffsetVec, tailOffsetVec);
 
             // Head 스프라이트 위치 업데이트
@@ -73,9 +69,9 @@ namespace BalloonOut.Game.Arrow
         }
 
         /// <summary>
-        /// 색상 설정
+        /// 화살표 색상 설정
         /// </summary>
-        public void SetColor(UnityEngine.Color color)
+        public void SetColor(Color color)
         {
             if (_lineRenderer != null)
             {
@@ -89,19 +85,27 @@ namespace BalloonOut.Game.Arrow
         }
 
         /// <summary>
+        /// 색상 설정 (GameColor)
+        /// </summary>
+        public void SetColor(GameColor gameColor)
+        {
+            SetColor(GetUnityColor(gameColor));
+        }
+
+        /// <summary>
         /// Head 회전 업데이트
         /// </summary>
-        public void UpdateHeadRotation(Direction direction)
+        public void UpdateHeadRotation(ArrowDirection direction)
         {
             if (_headRenderer == null)
                 return;
 
             float rotation = direction switch
             {
-                Direction.U => 0f,
-                Direction.D => 180f,
-                Direction.L => 90f,
-                Direction.R => -90f,
+                ArrowDirection.Up => 0f,
+                ArrowDirection.Down => 180f,
+                ArrowDirection.Left => 90f,
+                ArrowDirection.Right => -90f,
                 _ => 0f
             };
             _headRenderer.transform.rotation = Quaternion.Euler(0, 0, rotation);
@@ -110,7 +114,7 @@ namespace BalloonOut.Game.Arrow
         /// <summary>
         /// LineRenderer 숨기기
         /// </summary>
-        public void HideLine()
+        public void HideLineRenderer()
         {
             if (_lineRenderer != null)
             {
@@ -119,18 +123,7 @@ namespace BalloonOut.Game.Arrow
         }
 
         /// <summary>
-        /// Head 숨기기
-        /// </summary>
-        public void HideHead()
-        {
-            if (_headRenderer != null)
-            {
-                _headRenderer.gameObject.SetActive(false);
-            }
-        }
-
-        /// <summary>
-        /// Head 알파 설정
+        /// Head 스프라이트 알파 설정
         /// </summary>
         public void SetHeadAlpha(float alpha)
         {
@@ -142,9 +135,31 @@ namespace BalloonOut.Game.Arrow
             }
         }
 
-        // ========== 내부 유틸리티 ==========
+        /// <summary>
+        /// GameColor → Unity Color 변환
+        /// </summary>
+        public static Color GetUnityColor(GameColor gameColor)
+        {
+            return gameColor switch
+            {
+                GameColor.Red => new Color(0.9f, 0.2f, 0.2f),
+                GameColor.Blue => new Color(0.2f, 0.4f, 0.9f),
+                GameColor.Green => new Color(0.2f, 0.8f, 0.3f),
+                GameColor.Yellow => new Color(0.95f, 0.85f, 0.2f),
+                GameColor.Purple => new Color(0.7f, 0.3f, 0.9f),
+                GameColor.Orange => new Color(1f, 0.65f, 0f),
+                GameColor.Cyan => new Color(0f, 0.9f, 0.9f),
+                GameColor.Pink => new Color(1f, 0.75f, 0.8f),
+                GameColor.Brown => new Color(0.55f, 0.27f, 0.07f),
+                GameColor.Lime => new Color(0.2f, 0.8f, 0.2f),
+                GameColor.Navy => new Color(0.1f, 0.1f, 0.5f),
+                GameColor.Magenta => new Color(1f, 0f, 1f),
+                _ => Color.white
+            };
+        }
 
-        private void SetupLineRenderer(UnityEngine.Color color)
+        // ========== 내부 유틸리티 ==========
+        private void SetupLineRenderer(Color color)
         {
             if (_lineRenderer == null)
             {
@@ -168,13 +183,11 @@ namespace BalloonOut.Game.Arrow
             _lineRenderer.numCapVertices = _numCapVertices;
             _lineRenderer.numCornerVertices = _numCornerVertices;
             _lineRenderer.textureMode = LineTextureMode.Tile;
-
-            // 로컬 좌표 사용 (ArrowPopBall 방식)
             _lineRenderer.useWorldSpace = false;
             _lineRenderer.sortingOrder = 1;
         }
 
-        private void SetupHeadRenderer(UnityEngine.Color color, Direction direction)
+        private void SetupHeadRenderer(Color color, ArrowDirection direction)
         {
             if (_headRenderer == null)
             {
@@ -190,10 +203,11 @@ namespace BalloonOut.Game.Arrow
                 if (_headRenderer == null)
                 {
                     _headRenderer = headObj.gameObject.AddComponent<SpriteRenderer>();
-                    _headRenderer.sprite = CreateDefaultArrowheadSprite();
                 }
             }
 
+            // 항상 새 스프라이트로 설정
+            _headRenderer.sprite = CreateDefaultArrowheadSprite();
             _headRenderer.color = color;
             _headRenderer.sortingOrder = 2;
 
@@ -203,47 +217,38 @@ namespace BalloonOut.Game.Arrow
             UpdateHeadRotation(direction);
         }
 
-        /// <summary>
-        /// Tail 오프셋 계산 (TAIL에서 두 번째 셀 방향의 반대)
-        /// </summary>
-        private Vector2 CalculateTailOffset(List<Vector3> positions, Vector2 headOffset, float offsetAmount)
+        private Vector2 CalculateTailOffset(List<Vector2> positions, Vector2 headOffset, float offsetAmount)
         {
             if (positions.Count >= 2)
             {
-                // TAIL(positions[0]) → 두 번째 셀(positions[1]) 방향 계산
-                Vector2 tailDiff = (Vector2)(positions[1] - positions[0]);
+                Vector2 tailDiff = positions[1] - positions[0];
                 float tailDist = tailDiff.magnitude;
 
                 if (tailDist > 0.01f)
                 {
                     Vector2 tailToSecond = tailDiff / tailDist;
-                    // Tail 돌출은 반대 방향
                     return -tailToSecond * offsetAmount;
                 }
             }
 
-            // Fallback: Head 방향의 반대
             return -headOffset;
         }
 
-        /// <summary>
-        /// LineRenderer 포인트 설정 (ArrowPopBall 방식 - 로컬 좌표)
-        /// </summary>
-        private void SetLineRendererPositions(List<Vector3> positions, Vector2 headOffset, Vector2 tailOffset)
+        private void SetLineRendererPositions(List<Vector2> positions, Vector2 headOffset, Vector2 tailOffset)
         {
             _lineRenderer.positionCount = positions.Count + 2;
 
-            // [0] Tail 돌출점 (로컬 좌표)
+            // Tail 돌출점
             _lineRenderer.SetPosition(0, (Vector3)tailOffset);
 
-            // [1 ~ N] 셀 포인트들 (로컬 좌표: 첫 셀 기준)
+            // 셀 포인트들 (로컬 좌표)
             for (int i = 0; i < positions.Count; i++)
             {
                 Vector3 localPos = positions[i] - positions[0];
                 _lineRenderer.SetPosition(i + 1, localPos);
             }
 
-            // [N+1] Head 돌출점 (로컬 좌표)
+            // Head 돌출점
             Vector3 lastCellLocal = positions[positions.Count - 1] - positions[0];
             _lineRenderer.SetPosition(positions.Count + 1, lastCellLocal + (Vector3)headOffset);
 
@@ -252,15 +257,11 @@ namespace BalloonOut.Game.Arrow
             _lineRenderer.endWidth = _lineWidth;
         }
 
-        /// <summary>
-        /// Head 스프라이트 위치 업데이트 (로컬 좌표)
-        /// </summary>
-        private void UpdateHeadPosition(List<Vector3> positions, Vector2 headOffset)
+        private void UpdateHeadPosition(List<Vector2> positions, Vector2 headOffset)
         {
             if (_headRenderer == null || positions.Count == 0)
                 return;
 
-            // HEAD는 마지막 셀 (positions[last])
             Vector3 lastCellLocal = positions[positions.Count - 1] - positions[0];
             _headRenderer.transform.localPosition = lastCellLocal + (Vector3)headOffset;
         }
@@ -272,12 +273,12 @@ namespace BalloonOut.Game.Arrow
         {
             int size = 64;
             Texture2D tex = new Texture2D(size, size);
-            UnityEngine.Color[] pixels = new UnityEngine.Color[size * size];
+            Color[] pixels = new Color[size * size];
 
             // 투명으로 초기화
             for (int i = 0; i < pixels.Length; i++)
             {
-                pixels[i] = UnityEngine.Color.clear;
+                pixels[i] = Color.clear;
             }
 
             // 삼각형 그리기 (위쪽을 향하는 화살촉)
@@ -291,7 +292,7 @@ namespace BalloonOut.Game.Arrow
                 {
                     if (x >= 0 && x < size)
                     {
-                        pixels[y * size + x] = UnityEngine.Color.white;
+                        pixels[y * size + x] = Color.white;
                     }
                 }
             }

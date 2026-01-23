@@ -23,7 +23,6 @@ namespace BalloonOut.Core
         // ========== 인스펙터 노출 변수 ==========
         [Header("References")]
         [SerializeField] private GridSystem _gridSystem;
-        [SerializeField] private SnakeMovement _snakeMovement;
         [SerializeField] private QueueUI _queueUI;
         [SerializeField] private Transform _arrowContainer;
 
@@ -194,31 +193,42 @@ namespace BalloonOut.Core
         {
             if (_state != GameState.Playing) return;
             if (_isProcessing) return;
+            if (!arrow.CanLaunch) return;
 
             _isProcessing = true;
 
-            // 이동 시작
-            if (_snakeMovement != null)
-            {
-                _snakeMovement.StartMovement(arrow, (escaped) =>
-                {
-                    if (escaped)
-                    {
-                        OnArrowEscapedHandler(arrow);
-                    }
-                    else
-                    {
-                        // 막힘 - 토스트 메시지 등
-                        Debug.Log("BLOCKED!");
-                    }
+            // 이벤트 구독
+            arrow.OnExtracted += OnArrowExtractedHandler;
+            arrow.OnStopped += OnArrowStoppedHandler;
 
-                    _isProcessing = false;
-                });
-            }
-            else
-            {
-                _isProcessing = false;
-            }
+            // 발사
+            arrow.Launch();
+        }
+
+        /// <summary>
+        /// 화살표 탈출 완료 이벤트 핸들러
+        /// </summary>
+        private void OnArrowExtractedHandler(ArrowController arrow)
+        {
+            // 이벤트 구독 해제
+            arrow.OnExtracted -= OnArrowExtractedHandler;
+            arrow.OnStopped -= OnArrowStoppedHandler;
+
+            OnArrowEscapedHandler(arrow);
+            _isProcessing = false;
+        }
+
+        /// <summary>
+        /// 화살표 정지 이벤트 핸들러 (충돌/막힘)
+        /// </summary>
+        private void OnArrowStoppedHandler(ArrowController arrow)
+        {
+            // 이벤트 구독 해제
+            arrow.OnExtracted -= OnArrowExtractedHandler;
+            arrow.OnStopped -= OnArrowStoppedHandler;
+
+            Debug.Log("BLOCKED!");
+            _isProcessing = false;
         }
 
         /// <summary>
@@ -236,9 +246,8 @@ namespace BalloonOut.Core
             // 이벤트 발생
             OnArrowEscaped?.Invoke(arrow.Color, wasMatch);
 
-            // 화살표 제거
+            // 화살표 목록에서 제거 (ArrowController가 자체 파괴함)
             _arrows.Remove(arrow);
-            Destroy(arrow.gameObject);
 
             // 승리 조건 확인
             CheckWinCondition();
@@ -253,7 +262,7 @@ namespace BalloonOut.Core
         {
             if (_queueUI != null && _queueUI.IsAllCleared())
             {
-                SetState(GameState.Win);
+                SetState(GameState.Clear);
                 OnLevelCleared?.Invoke();
                 Debug.Log("LEVEL CLEARED!");
             }

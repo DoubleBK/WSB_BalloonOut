@@ -1,253 +1,283 @@
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
-using DG.Tweening;
 using BalloonOut.Core;
 using BalloonOut.Game.Grid;
+using DG.Tweening;
 
 namespace BalloonOut.Game.Arrow
 {
     /// <summary>
-    /// 화살표 애니메이션 헬퍼 (등장/페이드 연출)
+    /// 화살표 애니메이션/연출 담당 (등장, 페이드 아웃, 실수 표시)
+    /// ArrowController에서 분리됨
     /// </summary>
     public class ArrowAnimationHelper : MonoBehaviour
     {
         // ========== 인스펙터 노출 변수 ==========
-        [Header("Appear Animation")]
+        [Header("등장 연출")]
         [SerializeField] private float _appearSpeedPerCell = 0.03f;
         [SerializeField] private float _headFadeInDuration = 0.1f;
 
-        [Header("Blink Animation")]
+        [Header("실수 표시 (깜빡임)")]
+        [SerializeField] private bool _enableMistakeVisual = true;
         [SerializeField] private float _blinkDuration = 0.3f;
         [SerializeField] private int _blinkCount = 3;
+        [SerializeField] private Color _warningColor = new Color(1f, 0.2f, 0.2f, 0.5f);
 
-        // ========== 내부 상태 ==========
+        // ========== 내부 상태 변수 ==========
+        private bool _isAppearing;
+        private Coroutine _appearCoroutine;
+        private bool _hasMadeMistake;
+        private Sequence _blinkSequence;
+
+        // ========== 참조 ==========
         private ArrowVisualRenderer _visualRenderer;
-        private bool _isAnimating = false;
 
         // ========== 프로퍼티 ==========
-        public bool IsAnimating => _isAnimating;
+        public bool IsAppearing => _isAppearing;
+        public bool HasMadeMistake => _hasMadeMistake;
+
+        // ========== 유니티 라이프사이클 ==========
+        private void OnDestroy()
+        {
+            _blinkSequence?.Kill();
+        }
 
         // ========== 공개 인터페이스 ==========
-
         /// <summary>
         /// 초기화
         /// </summary>
-        public void Initialize(ArrowVisualRenderer renderer)
+        public void Initialize(ArrowVisualRenderer visualRenderer)
         {
-            _visualRenderer = renderer;
+            _visualRenderer = visualRenderer;
         }
 
         /// <summary>
-        /// 등장 애니메이션 재생
+        /// 등장 연출 시작 (Tail → Head 순차 등장)
         /// </summary>
-        public IEnumerator PlayAppearAnimation(List<Vector3> cellWorldPositions, Vector2Int moveDirection)
+        public void PlayAppearAnimation(List<Vector2> cellWorldPositions, Vector2Int moveDirection,
+            float headTailOffset, float delay = 0f, Action onComplete = null)
         {
-            if (_visualRenderer == null || cellWorldPositions == null || cellWorldPositions.Count < 2)
-                yield break;
+            if (_appearCoroutine != null)
+            {
+                StopCoroutine(_appearCoroutine);
+            }
+            _appearCoroutine = StartCoroutine(AppearAnimationCoroutine(
+                cellWorldPositions, moveDirection, headTailOffset, delay, onComplete));
+        }
 
-            _isAnimating = true;
+        /// <summary>
+        /// 즉시 숨기기 (등장 연출 전 호출)
+        /// </summary>
+        public void HideImmediate()
+        {
+            _isAppearing = true;
+
+            if (_visualRenderer != null)
+            {
+                _visualRenderer.HideLineRenderer();
+                _visualRenderer.SetHeadAlpha(0f);
+            }
+        }
+
+        /// <summary>
+        /// 즉시 표시 (연출 없이)
+        /// </summary>
+        public void ShowImmediate()
+        {
+            _isAppearing = false;
+
+            if (_visualRenderer != null)
+            {
+                _visualRenderer.SetHeadAlpha(1f);
+            }
+        }
+
+        /// <summary>
+        /// LineRenderer 페이드 아웃 전환 시작 (HomingArrow 전환 연출용)
+        /// </summary>
+        public void StartFadeOutTransition(float lineWidth, float duration, Action onComplete)
+        {
+            StartCoroutine(FadeOutLineRenderer(lineWidth, duration, onComplete));
+        }
+
+        /// <summary>
+        /// 실수 표시 (깜빡임) 적용 - 충돌 후 복귀 시 호출
+        /// </summary>
+        public void ApplyMistakeVisual(GameColor color)
+        {
+            if (!_enableMistakeVisual || _visualRenderer == null)
+                return;
+
+            _hasMadeMistake = true;
+
+            // 기존 시퀀스 정리
+            _blinkSequence?.Kill();
+
+            // 원래 색상 (반투명)
+            Color originalColor = ArrowVisualRenderer.GetUnityColor(color);
+            originalColor.a = 0.4f;
+
+            // DOTween 시퀀스로 깜빡임 연출
+            _blinkSequence = DOTween.Sequence();
+
+            for (int i = 0; i < _blinkCount; i++)
+            {
+                // 경고 색상으로 전환
+                _blinkSequence.AppendCallback(() => _visualRenderer.SetColor(_warningColor));
+                _blinkSequence.AppendInterval(_blinkDuration * 0.5f);
+                // 원래 색상으로 복귀
+                _blinkSequence.AppendCallback(() => _visualRenderer.SetColor(originalColor));
+                _blinkSequence.AppendInterval(_blinkDuration * 0.5f);
+            }
+
+            // 최종 색상 적용
+            _blinkSequence.OnComplete(() => _visualRenderer.SetColor(originalColor));
+        }
+
+        // ========== 내부 유틸리티 ==========
+        private IEnumerator AppearAnimationCoroutine(List<Vector2> cellWorldPositions,
+            Vector2Int moveDirection, float headTailOffset, float delay, Action onComplete)
+        {
+            _isAppearing = true;
+
+            if (delay > 0)
+            {
+                yield return new WaitForSeconds(delay);
+            }
+
+            if (_visualRenderer == null || cellWorldPositions == null || cellWorldPositions.Count == 0)
+            {
+                _isAppearing = false;
+                onComplete?.Invoke();
+                yield break;
+            }
 
             var lineRenderer = _visualRenderer.LineRenderer;
             var headRenderer = _visualRenderer.HeadRenderer;
 
-            // Head 숨기기
-            if (headRenderer != null)
+            if (lineRenderer == null)
             {
-                headRenderer.color = new UnityEngine.Color(headRenderer.color.r, headRenderer.color.g, headRenderer.color.b, 0f);
+                _isAppearing = false;
+                onComplete?.Invoke();
+                yield break;
             }
-
-            float cellSize = GridSystem.Instance != null ? GridSystem.Instance.CellSize : 1f;
-            float offsetAmount = cellSize * 0.35f;
 
             // Transform 위치 설정
             transform.position = cellWorldPositions[0];
 
-            // 오프셋 계산
-            Vector2 headOffsetVec = new Vector2(moveDirection.x, moveDirection.y) * offsetAmount;
-            Vector2 tailOffsetVec = CalculateTailOffset(cellWorldPositions, offsetAmount);
+            float cellSize = GridSystem.Instance != null ? GridSystem.Instance.CellSize : 1f;
+            float offsetAmount = cellSize * headTailOffset;
 
-            Vector3 origin = cellWorldPositions[0];
-            int cellCount = cellWorldPositions.Count;
+            // Tail 방향 계산
+            Vector2 tailOffsetVec = CalculateTailOffset(cellWorldPositions, moveDirection, offsetAmount);
 
-            // 초기: Tail 돌출점만
+            // Head 방향 계산
+            Vector2 headOffsetVec = (Vector2)moveDirection * offsetAmount;
+
+            // Tail 돌출점부터 시작
             lineRenderer.positionCount = 1;
-            Vector3 tailLocal = cellWorldPositions[cellCount - 1] - origin;
-            lineRenderer.SetPosition(0, tailLocal + (Vector3)tailOffsetVec);
+            lineRenderer.SetPosition(0, (Vector3)tailOffsetVec);
 
-            // 각 셀 순차 추가 (TAIL → HEAD)
-            for (int i = 0; i < cellCount; i++)
+            yield return new WaitForSeconds(_appearSpeedPerCell);
+
+            // 각 셀을 순차적으로 추가 (Tail → Head)
+            for (int i = 0; i < cellWorldPositions.Count; i++)
             {
+                Vector3 localPos = cellWorldPositions[i] - cellWorldPositions[0];
+
                 lineRenderer.positionCount = i + 2;
-                Vector3 localPos = cellWorldPositions[cellCount - 1 - i] - origin;
                 lineRenderer.SetPosition(i + 1, localPos);
 
                 yield return new WaitForSeconds(_appearSpeedPerCell);
             }
 
             // Head 돌출점 추가
-            lineRenderer.positionCount = cellCount + 2;
-            lineRenderer.SetPosition(cellCount + 1, (Vector3)headOffsetVec);
+            Vector3 lastCellLocal = cellWorldPositions[cellWorldPositions.Count - 1] - cellWorldPositions[0];
+            lineRenderer.positionCount = cellWorldPositions.Count + 2;
+            lineRenderer.SetPosition(cellWorldPositions.Count + 1, lastCellLocal + (Vector3)headOffsetVec);
 
             // Head 스프라이트 페이드인
             if (headRenderer != null)
             {
-                headRenderer.transform.localPosition = (Vector3)headOffsetVec;
+                headRenderer.transform.localPosition = lastCellLocal + (Vector3)headOffsetVec;
                 headRenderer.DOFade(1f, _headFadeInDuration);
             }
 
             yield return new WaitForSeconds(_headFadeInDuration);
 
-            _isAnimating = false;
+            _isAppearing = false;
+            _appearCoroutine = null;
+
+            onComplete?.Invoke();
         }
 
-        /// <summary>
-        /// 깜빡임 애니메이션 (충돌/실패 시)
-        /// </summary>
-        public void PlayBlinkAnimation(System.Action onComplete = null)
+        private IEnumerator FadeOutLineRenderer(float startWidth, float duration, Action onComplete)
         {
             if (_visualRenderer == null)
             {
                 onComplete?.Invoke();
-                return;
+                yield break;
             }
-
-            _isAnimating = true;
 
             var lineRenderer = _visualRenderer.LineRenderer;
             var headRenderer = _visualRenderer.HeadRenderer;
 
-            // 원래 색상 저장
-            UnityEngine.Color originalLineColor = lineRenderer.startColor;
-            UnityEngine.Color originalHeadColor = headRenderer != null ? headRenderer.color : UnityEngine.Color.white;
-
-            Sequence blinkSeq = DOTween.Sequence();
-
-            float halfBlink = _blinkDuration / (_blinkCount * 2);
-
-            for (int i = 0; i < _blinkCount; i++)
+            if (lineRenderer == null)
             {
-                // 페이드 아웃
-                blinkSeq.Append(DOTween.To(
-                    () => lineRenderer.startColor.a,
-                    (a) =>
-                    {
-                        var c = originalLineColor;
-                        c.a = a;
-                        lineRenderer.startColor = c;
-                        lineRenderer.endColor = c;
-                        if (headRenderer != null)
-                        {
-                            var hc = originalHeadColor;
-                            hc.a = a;
-                            headRenderer.color = hc;
-                        }
-                    },
-                    0.3f,
-                    halfBlink
-                ));
-
-                // 페이드 인
-                blinkSeq.Append(DOTween.To(
-                    () => lineRenderer.startColor.a,
-                    (a) =>
-                    {
-                        var c = originalLineColor;
-                        c.a = a;
-                        lineRenderer.startColor = c;
-                        lineRenderer.endColor = c;
-                        if (headRenderer != null)
-                        {
-                            var hc = originalHeadColor;
-                            hc.a = a;
-                            headRenderer.color = hc;
-                        }
-                    },
-                    1f,
-                    halfBlink
-                ));
+                onComplete?.Invoke();
+                yield break;
             }
 
-            blinkSeq.OnComplete(() =>
+            float elapsed = 0f;
+            Color startColor = lineRenderer.startColor;
+
+            while (elapsed < duration)
             {
-                // 원래 색상 복원
-                lineRenderer.startColor = originalLineColor;
-                lineRenderer.endColor = originalLineColor;
+                elapsed += Time.deltaTime;
+                float t = elapsed / duration;
+
+                // 두께 감소
+                float newWidth = Mathf.Lerp(startWidth, 0f, t);
+                lineRenderer.startWidth = newWidth;
+                lineRenderer.endWidth = newWidth;
+
+                // 알파 감소
+                Color newColor = startColor;
+                newColor.a = Mathf.Lerp(1f, 0f, t);
+                lineRenderer.startColor = newColor;
+                lineRenderer.endColor = newColor;
+
+                // Head 스프라이트 페이드 아웃
                 if (headRenderer != null)
                 {
-                    headRenderer.color = originalHeadColor;
+                    Color headColor = headRenderer.color;
+                    headColor.a = Mathf.Lerp(1f, 0f, t);
+                    headRenderer.color = headColor;
                 }
 
-                _isAnimating = false;
-                onComplete?.Invoke();
-            });
-        }
-
-        /// <summary>
-        /// 페이드 아웃 애니메이션
-        /// </summary>
-        public void PlayFadeOutAnimation(float duration, System.Action onComplete = null)
-        {
-            if (_visualRenderer == null)
-            {
-                onComplete?.Invoke();
-                return;
+                yield return null;
             }
 
-            _isAnimating = true;
-
-            var lineRenderer = _visualRenderer.LineRenderer;
-            var headRenderer = _visualRenderer.HeadRenderer;
-
-            UnityEngine.Color originalLineColor = lineRenderer.startColor;
-            UnityEngine.Color originalHeadColor = headRenderer != null ? headRenderer.color : UnityEngine.Color.white;
-
-            DOTween.To(
-                () => lineRenderer.startColor.a,
-                (a) =>
-                {
-                    var c = originalLineColor;
-                    c.a = a;
-                    lineRenderer.startColor = c;
-                    lineRenderer.endColor = c;
-                    if (headRenderer != null)
-                    {
-                        var hc = originalHeadColor;
-                        hc.a = a;
-                        headRenderer.color = hc;
-                    }
-                },
-                0f,
-                duration
-            ).OnComplete(() =>
-            {
-                _isAnimating = false;
-                onComplete?.Invoke();
-            });
+            onComplete?.Invoke();
         }
 
-        // ========== 내부 유틸리티 ==========
-
-        /// <summary>
-        /// Tail 오프셋 계산
-        /// </summary>
-        private Vector2 CalculateTailOffset(List<Vector3> positions, float offsetAmount)
+        private Vector2 CalculateTailOffset(List<Vector2> positions, Vector2Int moveDirection, float offsetAmount)
         {
-            int lastIdx = positions.Count - 1;
-
             if (positions.Count >= 2)
             {
-                Vector2 tailToSecond = positions[lastIdx - 1] - positions[lastIdx];
-                float dist = tailToSecond.magnitude;
+                Vector2 tailDiff = positions[1] - positions[0];
+                float tailDist = tailDiff.magnitude;
 
-                if (dist > 0.01f)
+                if (tailDist > 0.01f)
                 {
-                    Vector2 tailDir = tailToSecond / dist;
-                    return -tailDir * offsetAmount;
+                    Vector2 tailToSecond = tailDiff / tailDist;
+                    return -tailToSecond * offsetAmount;
                 }
             }
 
-            return Vector2.down * offsetAmount;
+            return -(Vector2)moveDirection * offsetAmount;
         }
     }
 }
