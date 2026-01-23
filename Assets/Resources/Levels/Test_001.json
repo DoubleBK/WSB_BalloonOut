@@ -1,0 +1,52 @@
+{
+  "name": "Test_001",
+  "gridSize": 6,
+  "lanes": [
+    { "balloons": ["R", "G"] },
+    { "balloons": ["Y", "R"] }
+  ],
+  "arrows": [
+    {
+      "x": 5,
+      "y": 2,
+      "color": "R",
+      "direction": "L",
+      "length": 3,
+      "order": 1,
+      "isFiller": false
+    },
+    {
+      "x": 2,
+      "y": 4,
+      "color": "G",
+      "direction": "U",
+      "length": 2,
+      "order": 2,
+      "isFiller": false
+    },
+    {
+      "x": 0,
+      "y": 1,
+      "color": "Y",
+      "direction": "R",
+      "length": 3,
+      "order": 3,
+      "isFiller": false
+    },
+    {
+      "x": 4,
+      "y": 5,
+      "color": "R",
+      "direction": "D",
+      "length": 2,
+      "order": 4,
+      "isFiller": false
+    }
+  ],
+  "stats": {
+    "density": 0.28,
+    "mainArrows": 4,
+    "fillers": 0,
+    "totalArrows": 4
+  }
+}
