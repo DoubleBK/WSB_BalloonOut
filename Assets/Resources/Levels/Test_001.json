@@ -7,7 +7,7 @@
   ],
   "arrows": [
     {
-      "x": 5,
+      "x": 2,
       "y": 2,
       "color": "R",
       "direction": "L",
@@ -25,7 +25,7 @@
       "isFiller": false
     },
     {
-      "x": 0,
+      "x": 2,
       "y": 1,
       "color": "Y",
       "direction": "R",
@@ -35,7 +35,7 @@
     },
     {
       "x": 4,
-      "y": 5,
+      "y": 4,
       "color": "R",
       "direction": "D",
       "length": 2,

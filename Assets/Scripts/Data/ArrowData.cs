@@ -52,6 +52,7 @@ namespace BalloonOut.Data
 
         /// <summary>
         /// 셀 경로 반환 (path가 없으면 직선으로 계산)
+        /// ArrowPopBall 방식: cells[0] = TAIL, cells[last] = HEAD
         /// </summary>
         public List<Vector2Int> GetCells()
         {
@@ -67,9 +68,10 @@ namespace BalloonOut.Data
             }
             else
             {
-                // 직선 화살표: Head에서 반대 방향으로 계산
+                // 직선 화살표: TAIL에서 HEAD 방향으로 계산
+                // (x, y)는 HEAD 위치, 반대 방향으로 TAIL까지 계산 후 역순
                 var dir = DirectionHelper.Vectors[Direction];
-                for (int i = 0; i < length; i++)
+                for (int i = length - 1; i >= 0; i--)
                 {
                     cells.Add(new Vector2Int(x - dir.x * i, y - dir.y * i));
                 }
