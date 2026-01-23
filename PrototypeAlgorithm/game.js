@@ -7,6 +7,14 @@ const DIRS = {
 
 const COLORS = { R: '#ff4757', G: '#2ed573', Y: '#ffa502', D: '#5352ed', P: '#8e44ad' };
 
+// Snake 이동 설정
+const SNAKE_CONFIG = {
+    stepDuration: 80,      // 한 칸 이동 시간 (ms)
+    escapeDuration: 60,    // 탈출 시 한 칸 시간 (ms)
+    bounceDuration: 100,   // 바운스 시간 (ms)
+    bounceDistance: 0.3    // 바운스 거리 (셀 비율)
+};
+
 // 레벨은 Generator로 생성
 const LEVELS = [];
 
@@ -148,17 +156,24 @@ function renderGrid() {
         box.appendChild(c);
     }
 
+    const cellSize = 50; // CSS --cell-size
+
     blocks.forEach(b => {
         const grp = document.createElement('div');
         grp.className = 'block';
         grp.id = `blk-${b.id}`;
 
+        // DOM 요소 참조 배열 초기화
+        b.elements = [];
+
         if (!b.cells || !Array.isArray(b.cells)) return;
         b.cells.forEach((cell, idx) => {
             const u = document.createElement('div');
             u.className = `block-unit c-${b.c} ${idx === 0 ? 'head' : 'body'}`;
-            u.style.left = `calc(${cell.x} * var(--cell-size))`;
-            u.style.top = `calc(${cell.y} * var(--cell-size))`;
+
+            // 위치를 px 단위로 설정 (애니메이션을 위해)
+            u.style.left = `${cell.x * cellSize}px`;
+            u.style.top = `${cell.y * cellSize}px`;
 
             if (idx === 0) {
                 const d = DIRS[b.d];
@@ -175,6 +190,9 @@ function renderGrid() {
 
             u.onclick = (e) => { e.stopPropagation(); tryEscape(b); };
             grp.appendChild(u);
+
+            // DOM 요소 참조 저장
+            b.elements.push(u);
         });
         box.appendChild(grp);
     });
@@ -252,68 +270,311 @@ function getDistanceToCollision(block) {
     return { blocked: false, distance: distance };
 }
 
-function tryEscape(b) {
-    if (isAnim) return;
-    isAnim = true;
+// ============================================================
+// Snake Movement System
+// ============================================================
 
-    const el = document.getElementById(`blk-${b.id}`);
-    const d = DIRS[b.d];
-    const cellSize = 50; // CSS의 --cell-size와 동일
+/**
+ * 경계 체크
+ */
+function isInGridBounds(x, y) {
+    return x >= 0 && x < gridSize && y >= 0 && y < gridSize;
+}
 
-    // 충돌 여부와 거리 계산
-    const collision = getDistanceToCollision(b);
+/**
+ * 현재 화살표를 제외한 점유 셀 목록
+ */
+function getOccupiedCells(excludeBlockId) {
+    const occ = new Set();
+    blocks.forEach(b => {
+        if (b.id !== excludeBlockId && b.cells && Array.isArray(b.cells)) {
+            b.cells.forEach(c => occ.add(`${c.x},${c.y}`));
+        }
+    });
+    return occ;
+}
 
-    if (collision.blocked) {
-        // 충돌: 충돌 지점까지 이동 후 제자리로 돌아옴
-        const moveDistance = (collision.distance + 0.5) * cellSize; // 충돌 지점 직전까지
+/**
+ * 한 칸 이동 가능 여부 확인 (Snake 방식)
+ * @returns {object} { canMove, escaped, blocked, newHead }
+ */
+function stepMove(block) {
+    if (!block.cells || block.cells.length === 0) {
+        return { canMove: false, escaped: false, blocked: true };
+    }
 
-        // 전진 애니메이션
-        el.style.transition = 'transform 0.2s ease-out';
-        el.style.transform = `translate(${d.dx * moveDistance}px, ${d.dy * moveDistance}px)`;
+    const head = block.cells[0];
+    const dir = DIRS[block.d];
+
+    // 새 머리 위치
+    const newHeadX = head.x + dir.dx;
+    const newHeadY = head.y + dir.dy;
+
+    // 1. 경계 체크 - 머리가 밖으로 나가면 탈출 시작
+    if (!isInGridBounds(newHeadX, newHeadY)) {
+        return { canMove: true, escaped: true, blocked: false };
+    }
+
+    // 2. 충돌 체크 - 다른 화살표와 겹치면 막힘
+    const occupied = getOccupiedCells(block.id);
+    if (occupied.has(`${newHeadX},${newHeadY}`)) {
+        return { canMove: false, escaped: false, blocked: true };
+    }
+
+    // 3. 이동 가능
+    return {
+        canMove: true,
+        escaped: false,
+        blocked: false,
+        newHead: { x: newHeadX, y: newHeadY }
+    };
+}
+
+/**
+ * 셀 배열 업데이트 (이동 후)
+ * @param {object} block - 블록 객체
+ * @param {object} newHead - 새 머리 위치 (탈출 중이면 null)
+ * @param {boolean} escaping - 탈출 중 여부
+ * @returns {Array} 이전 셀 위치 (애니메이션용)
+ */
+function updateCellsAfterStep(block, newHead, escaping) {
+    const oldCells = block.cells.map(c => ({ x: c.x, y: c.y }));
+
+    if (escaping) {
+        // 탈출 중: 꼬리만 제거
+        block.cells.pop();
+    } else {
+        // 일반 이동: 새 머리 추가, 꼬리 제거
+        block.cells.unshift(newHead);  // 새 머리 추가 (앞에)
+        block.cells.pop();              // 꼬리 제거 (뒤에서)
+    }
+
+    return oldCells;
+}
+
+/**
+ * 단계별 슬라이딩 애니메이션 (Promise 기반)
+ */
+function animateStepAsync(block, duration) {
+    return new Promise(resolve => {
+        const cellSize = 50;
+
+        // 각 셀의 DOM 요소 위치 업데이트
+        block.cells.forEach((cell, idx) => {
+            if (block.elements[idx]) {
+                const el = block.elements[idx];
+                el.style.transition = `left ${duration}ms ease-out, top ${duration}ms ease-out`;
+                el.style.left = `${cell.x * cellSize}px`;
+                el.style.top = `${cell.y * cellSize}px`;
+            }
+        });
 
         setTimeout(() => {
-            // 후진 애니메이션 (제자리로)
-            el.style.transition = 'transform 0.25s ease-in';
-            el.style.transform = 'translate(0, 0)';
+            // 트랜지션 제거
+            block.elements.forEach(el => {
+                if (el) el.style.transition = '';
+            });
+            resolve();
+        }, duration);
+    });
+}
+
+/**
+ * 꼬리 제거 애니메이션 (Promise 기반)
+ */
+function animateTailRemovalAsync(tailElement, duration) {
+    return new Promise(resolve => {
+        if (!tailElement) {
+            resolve();
+            return;
+        }
+
+        tailElement.style.transition = `opacity ${duration}ms, transform ${duration}ms`;
+        tailElement.style.opacity = '0';
+        tailElement.style.transform += ' scale(0.5)';
+
+        setTimeout(() => {
+            if (tailElement.parentNode) {
+                tailElement.parentNode.removeChild(tailElement);
+            }
+            resolve();
+        }, duration);
+    });
+}
+
+/**
+ * 충돌 바운스 애니메이션 (Promise 기반)
+ */
+function animateBounce(block) {
+    return new Promise(resolve => {
+        const dir = DIRS[block.d];
+        const cellSize = 50;
+        const bounceDistance = cellSize * SNAKE_CONFIG.bounceDistance;
+        const duration = SNAKE_CONFIG.bounceDuration;
+
+        const grp = document.getElementById(`blk-${block.id}`);
+        if (!grp) {
+            resolve();
+            return;
+        }
+
+        // 살짝 앞으로 이동
+        grp.style.transition = `transform ${duration * 0.4}ms ease-out`;
+        grp.style.transform = `translate(${dir.dx * bounceDistance}px, ${dir.dy * bounceDistance}px)`;
+
+        setTimeout(() => {
+            // 원위치로 복귀
+            grp.style.transition = `transform ${duration * 0.6}ms ease-in`;
+            grp.style.transform = 'translate(0, 0)';
 
             setTimeout(() => {
-                el.style.transition = '';
-                showToast("BLOCKED!");
-                isAnim = false;
-            }, 250);
-        }, 200);
-    } else {
-        // 탈출 가능: 날아감
-        const dist = 800;
+                grp.style.transition = '';
+                resolve();
+            }, duration * 0.6);
+        }, duration * 0.4);
+    });
+}
 
-        el.classList.add('flying');
-        el.style.transform = `translate(${d.dx * dist}px, ${d.dy * dist}px)`;
-        el.style.opacity = '0';
+/**
+ * 탈출 시퀀스 - 셀들이 하나씩 경계 밖으로 나감
+ */
+async function escapeSequence(block) {
+    const cellSize = 50;
+    const dir = DIRS[block.d];
+    const escapeDuration = SNAKE_CONFIG.escapeDuration;
 
-        setTimeout(() => {
-            blocks = blocks.filter(x => x.id !== b.id);
-            if (el.parentNode) el.parentNode.removeChild(el);
+    // 머리가 밖으로 나간 상태에서 시작
+    // 각 셀이 순서대로 밖으로 이동
+    while (block.cells.length > 0) {
+        // 모든 셀을 한 칸 앞으로 이동
+        block.cells.forEach(cell => {
+            cell.x += dir.dx;
+            cell.y += dir.dy;
+        });
 
-            // 풀이 순서 UI 업데이트
-            const solEl = document.getElementById(`sol-${b.id}`);
-            if (solEl) solEl.classList.add('popped');
-
-            let hit = false;
-            for (let lane of queues) {
-                if (lane.length > 0) {
-                    if (lane[lane.length - 1] === b.c) {
-                        lane.pop();
-                        hit = true;
-                        break;
-                    }
-                }
+        // 애니메이션 (현재 남은 셀들)
+        block.cells.forEach((cell, idx) => {
+            if (block.elements[idx]) {
+                const el = block.elements[idx];
+                el.style.transition = `left ${escapeDuration}ms ease-in, top ${escapeDuration}ms ease-in`;
+                el.style.left = `${cell.x * cellSize}px`;
+                el.style.top = `${cell.y * cellSize}px`;
             }
-            renderQueue();
-            updateState();
-            showToast(hit ? "POP!" : "FLY AWAY");
-            isAnim = false;
-        }, 400);
+        });
+
+        await new Promise(r => setTimeout(r, escapeDuration));
+
+        // 마지막 셀(꼬리) 제거
+        const tailEl = block.elements.pop();
+        block.cells.pop();
+
+        if (tailEl && tailEl.parentNode) {
+            tailEl.parentNode.removeChild(tailEl);
+        }
     }
+}
+
+/**
+ * 역방향 이동 애니메이션 (충돌 후 원위치 복귀)
+ */
+async function animateReverseMovement(block, moveHistory, stepDuration) {
+    // 히스토리를 역순으로 순회하며 원위치로 복귀
+    for (let i = moveHistory.length - 1; i >= 0; i--) {
+        const prevCells = moveHistory[i];
+
+        // cells 배열 복원
+        block.cells = prevCells.map(c => ({ x: c.x, y: c.y }));
+
+        // 애니메이션
+        await animateStepAsync(block, stepDuration);
+    }
+}
+
+/**
+ * Snake 방식 탈출 시도 (async/await 기반)
+ */
+async function tryEscapeSnake(b) {
+    if (isAnim || b.state === 'moving') return;
+    isAnim = true;
+    b.state = 'moving';
+
+    const stepDuration = SNAKE_CONFIG.stepDuration;
+
+    // 이동 히스토리 (원위치 복귀용)
+    const moveHistory = [];
+
+    // 연속 이동 루프
+    while (true) {
+        const result = stepMove(b);
+
+        if (result.blocked) {
+            // 충돌! 이동한 만큼 역방향으로 복귀
+            if (moveHistory.length > 0) {
+                // 이동했다면 역방향으로 복귀
+                await animateReverseMovement(b, moveHistory, stepDuration);
+            } else {
+                // 첫 칸에서 바로 막힘 - 바운스만
+                await animateBounce(b);
+            }
+            b.state = 'normal';
+            isAnim = false;
+            showToast("BLOCKED!");
+            return;
+        }
+
+        if (result.escaped) {
+            // 탈출 시작 - 경계 밖으로 나감
+            await escapeSequence(b);
+            handleEscapeComplete(b);
+            return;
+        }
+
+        // 이동 전 위치 저장 (복귀용)
+        moveHistory.push(b.cells.map(c => ({ x: c.x, y: c.y })));
+
+        // 한 칸 이동
+        updateCellsAfterStep(b, result.newHead, false);
+        await animateStepAsync(b, stepDuration);
+    }
+}
+
+/**
+ * 탈출 완료 처리
+ */
+function handleEscapeComplete(b) {
+    // 블록 제거
+    const el = document.getElementById(`blk-${b.id}`);
+    if (el && el.parentNode) {
+        el.parentNode.removeChild(el);
+    }
+
+    blocks = blocks.filter(x => x.id !== b.id);
+
+    // 풀이 순서 UI 업데이트
+    const solEl = document.getElementById(`sol-${b.id}`);
+    if (solEl) solEl.classList.add('popped');
+
+    // 큐에서 풍선 팝
+    let hit = false;
+    for (let lane of queues) {
+        if (lane.length > 0) {
+            if (lane[lane.length - 1] === b.c) {
+                lane.pop();
+                hit = true;
+                break;
+            }
+        }
+    }
+
+    renderQueue();
+    updateState();
+    showToast(hit ? "POP!" : "FLY AWAY");
+    isAnim = false;
+}
+
+function tryEscape(b) {
+    // Snake 방식 이동 사용
+    tryEscapeSnake(b);
 }
 
 function showToast(msg) {
