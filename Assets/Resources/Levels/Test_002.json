@@ -1,97 +1,113 @@
 {
-    "name": "Test_001",
-    "gridSize": 4,
+    "name": "Test_002",
+    "gridSize": 5,
     "lanes": [
         {
             "balloons": [
+                "R",
                 "O",
-                "O"
+                "R"
             ]
         },
         {
             "balloons": [
-                "P",
-                "B",
+                "R",
                 "P"
             ]
         }
     ],
     "arrows": [
         {
-            "x": 3,
-            "y": 1,
-            "color": "O",
+            "x": 4,
+            "y": 0,
+            "color": "R",
             "direction": "R",
-            "length": 3,
+            "length": 4,
             "path": [
                 {
                     "x": 1,
-                    "y": 1
+                    "y": 0
                 },
                 {
                     "x": 2,
-                    "y": 1
+                    "y": 0
                 },
                 {
                     "x": 3,
-                    "y": 1
+                    "y": 0
+                },
+                {
+                    "x": 4,
+                    "y": 0
                 }
             ],
             "order": 1,
             "isFiller": false
         },
         {
-            "x": 3,
-            "y": 2,
-            "color": "P",
+            "x": 4,
+            "y": 1,
+            "color": "O",
             "direction": "D",
+            "length": 5,
+            "path": [
+                {
+                    "x": 3,
+                    "y": 4
+                },
+                {
+                    "x": 4,
+                    "y": 4
+                },
+                {
+                    "x": 4,
+                    "y": 3
+                },
+                {
+                    "x": 4,
+                    "y": 2
+                },
+                {
+                    "x": 4,
+                    "y": 1
+                }
+            ],
+            "order": 2,
+            "isFiller": false
+        },
+        {
+            "x": 2,
+            "y": 4,
+            "color": "R",
+            "direction": "U",
             "length": 4,
             "path": [
                 {
-                    "x": 1,
-                    "y": 3
+                    "x": 2,
+                    "y": 1
+                },
+                {
+                    "x": 2,
+                    "y": 2
                 },
                 {
                     "x": 2,
                     "y": 3
                 },
                 {
-                    "x": 3,
-                    "y": 3
-                },
-                {
-                    "x": 3,
-                    "y": 2
+                    "x": 2,
+                    "y": 4
                 }
             ],
             "order": 3,
             "isFiller": false
         },
         {
-            "x": 1,
-            "y": 2,
-            "color": "B",
-            "direction": "L",
-            "length": 2,
-            "path": [
-                {
-                    "x": 2,
-                    "y": 2
-                },
-                {
-                    "x": 1,
-                    "y": 2
-                }
-            ],
-            "order": 4,
-            "isFiller": false
-        },
-        {
-            "x": 3,
-            "y": 0,
-            "color": "O",
-            "direction": "R",
-            "length": 5,
+            "x": 0,
+            "y": 4,
+            "color": "R",
+            "direction": "U",
+            "length": 4,
             "path": [
                 {
                     "x": 0,
@@ -99,38 +115,38 @@
                 },
                 {
                     "x": 0,
-                    "y": 0
-                },
-                {
-                    "x": 1,
-                    "y": 0
-                },
-                {
-                    "x": 2,
-                    "y": 0
-                },
-                {
-                    "x": 3,
-                    "y": 0
-                }
-            ],
-            "order": 2,
-            "isFiller": false
-        },
-        {
-            "x": 0,
-            "y": 3,
-            "color": "P",
-            "direction": "U",
-            "length": 2,
-            "path": [
-                {
-                    "x": 0,
                     "y": 2
                 },
                 {
                     "x": 0,
                     "y": 3
+                },
+                {
+                    "x": 0,
+                    "y": 4
+                }
+            ],
+            "order": 4,
+            "isFiller": false
+        },
+        {
+            "x": 1,
+            "y": 2,
+            "color": "P",
+            "direction": "D",
+            "length": 3,
+            "path": [
+                {
+                    "x": 1,
+                    "y": 4
+                },
+                {
+                    "x": 1,
+                    "y": 3
+                },
+                {
+                    "x": 1,
+                    "y": 2
                 }
             ],
             "order": 5,
@@ -138,7 +154,7 @@
         }
     ],
     "stats": {
-        "density": 1.0,
+        "density": 0.800000011920929,
         "mainArrows": 5,
         "fillers": 0,
         "totalArrows": 5
