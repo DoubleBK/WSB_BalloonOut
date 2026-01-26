@@ -924,6 +924,18 @@ namespace BalloonOut.Data
                     fillers.Add(fillerBlock);
                     allBlocksForFacing.Add(fillerBlock);  // 다음 Filler의 facing 검사에 포함
 
+                    // 디버그: Filler의 head와 dir 확인
+                    var fillerHead = placement.cells[0];
+                    Debug.Log($"  [DEBUG] Filler {fillers.Count - 1} added: head=({fillerHead.x},{fillerHead.y}) dir={fillerDir} allBlocksCount={allBlocksForFacing.Count}");
+
+                    // 즉시 검증: 방금 추가한 Filler가 facing을 유발하는지 확인
+                    var immediateCheck = CheckFacingArrows(allBlocksForFacing);
+                    if (!immediateCheck.valid)
+                    {
+                        Debug.LogError($"  [CRITICAL] Filler {fillers.Count - 1} CAUSED FACING despite check! Reason: {immediateCheck.reason}");
+                        Debug.LogError($"  [CRITICAL] This should NOT happen - investigate WouldCauseFacing logic");
+                    }
+
                     foreach (var c in placement.cells)
                     {
                         occupiedSet.Add(CellKey(c));
@@ -1038,7 +1050,10 @@ namespace BalloonOut.Data
                 bool existingPointsToNew = IsDirectionTowards(existing.dir, -dx, -dy);
 
                 if (newPointsToExisting && existingPointsToNew)
+                {
+                    Debug.LogWarning($"[WouldCauseFacing] PREVENTED: new({headX},{headY}) dir={headDir} ↔ existing({existingHead.x},{existingHead.y}) dir={existing.dir}");
                     return true;  // Facing 발생!
+                }
             }
             return false;
         }
@@ -1050,6 +1065,42 @@ namespace BalloonOut.Data
         {
             // FlipYDirection과 동일 (Y 방향 swap은 대칭적)
             return FlipYDirection(dir);
+        }
+
+        /// <summary>
+        /// 두 BlockData 리스트가 Facing 측면에서 동일한지 검증 (진단용)
+        /// </summary>
+        private static void VerifyBlocksConsistency(List<BlockData> originalBlocks, List<BlockData> convertedBlocks, string context)
+        {
+            Debug.Log($"[VerifyBlocks] {context}: Comparing {originalBlocks.Count} original vs {convertedBlocks.Count} converted blocks");
+
+            int minCount = Mathf.Min(originalBlocks.Count, convertedBlocks.Count);
+            for (int i = 0; i < minCount; i++)
+            {
+                var orig = originalBlocks[i];
+                var conv = convertedBlocks[i];
+
+                var origHead = orig.cells != null && orig.cells.Count > 0 ? orig.cells[0] : default;
+                var convHead = conv.cells != null && conv.cells.Count > 0 ? conv.cells[0] : default;
+
+                if (origHead.x != convHead.x || origHead.y != convHead.y || orig.dir != conv.dir)
+                {
+                    Debug.LogWarning($"[VerifyBlocks] MISMATCH at index {i}:");
+                    Debug.LogWarning($"  Original: head=({origHead.x},{origHead.y}) dir={orig.dir}");
+                    Debug.LogWarning($"  Converted: head=({convHead.x},{convHead.y}) dir={conv.dir}");
+                }
+            }
+
+            // 각 리스트의 Facing 결과 비교
+            var origFacing = CheckFacingArrows(originalBlocks);
+            var convFacing = CheckFacingArrows(convertedBlocks);
+
+            if (origFacing.valid != convFacing.valid)
+            {
+                Debug.LogError($"[VerifyBlocks] FACING INCONSISTENCY!");
+                Debug.LogError($"  Original blocks facing check: valid={origFacing.valid}, reason={origFacing.reason}");
+                Debug.LogError($"  Converted blocks facing check: valid={convFacing.valid}, reason={convFacing.reason}");
+            }
         }
 
         /// <summary>
@@ -1066,11 +1117,20 @@ namespace BalloonOut.Data
             var blocks = new List<BlockData>();
             if (levelData.arrows != null)
             {
-                foreach (var arrow in levelData.arrows)
+                Debug.Log($"[ValidateLevel] Converting {levelData.arrows.Count} arrows from LevelData");
+
+                for (int arrowIdx = 0; arrowIdx < levelData.arrows.Count; arrowIdx++)
                 {
+                    var arrow = levelData.arrows[arrowIdx];
+
                     // ArrowData.GetCells()는 cells[0]=TAIL, cells[last]=HEAD 순서
                     // 검증 함수는 cells[0]=HEAD를 기대하므로 역순으로 변환
                     var cells = arrow.GetCells();
+
+                    // 디버그: 변환 전 상태
+                    var originalFirst = cells.Count > 0 ? cells[0] : default;
+                    var originalLast = cells.Count > 0 ? cells[cells.Count - 1] : default;
+
                     cells.Reverse();
 
                     // Game → Generator 좌표계 변환: Y 좌표 플립
@@ -1091,6 +1151,10 @@ namespace BalloonOut.Data
                         isFiller = arrow.isFiller
                     };
                     blocks.Add(block);
+
+                    // 디버그: 변환 후 상태
+                    var head = cells.Count > 0 ? cells[0] : default;
+                    Debug.Log($"[ValidateLevel] Arrow {arrowIdx}: Game({arrow.x},{arrow.y}) dir={arrow.direction} → Gen head=({head.x},{head.y}) dir={block.dir} isFiller={arrow.isFiller}");
                 }
             }
 
@@ -1561,18 +1625,23 @@ namespace BalloonOut.Data
                     }
 
                     bool isBending = placement.path != null;
+                    string blockDir = isBending ? placement.headDir : placement.dir;
                     var block = new BlockData
                     {
                         x = placement.x,
                         y = placement.y,
                         color = placeholderColor, // 색상은 나중에 할당
-                        dir = isBending ? placement.headDir : placement.dir,
+                        dir = blockDir,
                         length = placement.cells.Count,
                         cells = placement.cells,
                         path = isBending ? placement.path : null,
                         isBending = isBending
                     };
                     blocks.Add(block);
+
+                    // 디버그: cells[0]이 HEAD인지 확인
+                    var head = placement.cells[0];
+                    Debug.Log($"  [DEBUG] Arrow {i} added: head=({head.x},{head.y}) dir={blockDir} cells[0]=({placement.cells[0].x},{placement.cells[0].y})");
 
                     foreach (var c in placement.cells)
                     {
@@ -1714,6 +1783,20 @@ namespace BalloonOut.Data
                     Debug.Log($"=== Generation Successful! ===");
                     Debug.Log($"Final density: {finalDensity * 100:F1}%");
                     Debug.Log($"Main arrows: {mainBlockCount}, Fillers: {allBlocks.Count - mainBlockCount}");
+
+                    // Round-trip 검증: LevelData를 다시 BlockData로 변환했을 때 일관성 확인
+                    Debug.Log($"[RoundTrip] Verifying LevelData → BlockData conversion consistency...");
+                    var roundTripValidation = ValidateLevel(levelData);
+                    if (!roundTripValidation.valid)
+                    {
+                        Debug.LogError($"[RoundTrip] FAILED! Internal validation passed but ValidateLevel failed: {roundTripValidation.reason}");
+                        Debug.LogError($"[RoundTrip] This indicates a coordinate/direction transformation issue!");
+                        // 상세 진단을 위해 continue하지 않고 일단 반환 (디버그용)
+                    }
+                    else
+                    {
+                        Debug.Log($"[RoundTrip] SUCCESS - Both internal and external validation passed");
+                    }
 
                     return levelData;
                 }
