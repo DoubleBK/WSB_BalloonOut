@@ -104,8 +104,136 @@ Level Editor에서 검증 기능을 사용할 수 있도록 public API 추가.
 
 ---
 
+---
+
+## 2026-01-26
+
+### 1. CameraController 구현 (CameraController.cs)
+
+Grid 크기에 따른 자동 줌 및 드래그/핀치 기능 구현.
+
+**파일**: `Assets/Scripts/Core/CameraController.cs`
+
+**핵심 기능**:
+- **자동 줌 조절**: Grid Size에 맞춰 카메라 orthographicSize 자동 계산
+- **드래그 이동**: 마우스/터치로 카메라 위치 이동
+- **핀치 줌**: 모바일 2손가락 줌 인/아웃
+- **드래그 임계값**: 탭과 드래그 구분 (dragThreshold 픽셀)
+- **경계 제한**: 그리드 영역 밖으로 카메라 이동 제한
+
+**주요 메서드**:
+```csharp
+// Grid 크기에 맞춰 카메라 크기 자동 조절
+public void AdjustToGrid(int gridSize, float cellSize)
+
+// 드래그 상태 확인 (화살표 터치와 구분용)
+public bool HasDragged { get; }
+```
+
+**GameManager 연동**:
+```csharp
+// InitializeLevel에서 카메라 조절 호출
+if (_cameraController != null && _gridSystem != null)
+{
+    _cameraController.AdjustToGrid(levelData.gridSize, _gridSystem.CellSize);
+}
+```
+
+---
+
+### 2. 화살표 입력 버그 수정 (Critical Bug Fix)
+
+**문제**: 첫 번째 화살표 탈출 후 다른 화살표가 입력에 반응하지 않음
+
+**원인 분석**:
+- `_isProcessing` 플래그가 `true`인 상태로 유지됨
+- `OnExtracted` 이벤트에서 `_isProcessing = false` 처리하도록 되어있었음
+- HomingArrowSpawner가 화살표를 파괴하여 `OnExtracted` 이벤트가 발생하지 않음
+
+**디버그 로그로 확인**:
+```
+[GameManager] OnArrowTapped: Arrow=9, State=Playing, IsProcessing=True, CanLaunch=True
+```
+→ `IsProcessing=True`가 두 번째 화살표 터치 시에도 유지되어 입력 무시됨
+
+**수정 내용** (`GameManager.cs`):
+```csharp
+private void OnArrowExtractionStartedHandler(ArrowController arrow, Vector2 headPos, ArrowDirection exitDir)
+{
+    // 탈출 시작 시 즉시 다음 입력 허용
+    // (OnExtracted 이벤트는 화살표 파괴로 인해 호출되지 않을 수 있음)
+    _isProcessing = false;
+    Debug.Log($"[GameManager] Arrow extraction started, _isProcessing reset to false");
+
+    if (_homingArrowSpawner != null)
+    {
+        _homingArrowSpawner.HandleArrowExtractionStarted(arrow, headPos, exitDir);
+    }
+}
+```
+
+**핵심 포인트**:
+- `OnExtractionStarted` 이벤트에서 `_isProcessing` 리셋 (기존: `OnExtracted`에서 리셋)
+- HomingArrow가 화살표를 파괴해도 다음 입력이 즉시 가능
+
+---
+
+### 3. 디버그 로깅 추가 (ArrowController.cs)
+
+화살표 입력 문제 추적을 위한 디버그 로깅 추가.
+
+**추가된 로그**:
+```csharp
+// 활성 화살표 수 추적
+private void OnEnable()
+{
+    _activeArrowCount++;
+    Debug.Log($"[ArrowController] Arrow {_id} OnEnable, active count: {_activeArrowCount}");
+}
+
+private void OnDisable()
+{
+    _activeArrowCount--;
+    Debug.Log($"[ArrowController] Arrow {_id} OnDisable, active count: {_activeArrowCount}");
+}
+
+// OnTapped 이벤트 구독자 수 로깅
+Debug.Log($"[ArrowController] Arrow {_id} invoking OnTapped. Subscribers: {OnTapped?.GetInvocationList().Length ?? 0}");
+```
+
+---
+
+### 4. Auto Calculate 최적화 계획 수립
+
+Filler 이슈 해결 및 밀도 최적화를 위한 계획 작성.
+
+**문제점**:
+- Filler 배치 시 Facing 에러, Deadlock 발생
+- 8x8 기본 밀도가 75%로 목표(90-95%)에 미달
+
+**계획된 변경사항**:
+- `fillerEnabled` 기본값 `false`로 변경
+- 밀도 기반 화살표 개수 계산 공식 적용
+- Grid Size별 최적화된 파라미터 테이블
+
+**계획 파일**: `C:\Users\...\plans\generic-dazzling-teapot.md`
+
+---
+
+## 수정된 파일 목록 (2026-01-26)
+
+| 파일 | 작업 |
+|------|------|
+| `Assets/Scripts/Core/CameraController.cs` | 신규 생성 |
+| `Assets/Scripts/Core/GameManager.cs` | 수정 (_isProcessing 리셋 위치 변경) |
+| `Assets/Scripts/Game/Arrow/ArrowController.cs` | 수정 (디버그 로깅 추가) |
+
+---
+
 ## 다음 작업 예정
 
+- [ ] Auto Calculate 최적화 (밀도 기반 계산)
+- [ ] Filler 기본값 false로 변경
 - [ ] 꺾이는 화살표 수동 편집 기능
 - [ ] 레벨 복사/붙여넣기
 - [ ] 자동 저장 기능
