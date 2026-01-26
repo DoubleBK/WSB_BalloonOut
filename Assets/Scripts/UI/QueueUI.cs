@@ -202,25 +202,48 @@ namespace BalloonOut.UI
                         layout.childAlignment = TextAnchor.LowerCenter;
                         layout.childForceExpandWidth = false;
                         layout.childForceExpandHeight = false;
-                        layout.reverseArrangement = false;  // 풍선이 위로 쌓이도록 (Grid 침범 방지)
+                        layout.reverseArrangement = true;  // balloons[0]이 하단(활성 위치)에 배치
                     }
                     else
                     {
-                        existingVertical.reverseArrangement = false;
+                        existingVertical.reverseArrangement = true;
+                    }
+
+                    // ContentSizeFitter 추가 (Lane 크기를 컨텐츠에 맞춤)
+                    var fitter = laneObj.GetComponent<ContentSizeFitter>();
+                    if (fitter == null)
+                    {
+                        fitter = laneObj.AddComponent<ContentSizeFitter>();
+                    }
+                    fitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+                    fitter.horizontalFit = ContentSizeFitter.FitMode.PreferredSize;
+
+                    // Pivot을 하단으로 설정 (Lane들의 바닥선 정렬을 위해)
+                    var rect = laneObj.GetComponent<RectTransform>();
+                    if (rect != null)
+                    {
+                        rect.pivot = new Vector2(0.5f, 0f);  // 하단 중앙
                     }
                 }
                 else
                 {
                     laneObj = new GameObject($"Lane_{laneIdx}");
                     laneObj.transform.SetParent(_lanesContainer, false);
-                    laneObj.AddComponent<RectTransform>();
+                    var rect = laneObj.AddComponent<RectTransform>();
+                    rect.pivot = new Vector2(0.5f, 0f);  // 하단 중앙 (Lane들의 바닥선 정렬)
                     laneObj.transform.localScale = Vector3.one;
+
                     var layout = laneObj.AddComponent<VerticalLayoutGroup>();
                     layout.spacing = _balloonSpacing;
                     layout.childAlignment = TextAnchor.LowerCenter;
                     layout.childForceExpandWidth = false;
                     layout.childForceExpandHeight = false;
-                    layout.reverseArrangement = false;  // 풍선이 위로 쌓이도록 (Grid 침범 방지)
+                    layout.reverseArrangement = true;  // balloons[0]이 하단(활성 위치)에 배치
+
+                    // ContentSizeFitter 추가 (Lane 크기를 컨텐츠에 맞춤)
+                    var fitter = laneObj.AddComponent<ContentSizeFitter>();
+                    fitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+                    fitter.horizontalFit = ContentSizeFitter.FitMode.PreferredSize;
                 }
 
                 var lane = _lanes[laneIdx];
@@ -349,6 +372,9 @@ namespace BalloonOut.UI
             float elapsed = 0f;
             var startScale = balloon.transform.localScale;
 
+            // 부모 참조 저장 (Destroy 전에)
+            Transform parentTransform = balloon.transform.parent;
+
             while (elapsed < duration)
             {
                 elapsed += Time.deltaTime;
@@ -371,6 +397,17 @@ namespace BalloonOut.UI
             }
 
             Destroy(balloon);
+
+            // 레이아웃 강제 리빌드 (다음 풍선이 아래로 이동하도록)
+            yield return null;  // Destroy가 완료될 때까지 한 프레임 대기
+            if (parentTransform != null)
+            {
+                var rectTransform = parentTransform.GetComponent<RectTransform>();
+                if (rectTransform != null)
+                {
+                    LayoutRebuilder.ForceRebuildLayoutImmediate(rectTransform);
+                }
+            }
         }
 
         /// <summary>
