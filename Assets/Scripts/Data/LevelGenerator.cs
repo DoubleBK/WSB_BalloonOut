@@ -248,8 +248,27 @@ namespace BalloonOut.Data
             return lanes;
         }
 
+        /// <summary>
+        /// 색상 순서 생성 (탈출 순서)
+        /// 핵심: lanes에 먼저 Miss 풍선을 추가한 후, 최종 lanes에서 color sequence를 생성
+        /// 이렇게 해야 "화살표 탈출 순서 = 풍선 팝 순서"가 보장됨
+        /// </summary>
         private static List<string> GetColorSequence(List<List<string>> lanes, int missCount)
         {
+            // Step 1: Miss 풍선을 lanes에 먼저 추가
+            for (int i = 0; i < missCount; i++)
+            {
+                string missColor = RandomPick(COLORS);
+
+                // 랜덤 Lane 선택
+                int laneIdx = RandomInt(0, lanes.Count - 1);
+
+                // 랜덤 위치에 삽입 (해당 Lane 내)
+                int insertPos = RandomInt(0, lanes[laneIdx].Count);
+                lanes[laneIdx].Insert(insertPos, missColor);
+            }
+
+            // Step 2: 최종 lanes에서 color sequence 생성 (LIFO: lane[end]부터 팝)
             var colors = new List<string>();
             var lanesCopy = new List<List<string>>();
             foreach (var lane in lanes)
@@ -261,15 +280,8 @@ namespace BalloonOut.Data
             {
                 var nonEmpty = lanesCopy.FindAll(l => l.Count > 0);
                 var lane = RandomPick(nonEmpty);
-                colors.Add(lane[lane.Count - 1]);
+                colors.Add(lane[lane.Count - 1]);  // LIFO: 끝에서 팝
                 lane.RemoveAt(lane.Count - 1);
-            }
-
-            // Miss 색상 추가
-            for (int i = 0; i < missCount; i++)
-            {
-                int pos = RandomInt(0, colors.Count);
-                colors.Insert(pos, RandomPick(COLORS));
             }
 
             return colors;
