@@ -43,6 +43,9 @@ namespace BalloonOut.Core
         [SerializeField] private ConfettiEffect _confettiEffect;
         [SerializeField] private string _lobbySceneName = "LobbyScene";
 
+        [Header("Camera")]
+        [SerializeField] private CameraController _cameraController;
+
         // ========== 내부 상태 변수 ==========
         private GameState _state = GameState.Ready;
         private LevelData _currentLevel;
@@ -164,6 +167,16 @@ namespace BalloonOut.Core
             if (_gridSystem != null)
             {
                 _gridSystem.Initialize(levelData.gridSize);
+            }
+
+            // 카메라 자동 줌 조절
+            if (_cameraController != null && _gridSystem != null)
+            {
+                _cameraController.AdjustToGrid(levelData.gridSize, _gridSystem.CellSize);
+            }
+            else if (CameraController.Instance != null && _gridSystem != null)
+            {
+                CameraController.Instance.AdjustToGrid(levelData.gridSize, _gridSystem.CellSize);
             }
 
             // Queue UI 초기화
