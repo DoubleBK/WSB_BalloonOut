@@ -19,12 +19,22 @@ namespace BalloonOut.UI
 
         [Header("Settings")]
         [SerializeField] private float _balloonSize = 60f;
-        [SerializeField] private float _balloonSpacing = 10f;
+        [SerializeField] private float _balloonSpacing = 10f;  // 음수 값 사용 시 풍선 겹침
         [SerializeField] private float _laneSpacing = 40f;
+
+        [Header("Overlap Settings")]
+        [SerializeField] private bool _enableOverlap = true;  // 풍선 겹침 활성화
+        [SerializeField] private float _overlapAmount = 20f;   // 겹치는 정도 (양수 = 더 많이 겹침)
+
+        [Header("Animation")]
+        [SerializeField] private float _slideAnimDuration = 0.25f;
 
         // ========== 내부 상태 변수 ==========
         private List<List<Image>> _balloonImages = new List<List<Image>>();
         private List<List<GameColor>> _lanes = new List<List<GameColor>>();
+
+        // 각 레인의 풍선 기준 위치 (balloons[0]의 anchoredPosition)
+        private List<Vector2> _laneBasePositions = new List<Vector2>();
 
         // ========== 싱글톤 ==========
         public static QueueUI Instance { get; private set; }
@@ -79,6 +89,9 @@ namespace BalloonOut.UI
                         var balloonList = _balloonImages[laneIdx];
                         var firstBalloon = balloonList[0];
                         balloonList.RemoveAt(0);
+
+                        // 남은 풍선들의 슬라이드 애니메이션 시작 (laneIdx 전달)
+                        AnimateRemainingBalloons(balloonList, firstBalloon, laneIdx);
 
                         // 팝 애니메이션
                         AnimatePop(firstBalloon.gameObject);
@@ -261,6 +274,73 @@ namespace BalloonOut.UI
                 _balloonImages.Add(balloonList);
             }
 
+            // 레이아웃 강제 업데이트 (LayoutGroup이 위치를 계산하도록)
+            Canvas.ForceUpdateCanvases();
+
+            // 각 레인의 기준 위치 저장 및 LayoutGroup 제거
+            _laneBasePositions.Clear();
+            for (int laneIdx = 0; laneIdx < _balloonImages.Count; laneIdx++)
+            {
+                if (_balloonImages[laneIdx].Count == 0)
+                {
+                    _laneBasePositions.Add(Vector2.zero);
+                    continue;
+                }
+
+                Transform laneObj = _balloonImages[laneIdx][0]?.transform.parent;
+                if (laneObj == null)
+                {
+                    _laneBasePositions.Add(Vector2.zero);
+                    continue;
+                }
+
+                // 첫 번째 풍선(balloons[0])의 anchoredPosition을 기준으로 저장
+                var firstBalloon = _balloonImages[laneIdx][0];
+                var rect = firstBalloon.GetComponent<RectTransform>();
+                if (rect != null)
+                {
+                    _laneBasePositions.Add(rect.anchoredPosition);
+                }
+                else
+                {
+                    _laneBasePositions.Add(Vector2.zero);
+                }
+
+                // VerticalLayoutGroup 제거 (이제 수동 관리)
+                var layout = laneObj.GetComponent<VerticalLayoutGroup>();
+                if (layout != null)
+                {
+                    Destroy(layout);
+                }
+
+                // ContentSizeFitter도 제거
+                var fitter = laneObj.GetComponent<ContentSizeFitter>();
+                if (fitter != null)
+                {
+                    Destroy(fitter);
+                }
+
+                // 겹침 모드: 앞 풍선(index 0)이 뒤 풍선을 가리도록 렌더링 순서 조정
+                // Unity UI에서 나중에 렌더링되는 것이 위에 표시되므로, index 0을 맨 마지막 sibling으로
+                if (_enableOverlap && _balloonImages[laneIdx].Count > 1)
+                {
+                    for (int i = _balloonImages[laneIdx].Count - 1; i >= 0; i--)
+                    {
+                        var balloon = _balloonImages[laneIdx][i];
+                        if (balloon != null)
+                        {
+                            balloon.transform.SetAsLastSibling();
+                        }
+                    }
+                }
+            }
+
+            // 겹침 모드에서 위치 재계산 (LayoutGroup 기준 위치가 아닌 직접 계산)
+            if (_enableOverlap)
+            {
+                ApplyOverlapPositions();
+            }
+
             UpdateHeadHighlights();
         }
 
@@ -358,6 +438,107 @@ namespace BalloonOut.UI
         }
 
         /// <summary>
+        /// 풍선 인덱스에 따른 anchoredPosition 계산
+        /// index 0 = 가장 아래 (활성 풍선)
+        /// </summary>
+        private Vector2 CalculateBalloonPosition(int laneIdx, int balloonIndex)
+        {
+            if (laneIdx < 0 || laneIdx >= _laneBasePositions.Count)
+                return Vector2.zero;
+
+            Vector2 basePos = _laneBasePositions[laneIdx];
+
+            // 겹침이 활성화된 경우, 풍선 간격을 줄여서 겹치게 함
+            float effectiveSpacing = _balloonSpacing;
+            if (_enableOverlap)
+            {
+                // 겹침 양만큼 간격 감소 (음수가 될 수 있음)
+                effectiveSpacing = _balloonSize - _overlapAmount;
+            }
+
+            float yOffset = balloonIndex * effectiveSpacing;
+            return new Vector2(basePos.x, basePos.y + yOffset);
+        }
+
+        /// <summary>
+        /// 겹침 모드에서 모든 풍선 위치 적용
+        /// </summary>
+        private void ApplyOverlapPositions()
+        {
+            for (int laneIdx = 0; laneIdx < _balloonImages.Count; laneIdx++)
+            {
+                var balloonList = _balloonImages[laneIdx];
+                for (int i = 0; i < balloonList.Count; i++)
+                {
+                    var balloon = balloonList[i];
+                    if (balloon == null) continue;
+
+                    var rect = balloon.GetComponent<RectTransform>();
+                    if (rect != null)
+                    {
+                        rect.anchoredPosition = CalculateBalloonPosition(laneIdx, i);
+                    }
+                }
+            }
+        }
+
+        /// <summary>
+        /// 남은 풍선들의 슬라이드 다운 애니메이션
+        /// 각 풍선을 새 인덱스 위치로 애니메이션
+        /// </summary>
+        private void AnimateRemainingBalloons(List<Image> balloons, Image poppedBalloon, int laneIdx)
+        {
+            if (balloons == null || balloons.Count == 0) return;
+
+            // 각 풍선을 새 인덱스(i)에 해당하는 목표 위치로 애니메이션
+            for (int i = 0; i < balloons.Count; i++)
+            {
+                var balloon = balloons[i];
+                if (balloon == null) continue;
+
+                var rect = balloon.GetComponent<RectTransform>();
+                if (rect == null) continue;
+
+                Vector2 startPos = rect.anchoredPosition;
+                // 새 인덱스(i)에 해당하는 목표 위치 계산
+                Vector2 endPos = CalculateBalloonPosition(laneIdx, i);
+
+                // 슬라이드 코루틴 시작
+                StartCoroutine(SlideBalloonCoroutine(rect, startPos, endPos));
+            }
+        }
+
+        /// <summary>
+        /// 개별 풍선 슬라이드 애니메이션 코루틴
+        /// LayoutGroup이 제거되었으므로 ignoreLayout 불필요
+        /// </summary>
+        private System.Collections.IEnumerator SlideBalloonCoroutine(RectTransform rect, Vector2 from, Vector2 to)
+        {
+            if (rect == null) yield break;
+
+            float elapsed = 0f;
+
+            while (elapsed < _slideAnimDuration)
+            {
+                if (rect == null) yield break;
+
+                elapsed += Time.deltaTime;
+                float t = Mathf.Clamp01(elapsed / _slideAnimDuration);
+
+                // Ease Out Cubic - 부드러운 감속
+                float easedT = 1f - Mathf.Pow(1f - t, 3f);
+
+                rect.anchoredPosition = Vector2.Lerp(from, to, easedT);
+                yield return null;
+            }
+
+            if (rect != null)
+            {
+                rect.anchoredPosition = to;
+            }
+        }
+
+        /// <summary>
         /// 팝 애니메이션
         /// </summary>
         private void AnimatePop(GameObject balloon)
@@ -371,9 +552,6 @@ namespace BalloonOut.UI
             float duration = 0.2f;
             float elapsed = 0f;
             var startScale = balloon.transform.localScale;
-
-            // 부모 참조 저장 (Destroy 전에)
-            Transform parentTransform = balloon.transform.parent;
 
             while (elapsed < duration)
             {
@@ -397,17 +575,8 @@ namespace BalloonOut.UI
             }
 
             Destroy(balloon);
-
-            // 레이아웃 강제 리빌드 (다음 풍선이 아래로 이동하도록)
-            yield return null;  // Destroy가 완료될 때까지 한 프레임 대기
-            if (parentTransform != null)
-            {
-                var rectTransform = parentTransform.GetComponent<RectTransform>();
-                if (rectTransform != null)
-                {
-                    LayoutRebuilder.ForceRebuildLayoutImmediate(rectTransform);
-                }
-            }
+            // 슬라이드 애니메이션이 위치 이동을 처리하므로
+            // LayoutRebuilder 즉시 갱신은 제거됨
         }
 
         /// <summary>

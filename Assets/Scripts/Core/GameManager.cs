@@ -318,6 +318,10 @@ namespace BalloonOut.Core
             arrow.OnStopped -= OnArrowStoppedHandler;
 
             OnArrowEscapedHandler(arrow);
+
+            // 화살표 탈출 즉시 다음 입력 허용
+            // HomingArrow가 풍선에 도달하는 것은 비동기로 처리되므로
+            // 연속 화살표 발사가 가능하도록 여기서 바로 false 설정
             _isProcessing = false;
         }
 
@@ -378,7 +382,8 @@ namespace BalloonOut.Core
             CheckWinCondition();
 
             Debug.Log(wasMatch ? $"HomingArrow POP! Color: {color}" : $"HomingArrow missed! Color: {color}");
-            _isProcessing = false;
+            // _isProcessing은 OnArrowExtractedHandler에서 이미 false로 설정됨
+            // 화살표 탈출 즉시 다음 입력 허용
         }
 
         /// <summary>

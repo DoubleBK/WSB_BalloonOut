@@ -997,6 +997,8 @@ namespace BalloonOut.Data
             if (levelData == null)
                 return new ValidationResult { valid = false, reason = "null level" };
 
+            int gridSize = levelData.gridSize;
+
             // LevelData를 BlockData 리스트로 변환
             var blocks = new List<BlockData>();
             if (levelData.arrows != null)
@@ -1008,10 +1010,17 @@ namespace BalloonOut.Data
                     var cells = arrow.GetCells();
                     cells.Reverse();
 
+                    // Game → Generator 좌표계 변환: Y 좌표 플립
+                    // Game: y=0이 하단, Generator: y=0이 상단
+                    for (int i = 0; i < cells.Count; i++)
+                    {
+                        cells[i] = new Vector2Int(cells[i].x, gridSize - 1 - cells[i].y);
+                    }
+
                     var block = new BlockData
                     {
                         x = arrow.x,
-                        y = arrow.y,
+                        y = gridSize - 1 - arrow.y,  // Y 좌표도 플립
                         color = arrow.color,
                         dir = UnflipYDirection(arrow.direction),  // Game → Generator 좌표계 역변환
                         length = arrow.length,
