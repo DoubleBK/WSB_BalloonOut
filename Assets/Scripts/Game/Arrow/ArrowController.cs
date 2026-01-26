@@ -63,6 +63,9 @@ namespace BalloonOut.Game.Arrow
         private static int _lastInputFrame = -1;
         private static ArrowController _lastTouchedArrow = null;
 
+        // 활성 화살표 수 추적 (디버그용)
+        private static int _activeArrowCount = 0;
+
         // ========== 이벤트 ==========
         public event Action<ArrowController> OnTapped;
         public event Action<ArrowController> OnExtracted;
@@ -85,6 +88,25 @@ namespace BalloonOut.Game.Arrow
         public bool IsAppearing => _animationHelper?.IsAppearing ?? false;
 
         // ========== 유니티 라이프사이클 ==========
+        private void OnEnable()
+        {
+            _activeArrowCount++;
+            Debug.Log($"[ArrowController] Arrow {_id} OnEnable, active count: {_activeArrowCount}");
+        }
+
+        private void OnDisable()
+        {
+            _activeArrowCount--;
+            Debug.Log($"[ArrowController] Arrow {_id} OnDisable, active count: {_activeArrowCount}");
+
+            // 파괴된 화살표가 _lastTouchedArrow면 클리어
+            if (_lastTouchedArrow == this)
+            {
+                _lastTouchedArrow = null;
+                Debug.Log($"[ArrowController] Cleared _lastTouchedArrow (was Arrow {_id})");
+            }
+        }
+
         private void OnDestroy()
         {
             _moveTween?.Kill();
@@ -761,11 +783,7 @@ namespace BalloonOut.Game.Arrow
         // ========== 입력 처리 ==========
         private void Update()
         {
-            // Idle 상태가 아니면 입력 무시
-            if (_state != ArrowState.Idle) return;
-            if (_animationHelper != null && _animationHelper.IsAppearing) return;
-
-            // 터치/클릭 시작 감지
+            // 터치/클릭 시작 감지 (먼저 체크)
             bool inputDown = false;
             Vector2 inputPos = Vector2.zero;
 
@@ -782,6 +800,28 @@ namespace BalloonOut.Game.Arrow
                 inputPos = Input.GetTouch(0).position;
             }
 #endif
+
+            // 입력이 있을 때만 디버그 로그 출력
+            if (inputDown)
+            {
+                bool hasDragged = CameraController.Instance != null && CameraController.Instance.HasDragged;
+                Debug.Log($"[ArrowController] Arrow {_id} Input detected! State={_state}, IsAppearing={_animationHelper?.IsAppearing}, HasDragged={hasDragged}, ActiveArrows={_activeArrowCount}");
+            }
+
+            // Idle 상태가 아니면 입력 무시
+            if (_state != ArrowState.Idle) return;
+            if (_animationHelper != null && _animationHelper.IsAppearing) return;
+
+            // CameraController에서 실제 드래그가 발생했으면 입력 무시
+            // (IsDragging은 클릭 시작 시 바로 true가 되므로 HasDragged 사용)
+            if (CameraController.Instance != null && CameraController.Instance.HasDragged)
+            {
+                if (inputDown)
+                {
+                    Debug.Log($"[ArrowController] Arrow {_id} blocked by HasDragged=true");
+                }
+                return;
+            }
 
             if (!inputDown) return;
 
@@ -802,8 +842,18 @@ namespace BalloonOut.Game.Arrow
                 _lastInputFrame = Time.frameCount;
                 _lastTouchedArrow = this;
 
-                Debug.Log($"[ArrowController] Touch at {touchWorldPos} IS on Arrow {_id}, invoking OnTapped");
-                OnTapped?.Invoke(this);
+                int subscriberCount = OnTapped?.GetInvocationList()?.Length ?? 0;
+                Debug.Log($"[ArrowController] Touch at {touchWorldPos} IS on Arrow {_id}, invoking OnTapped (subscribers: {subscriberCount})");
+
+                if (OnTapped != null)
+                {
+                    OnTapped.Invoke(this);
+                    Debug.Log($"[ArrowController] OnTapped.Invoke completed for Arrow {_id}");
+                }
+                else
+                {
+                    Debug.LogError($"[ArrowController] OnTapped is NULL for Arrow {_id}! Event not subscribed.");
+                }
             }
         }
 

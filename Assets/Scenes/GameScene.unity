@@ -599,6 +599,7 @@ MonoBehaviour:
   _startLevelIdx: 1
   _confettiEffect: {fileID: 1732222311}
   _lobbySceneName: LobbyScene
+  _cameraController: {fileID: 961739754}
 --- !u!1 &884012065
 GameObject:
   m_ObjectHideFlags: 0
@@ -957,6 +958,7 @@ GameObject:
   - component: {fileID: 961739752}
   - component: {fileID: 961739751}
   - component: {fileID: 961739750}
+  - component: {fileID: 961739754}
   m_Layer: 0
   m_Name: Main Camera
   m_TagString: MainCamera
@@ -1082,6 +1084,31 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &961739754
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 961739749}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 35d51dfafc51e7e4b834b65b714f27b6, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  _minZoom: 3
+  _maxZoom: 25
+  _zoomSpeed: 0.5
+  _dragSpeed: 1
+  _dragThreshold: 10
+  _boundaryPadding: 2
+  _verticalExtraPadding: 3
+  _minMoveRange: 2
+  _autoPadding: 1.5
+  _topMargin: 2
+  _useSmoothTransition: 1
+  _smoothSpeed: 5
+  _minCameraSize: 5
 --- !u!1 &1053988350
 GameObject:
   m_ObjectHideFlags: 0

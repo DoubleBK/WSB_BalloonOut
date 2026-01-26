@@ -275,6 +275,11 @@ namespace BalloonOut.Core
         /// </summary>
         private void OnArrowExtractionStartedHandler(ArrowController arrow, Vector2 headPos, ArrowDirection exitDir)
         {
+            // 탈출 시작 시 즉시 다음 입력 허용
+            // (OnExtracted 이벤트는 화살표 파괴로 인해 호출되지 않을 수 있음)
+            _isProcessing = false;
+            Debug.Log($"[GameManager] Arrow extraction started, _isProcessing reset to false");
+
             if (_homingArrowSpawner != null)
             {
                 _homingArrowSpawner.HandleArrowExtractionStarted(arrow, headPos, exitDir);
@@ -307,6 +312,8 @@ namespace BalloonOut.Core
         /// </summary>
         private void OnArrowTapped(ArrowController arrow)
         {
+            Debug.Log($"[GameManager] OnArrowTapped: Arrow={arrow?.Id}, State={_state}, IsProcessing={_isProcessing}, CanLaunch={arrow?.CanLaunch}");
+
             if (_state != GameState.Playing) return;
             if (_isProcessing) return;
             if (!arrow.CanLaunch) return;
@@ -336,6 +343,7 @@ namespace BalloonOut.Core
             // HomingArrow가 풍선에 도달하는 것은 비동기로 처리되므로
             // 연속 화살표 발사가 가능하도록 여기서 바로 false 설정
             _isProcessing = false;
+            Debug.Log($"[GameManager] Arrow extracted, _isProcessing reset to false");
         }
 
         /// <summary>
@@ -347,7 +355,7 @@ namespace BalloonOut.Core
             arrow.OnExtracted -= OnArrowExtractedHandler;
             arrow.OnStopped -= OnArrowStoppedHandler;
 
-            Debug.Log("BLOCKED!");
+            Debug.Log("[GameManager] Arrow BLOCKED! _isProcessing reset to false");
             _isProcessing = false;
         }
 

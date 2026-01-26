@@ -12,91 +12,626 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 95a8d77c43572b24994755a6f515373f, type: 3}
   m_Name: stage_000001
   m_EditorClassIdentifier: 
-  stageName: stage_000001
-  gridSize: 4
+  stageName: 000001
+  gridSize: 16
   lanes:
   - balloons:
     - O
+    - B
+    - G
+  - balloons:
+    - R
+    - R
+    - B
     - O
   - balloons:
-    - P
-    - B
-    - P
+    - Y
+    - R
+    - O
+    - R
+  - balloons:
+    - G
+    - O
+    - G
+    - R
+    - G
   arrows:
-  - x: 3
-    y: 1
-    color: O
+  - x: 15
+    y: 15
+    color: Y
     direction: R
-    length: 3
+    length: 22
     path:
+    - x: 0
+      y: 9
+    - x: 0
+      y: 10
+    - x: 0
+      y: 11
+    - x: 0
+      y: 12
+    - x: 0
+      y: 13
+    - x: 0
+      y: 14
+    - x: 0
+      y: 15
     - x: 1
-      y: 1
+      y: 15
     - x: 2
-      y: 1
+      y: 15
     - x: 3
-      y: 1
-    order: 1
+      y: 15
+    - x: 4
+      y: 15
+    - x: 5
+      y: 15
+    - x: 6
+      y: 15
+    - x: 7
+      y: 15
+    - x: 8
+      y: 15
+    - x: 9
+      y: 15
+    - x: 10
+      y: 15
+    - x: 11
+      y: 15
+    - x: 12
+      y: 15
+    - x: 13
+      y: 15
+    - x: 14
+      y: 15
+    - x: 15
+      y: 15
+    order: 10
     isFiller: 0
+    isDecoy: 0
   - x: 3
-    y: 2
-    color: P
-    direction: D
-    length: 4
+    y: 10
+    color: R
+    direction: U
+    length: 7
     path:
-    - x: 1
-      y: 3
-    - x: 2
-      y: 3
     - x: 3
-      y: 3
+      y: 4
     - x: 3
-      y: 2
-    order: 3
+      y: 5
+    - x: 3
+      y: 6
+    - x: 3
+      y: 7
+    - x: 3
+      y: 8
+    - x: 3
+      y: 9
+    - x: 3
+      y: 10
+    order: 17
     isFiller: 0
-  - x: 1
-    y: 2
-    color: B
-    direction: L
-    length: 2
+    isDecoy: 1
+  - x: 15
+    y: 12
+    color: R
+    direction: R
+    length: 15
     path:
-    - x: 2
-      y: 2
     - x: 1
-      y: 2
+      y: 12
+    - x: 2
+      y: 12
+    - x: 3
+      y: 12
+    - x: 4
+      y: 12
+    - x: 5
+      y: 12
+    - x: 6
+      y: 12
+    - x: 7
+      y: 12
+    - x: 8
+      y: 12
+    - x: 9
+      y: 12
+    - x: 10
+      y: 12
+    - x: 11
+      y: 12
+    - x: 12
+      y: 12
+    - x: 13
+      y: 12
+    - x: 14
+      y: 12
+    - x: 15
+      y: 12
     order: 4
     isFiller: 0
+    isDecoy: 0
+  - x: 14
+    y: 13
+    color: R
+    direction: D
+    length: 13
+    path:
+    - x: 3
+      y: 14
+    - x: 4
+      y: 14
+    - x: 5
+      y: 14
+    - x: 6
+      y: 14
+    - x: 7
+      y: 14
+    - x: 8
+      y: 14
+    - x: 9
+      y: 14
+    - x: 10
+      y: 14
+    - x: 11
+      y: 14
+    - x: 12
+      y: 14
+    - x: 13
+      y: 14
+    - x: 14
+      y: 14
+    - x: 14
+      y: 13
+    order: 13
+    isFiller: 0
+    isDecoy: 0
   - x: 3
-    y: 0
-    color: O
+    y: 13
+    color: G
     direction: R
     length: 5
     path:
+    - x: 2
+      y: 14
+    - x: 1
+      y: 14
+    - x: 1
+      y: 13
+    - x: 2
+      y: 13
+    - x: 3
+      y: 13
+    order: 14
+    isFiller: 0
+    isDecoy: 0
+  - x: 15
+    y: 7
+    color: R
+    direction: R
+    length: 19
+    path:
+    - x: 1
+      y: 11
+    - x: 2
+      y: 11
+    - x: 3
+      y: 11
+    - x: 4
+      y: 11
+    - x: 4
+      y: 10
+    - x: 4
+      y: 9
+    - x: 4
+      y: 8
+    - x: 4
+      y: 7
+    - x: 5
+      y: 7
+    - x: 6
+      y: 7
+    - x: 7
+      y: 7
+    - x: 8
+      y: 7
+    - x: 9
+      y: 7
+    - x: 10
+      y: 7
+    - x: 11
+      y: 7
+    - x: 12
+      y: 7
+    - x: 13
+      y: 7
+    - x: 14
+      y: 7
+    - x: 15
+      y: 7
+    order: 1
+    isFiller: 0
+    isDecoy: 0
+  - x: 0
+    y: 0
+    color: O
+    direction: D
+    length: 13
+    path:
+    - x: 2
+      y: 10
+    - x: 2
+      y: 9
+    - x: 2
+      y: 8
+    - x: 1
+      y: 8
+    - x: 0
+      y: 8
+    - x: 0
+      y: 7
+    - x: 0
+      y: 6
+    - x: 0
+      y: 5
+    - x: 0
+      y: 4
+    - x: 0
+      y: 3
+    - x: 0
+      y: 2
     - x: 0
       y: 1
     - x: 0
       y: 0
-    - x: 1
-      y: 0
-    - x: 2
-      y: 0
-    - x: 3
-      y: 0
-    order: 2
-    isFiller: 0
-  - x: 0
-    y: 3
-    color: P
-    direction: U
-    length: 2
-    path:
-    - x: 0
-      y: 2
-    - x: 0
-      y: 3
     order: 5
     isFiller: 0
+    isDecoy: 0
+  - x: 8
+    y: 3
+    color: B
+    direction: L
+    length: 5
+    path:
+    - x: 12
+      y: 3
+    - x: 11
+      y: 3
+    - x: 10
+      y: 3
+    - x: 9
+      y: 3
+    - x: 8
+      y: 3
+    order: 15
+    isFiller: 0
+    isDecoy: 0
+  - x: 12
+    y: 0
+    color: B
+    direction: D
+    length: 12
+    path:
+    - x: 14
+      y: 1
+    - x: 13
+      y: 1
+    - x: 13
+      y: 0
+    - x: 14
+      y: 0
+    - x: 15
+      y: 0
+    - x: 15
+      y: 1
+    - x: 15
+      y: 2
+    - x: 14
+      y: 2
+    - x: 13
+      y: 2
+    - x: 12
+      y: 2
+    - x: 12
+      y: 1
+    - x: 12
+      y: 0
+    order: 3
+    isFiller: 0
+    isDecoy: 0
+  - x: 11
+    y: 0
+    color: G
+    direction: D
+    length: 9
+    path:
+    - x: 5
+      y: 2
+    - x: 6
+      y: 2
+    - x: 7
+      y: 2
+    - x: 8
+      y: 2
+    - x: 9
+      y: 2
+    - x: 10
+      y: 2
+    - x: 11
+      y: 2
+    - x: 11
+      y: 1
+    - x: 11
+      y: 0
+    order: 6
+    isFiller: 0
+    isDecoy: 0
+  - x: 7
+    y: 3
+    color: O
+    direction: D
+    length: 22
+    path:
+    - x: 10
+      y: 5
+    - x: 11
+      y: 5
+    - x: 12
+      y: 5
+    - x: 13
+      y: 5
+    - x: 13
+      y: 4
+    - x: 13
+      y: 3
+    - x: 14
+      y: 3
+    - x: 15
+      y: 3
+    - x: 15
+      y: 4
+    - x: 15
+      y: 5
+    - x: 15
+      y: 6
+    - x: 14
+      y: 6
+    - x: 13
+      y: 6
+    - x: 12
+      y: 6
+    - x: 11
+      y: 6
+    - x: 10
+      y: 6
+    - x: 9
+      y: 6
+    - x: 8
+      y: 6
+    - x: 7
+      y: 6
+    - x: 7
+      y: 5
+    - x: 7
+      y: 4
+    - x: 7
+      y: 3
+    order: 11
+    isFiller: 0
+    isDecoy: 0
+  - x: 3
+    y: 0
+    color: G
+    direction: D
+    length: 16
+    path:
+    - x: 5
+      y: 5
+    - x: 5
+      y: 4
+    - x: 4
+      y: 4
+    - x: 4
+      y: 5
+    - x: 4
+      y: 6
+    - x: 5
+      y: 6
+    - x: 6
+      y: 6
+    - x: 6
+      y: 5
+    - x: 6
+      y: 4
+    - x: 6
+      y: 3
+    - x: 5
+      y: 3
+    - x: 4
+      y: 3
+    - x: 3
+      y: 3
+    - x: 3
+      y: 2
+    - x: 3
+      y: 1
+    - x: 3
+      y: 0
+    order: 7
+    isFiller: 0
+    isDecoy: 0
+  - x: 9
+    y: 0
+    color: R
+    direction: D
+    length: 12
+    path:
+    - x: 8
+      y: 0
+    - x: 7
+      y: 0
+    - x: 6
+      y: 0
+    - x: 5
+      y: 0
+    - x: 4
+      y: 0
+    - x: 4
+      y: 1
+    - x: 5
+      y: 1
+    - x: 6
+      y: 1
+    - x: 7
+      y: 1
+    - x: 8
+      y: 1
+    - x: 9
+      y: 1
+    - x: 9
+      y: 0
+    order: 8
+    isFiller: 0
+    isDecoy: 0
+  - x: 1
+    y: 7
+    color: R
+    direction: L
+    length: 6
+    path:
+    - x: 2
+      y: 3
+    - x: 2
+      y: 4
+    - x: 2
+      y: 5
+    - x: 2
+      y: 6
+    - x: 2
+      y: 7
+    - x: 1
+      y: 7
+    order: 9
+    isFiller: 0
+    isDecoy: 0
+  - x: 10
+    y: 0
+    color: O
+    direction: D
+    length: 2
+    path:
+    - x: 10
+      y: 1
+    - x: 10
+      y: 0
+    order: 16
+    isFiller: 0
+    isDecoy: 0
+  - x: 14
+    y: 11
+    color: G
+    direction: R
+    length: 13
+    path:
+    - x: 5
+      y: 8
+    - x: 5
+      y: 9
+    - x: 5
+      y: 10
+    - x: 5
+      y: 11
+    - x: 6
+      y: 11
+    - x: 7
+      y: 11
+    - x: 8
+      y: 11
+    - x: 9
+      y: 11
+    - x: 10
+      y: 11
+    - x: 11
+      y: 11
+    - x: 12
+      y: 11
+    - x: 13
+      y: 11
+    - x: 14
+      y: 11
+    order: 12
+    isFiller: 0
+    isDecoy: 0
+  - x: 15
+    y: 10
+    color: O
+    direction: R
+    length: 22
+    path:
+    - x: 15
+      y: 9
+    - x: 15
+      y: 8
+    - x: 14
+      y: 8
+    - x: 13
+      y: 8
+    - x: 12
+      y: 8
+    - x: 11
+      y: 8
+    - x: 10
+      y: 8
+    - x: 9
+      y: 8
+    - x: 8
+      y: 8
+    - x: 7
+      y: 8
+    - x: 6
+      y: 8
+    - x: 6
+      y: 9
+    - x: 6
+      y: 10
+    - x: 7
+      y: 10
+    - x: 8
+      y: 10
+    - x: 9
+      y: 10
+    - x: 10
+      y: 10
+    - x: 11
+      y: 10
+    - x: 12
+      y: 10
+    - x: 13
+      y: 10
+    - x: 14
+      y: 10
+    - x: 15
+      y: 10
+    order: 2
+    isFiller: 0
+    isDecoy: 0
+  - x: 9
+    y: 9
+    color: G
+    direction: R
+    length: 3
+    path:
+    - x: 7
+      y: 9
+    - x: 8
+      y: 9
+    - x: 9
+      y: 9
+    order: 18
+    isFiller: 0
+    isDecoy: 1
   stats:
-    density: 1
-    mainArrows: 5
+    density: 0.84375
+    mainArrows: 18
     fillers: 0
-    totalArrows: 5
+    totalArrows: 18

@@ -232,6 +232,9 @@ namespace BalloonOut.Core
         private void EndDrag()
         {
             _isDragging = false;
+            // 드래그 종료 시 상태 리셋 (다음 클릭에서 화살표 터치 허용)
+            _hasDragged = false;
+            _totalDragDistance = 0f;
         }
 
         /// <summary>
