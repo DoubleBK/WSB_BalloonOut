@@ -2,9 +2,10 @@ using UnityEngine;
 using UnityEngine.UI;
 using TMPro;
 using DG.Tweening;
-using Game.Core;
+using BalloonOut.Core;
+using UnityEngine.SceneManagement;
 
-namespace Game.UI
+namespace BalloonOut.UI
 {
     /// <summary>
     /// 로비 UI 컨트롤러 - Home 화면
@@ -349,14 +350,16 @@ namespace Game.UI
                         // 현재 레벨 저장 후 게임 씬 로드
                         PlayerPrefs.SetInt("SelectedLevel", _currentLevel);
                         PlayerPrefs.Save();
-                        SceneLoader.LoadGame();
+                        // SceneLoader.LoadGame(); -> SceneManager.LoadScene로 변경
+                        SceneManager.LoadScene("GameScene");
                     });
             }
             else
             {
                 PlayerPrefs.SetInt("SelectedLevel", _currentLevel);
                 PlayerPrefs.Save();
-                SceneLoader.LoadGame();
+                // SceneLoader.LoadGame(); -> SceneManager.LoadScene로 변경
+                SceneManager.LoadScene("GameScene");
             }
         }
 
