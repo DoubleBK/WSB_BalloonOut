@@ -166,7 +166,16 @@ namespace BalloonOut.Editor
             EditorGUILayout.BeginHorizontal();
 
             // 새 레벨
-            _levelName = EditorGUILayout.TextField("Name", _levelName);
+            string newName = EditorGUILayout.TextField("Name", _levelName);
+            if (newName != _levelName)
+            {
+                _levelName = newName;
+                // _currentLevel.name도 동기화 (Save 시 이 이름 사용)
+                if (_currentLevel != null)
+                {
+                    _currentLevel.name = _levelName;
+                }
+            }
 
             if (GUILayout.Button("New", GUILayout.Width(50)))
             {
