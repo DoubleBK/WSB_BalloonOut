@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using UnityEngine;
 using BalloonOut.Core;
 using Random = UnityEngine.Random;
@@ -1235,71 +1236,129 @@ namespace BalloonOut.Data
 
                     bool escaped = false;
 
-                    // Two-pass approach: Main arrows first, then Fillers
-                    // Pass 0: Main arrows only (Fillers can block Main, so Main escapes first)
-                    // Pass 1: Filler arrows only (with balloon activation check)
-                    for (int pass = 0; pass < 2 && !escaped; pass++)
+                    // 탈출 가능한 화살표 목록 수집 (블로킹 체크)
+                    var canEscape = new List<(int index, BlockData block, bool canPop)>();
+
+                    for (int i = 0; i < remaining.Count; i++)
                     {
-                        for (int i = 0; i < remaining.Count; i++)
+                        var b = remaining[i];
+
+                        // Filler: 풍선이 활성화(lane[0])되어야만 탈출 가능 (FIFO)
+                        if (b.isFiller)
                         {
-                            var b = remaining[i];
-
-                            // Pass 0: Skip Fillers (Main only)
-                            // Pass 1: Skip non-Fillers (Filler only)
-                            if (pass == 0 && b.isFiller) continue;
-                            if (pass == 1 && !b.isFiller) continue;
-
-                            // Filler: 풍선이 활성화(lane[0])되어야만 탈출 가능 (FIFO)
-                            if (b.isFiller)
+                            bool balloonActive = false;
+                            foreach (var lane in queuesCopy)
                             {
-                                bool balloonActive = false;
-                                foreach (var lane in queuesCopy)
+                                if (lane.Count > 0 && lane[0] == b.color)
                                 {
-                                    if (lane.Count > 0 && lane[0] == b.color)
-                                    {
-                                        balloonActive = true;
-                                        break;
-                                    }
+                                    balloonActive = true;
+                                    break;
                                 }
-                                if (!balloonActive) continue;
                             }
+                            if (!balloonActive) continue;
+                        }
 
-                            var d = DIR_VECTORS[b.dir];
-                            var head = b.cells[0];
+                        var d = DIR_VECTORS[b.dir];
+                        var head = b.cells[0];
 
+                        int cx = head.x + d.x;
+                        int cy = head.y + d.y;
+                        bool blocked = false;
+
+                        while (IsInBounds(cx, cy, gridSize))
+                        {
+                            if (occupied.Contains(CellKey(cx, cy)))
+                            {
+                                blocked = true;
+                                break;
+                            }
+                            cx += d.x;
+                            cy += d.y;
+                        }
+
+                        if (!blocked)
+                        {
+                            // 이 화살표가 팝 가능한지 확인
+                            bool canPop = false;
+                            foreach (var lane in queuesCopy)
+                            {
+                                if (lane.Count > 0 && lane[0] == b.color)
+                                {
+                                    canPop = true;
+                                    break;
+                                }
+                            }
+                            canEscape.Add((i, b, canPop));
+                        }
+                    }
+
+                    // 스마트 선택: 다른 화살표를 언블록하는 화살표 우선
+                    // 1. 탈출 시 다른 blocked 화살표를 언블록하는 화살표 계산
+                    var blockedArrows = remaining.Where((b, idx) => !canEscape.Any(e => e.index == idx)).ToList();
+
+                    var escapePriority = new List<(int index, BlockData block, bool canPop, int unblockCount)>();
+                    foreach (var escape in canEscape)
+                    {
+                        int unblockCount = 0;
+                        // 이 화살표가 탈출하면 몇 개의 화살표가 언블록되는지 계산
+                        foreach (var blocked in blockedArrows)
+                        {
+                            var d = DIR_VECTORS[blocked.dir];
+                            var head = blocked.cells[0];
                             int cx = head.x + d.x;
                             int cy = head.y + d.y;
-                            bool blocked = false;
 
                             while (IsInBounds(cx, cy, gridSize))
                             {
-                                if (occupied.Contains(CellKey(cx, cy)))
+                                string cellKey = CellKey(cx, cy);
+                                // 이 escape 화살표의 셀이 blocked 화살표의 경로에 있는지 확인
+                                if (escape.block.cells.Any(c => CellKey(c) == cellKey))
                                 {
-                                    blocked = true;
+                                    unblockCount++;
                                     break;
                                 }
                                 cx += d.x;
                                 cy += d.y;
                             }
+                        }
+                        escapePriority.Add((escape.index, escape.block, escape.canPop, unblockCount));
+                    }
 
-                            if (!blocked)
+                    // 우선순위:
+                    // 1. 다른 화살표를 언블록하면서 팝 가능한 화살표
+                    // 2. 팝 가능한 화살표
+                    // 3. 다른 화살표를 언블록하는 화살표
+                    // 4. 아무 화살표
+                    var selectedEscape = escapePriority
+                        .OrderByDescending(e => e.canPop && e.unblockCount > 0 ? 2 : 0)  // 팝 가능 + 언블록
+                        .ThenByDescending(e => e.unblockCount)  // 언블록 개수
+                        .ThenByDescending(e => e.canPop ? 1 : 0)  // 팝 가능
+                        .Select(e => (e.index, e.block, e.canPop))
+                        .FirstOrDefault();
+
+                    if (selectedEscape.block == null && canEscape.Count > 0)
+                    {
+                        selectedEscape = canEscape[0];
+                    }
+
+                    if (selectedEscape.block != null)
+                    {
+                        var b = selectedEscape.block;
+                        int i = selectedEscape.index;
+
+                        // FIFO: lane[0]이 활성 풍선
+                        foreach (var lane in queuesCopy)
+                        {
+                            if (lane.Count > 0 && lane[0] == b.color)
                             {
-                                // FIFO: lane[0]이 활성 풍선
-                                foreach (var lane in queuesCopy)
-                                {
-                                    if (lane.Count > 0 && lane[0] == b.color)
-                                    {
-                                        lane.RemoveAt(0);
-                                        break;
-                                    }
-                                }
-
-                                escapeSequence.Add(b.originalIndex);
-                                remaining.RemoveAt(i);
-                                escaped = true;
+                                lane.RemoveAt(0);
                                 break;
                             }
                         }
+
+                        escapeSequence.Add(b.originalIndex);
+                        remaining.RemoveAt(i);
+                        escaped = true;
                     }
 
                     if (!escaped)
