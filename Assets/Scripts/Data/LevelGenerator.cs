@@ -338,7 +338,7 @@ namespace BalloonOut.Data
         }
 
         // ========== Arrow Placement (Straight) ==========
-        private static PlacementResult PlaceFirstArrow(string color, int length, int gridSize, HashSet<string> occupiedSet)
+        private static PlacementResult PlaceFirstArrow(string color, int length, int gridSize, HashSet<string> occupiedSet, List<BlockData> existingBlocks = null)
         {
             var candidates = new List<PlacementResult>();
             var dirs = new List<string>(DIRECTIONS);
@@ -356,6 +356,9 @@ namespace BalloonOut.Data
 
                         if (!AllCellsInBounds(cells, gridSize)) continue;
                         if (HasOverlap(cells, occupiedSet)) continue;
+
+                        // Facing 검사: 기존 화살표들과 마주보는지 확인
+                        if (WouldCauseFacing(x, y, dir, existingBlocks)) continue;
 
                         var escapePath = GetEscapePath(x, y, dir, gridSize);
                         bool blocked = false;
@@ -383,7 +386,7 @@ namespace BalloonOut.Data
         }
 
         private static PlacementResult FindBlockedPosition(string color, int length, int gridSize,
-            HashSet<string> occupiedSet, List<Vector2Int> blockerCells)
+            HashSet<string> occupiedSet, List<Vector2Int> blockerCells, List<BlockData> existingBlocks = null)
         {
             var candidates = new List<PlacementResult>();
             var blockerSet = new HashSet<string>();
@@ -405,6 +408,9 @@ namespace BalloonOut.Data
 
                         if (!AllCellsInBounds(cells, gridSize)) continue;
                         if (HasOverlap(cells, occupiedSet)) continue;
+
+                        // Facing 검사: 기존 화살표들과 마주보는지 확인
+                        if (WouldCauseFacing(x, y, dir, existingBlocks)) continue;
 
                         var escapePath = GetEscapePath(x, y, dir, gridSize);
                         bool blockedByBlocker = false;
@@ -450,7 +456,7 @@ namespace BalloonOut.Data
             return candidates.Count > 0 ? RandomPick(candidates) : null;
         }
 
-        private static PlacementResult PlaceFallback(string color, int length, int gridSize, HashSet<string> occupiedSet, HashSet<string> forbiddenCells = null, bool checkCanEscape = false)
+        private static PlacementResult PlaceFallback(string color, int length, int gridSize, HashSet<string> occupiedSet, HashSet<string> forbiddenCells = null, bool checkCanEscape = false, List<BlockData> existingBlocks = null)
         {
             var candidates = new List<PlacementResult>();
             var fallbackCandidates = new List<PlacementResult>();  // forbidden cells와 겹치는 후보
@@ -467,6 +473,9 @@ namespace BalloonOut.Data
 
                         if (!AllCellsInBounds(cells, gridSize)) continue;
                         if (HasOverlap(cells, occupiedSet)) continue;
+
+                        // Facing 검사: 기존 화살표들과 마주보는지 확인
+                        if (WouldCauseFacing(x, y, dir, existingBlocks)) continue;
 
                         // Filler용: 이 화살표가 실제로 탈출 가능한지 확인
                         if (checkCanEscape)
@@ -611,7 +620,7 @@ namespace BalloonOut.Data
             return positions;
         }
 
-        private static PlacementResult PlaceFirstArrowBending(string color, int length, int gridSize, HashSet<string> occupiedSet)
+        private static PlacementResult PlaceFirstArrowBending(string color, int length, int gridSize, HashSet<string> occupiedSet, List<BlockData> existingBlocks = null)
         {
             var candidates = new List<PlacementResult>();
             var dirs = new List<string>(DIRECTIONS);
@@ -624,6 +633,9 @@ namespace BalloonOut.Data
                 foreach (var pos in edgePositions)
                 {
                     if (occupiedSet.Contains(CellKey(pos))) continue;
+
+                    // Facing 검사: 기존 화살표들과 마주보는지 확인
+                    if (WouldCauseFacing(pos.x, pos.y, headDir, existingBlocks)) continue;
 
                     var result = GrowArrowReverse(pos.x, pos.y, headDir, length, occupiedSet, gridSize);
 
@@ -659,7 +671,7 @@ namespace BalloonOut.Data
         }
 
         private static PlacementResult FindBlockedPositionBending(string color, int length, int gridSize,
-            HashSet<string> occupiedSet, List<Vector2Int> blockerCells)
+            HashSet<string> occupiedSet, List<Vector2Int> blockerCells, List<BlockData> existingBlocks = null)
         {
             var candidates = new List<PlacementResult>();
             var blockerSet = new HashSet<string>();
@@ -679,6 +691,9 @@ namespace BalloonOut.Data
 
                     foreach (var headDir in dirs)
                     {
+                        // Facing 검사: 기존 화살표들과 마주보는지 확인
+                        if (WouldCauseFacing(x, y, headDir, existingBlocks)) continue;
+
                         var result = GrowArrowReverse(x, y, headDir, length, occupiedSet, gridSize);
 
                         if (!result.HasValue || result.Value.path.Count < Mathf.Min(length, 2)) continue;
@@ -731,7 +746,7 @@ namespace BalloonOut.Data
             return candidates.Count > 0 ? RandomPick(candidates) : null;
         }
 
-        private static PlacementResult PlaceFallbackBending(string color, int length, int gridSize, HashSet<string> occupiedSet, HashSet<string> forbiddenCells = null, bool checkCanEscape = false)
+        private static PlacementResult PlaceFallbackBending(string color, int length, int gridSize, HashSet<string> occupiedSet, HashSet<string> forbiddenCells = null, bool checkCanEscape = false, List<BlockData> existingBlocks = null)
         {
             var candidates = new List<PlacementResult>();
             var fallbackCandidates = new List<PlacementResult>();  // forbidden cells와 겹치는 후보
@@ -747,6 +762,9 @@ namespace BalloonOut.Data
 
                     foreach (var headDir in dirs)
                     {
+                        // Facing 검사: 기존 화살표들과 마주보는지 확인
+                        if (WouldCauseFacing(x, y, headDir, existingBlocks)) continue;
+
                         var result = GrowArrowReverse(x, y, headDir, length, occupiedSet, gridSize);
 
                         if (result.HasValue && result.Value.path.Count >= Mathf.Min(length, 2))
@@ -855,6 +873,9 @@ namespace BalloonOut.Data
 
             Debug.Log($"  Filler: Current density {(currentOccupied / (float)totalCells * 100):F1}%, target {cfg.targetDensity * 100:F1}%");
 
+            // Facing 검사용: Main 화살표 + 이미 배치된 Filler들
+            var allBlocksForFacing = new List<BlockData>(blocks);
+
             while (currentOccupied < targetOccupied && attempts < maxAttempts)
             {
                 attempts++;
@@ -864,9 +885,10 @@ namespace BalloonOut.Data
                 int length = RandomInt(cfg.fillerMinLength, cfg.fillerMaxLength);
 
                 // checkCanEscape = true: Filler가 실제로 탈출 가능한 위치에만 배치
+                // existingBlocks: Main 화살표 + 이미 배치된 Filler들과 facing 방지
                 PlacementResult placement = useBending
-                    ? PlaceFallbackBending(color, length, cfg.gridSize, occupiedSet, escapePaths, checkCanEscape: true)
-                    : PlaceFallback(color, length, cfg.gridSize, occupiedSet, escapePaths, checkCanEscape: true);
+                    ? PlaceFallbackBending(color, length, cfg.gridSize, occupiedSet, escapePaths, checkCanEscape: true, existingBlocks: allBlocksForFacing)
+                    : PlaceFallback(color, length, cfg.gridSize, occupiedSet, escapePaths, checkCanEscape: true, existingBlocks: allBlocksForFacing);
 
                 if (placement != null)
                 {
@@ -900,6 +922,7 @@ namespace BalloonOut.Data
                     };
 
                     fillers.Add(fillerBlock);
+                    allBlocksForFacing.Add(fillerBlock);  // 다음 Filler의 facing 검사에 포함
 
                     foreach (var c in placement.cells)
                     {
@@ -930,15 +953,20 @@ namespace BalloonOut.Data
         /// </summary>
         private static (bool valid, string reason) CheckFacingArrows(List<BlockData> blocks)
         {
+            Debug.Log($"[FacingCheck] Checking {blocks.Count} arrows for facing pairs");
+
             for (int i = 0; i < blocks.Count; i++)
             {
+                var a = blocks[i];
+                if (a.cells == null || a.cells.Count == 0) continue;
+                Debug.Log($"[FacingCheck] Arrow {i}: cells[0]={a.cells[0]}, dir={a.dir}, cellsCount={a.cells.Count}, isBending={a.isBending}");
+
                 for (int j = i + 1; j < blocks.Count; j++)
                 {
-                    var a = blocks[i];
                     var b = blocks[j];
 
                     // 각 화살표의 Head 위치 (Generator 내부에서는 cells[0]이 Head)
-                    if (a.cells == null || a.cells.Count == 0 || b.cells == null || b.cells.Count == 0)
+                    if (b.cells == null || b.cells.Count == 0)
                         continue;
 
                     var headA = a.cells[0];
@@ -955,13 +983,18 @@ namespace BalloonOut.Data
                         bool aPointsToB = IsDirectionTowards(a.dir, dx, dy);
                         bool bPointsToA = IsDirectionTowards(b.dir, -dx, -dy);
 
+                        Debug.Log($"[FacingCheck] Adjacent {i}-{j}: A({headA}, dir={a.dir}) → B({headB}, dir={b.dir})");
+                        Debug.Log($"[FacingCheck]   dx={dx}, dy={dy}, aPointsToB={aPointsToB}, bPointsToA={bPointsToA}");
+
                         if (aPointsToB && bPointsToA)
                         {
+                            Debug.LogError($"[FacingCheck] FACING DETECTED: arrows {i} and {j}");
                             return (false, $"facing arrows at ({headA.x},{headA.y}) and ({headB.x},{headB.y})");
                         }
                     }
                 }
             }
+            Debug.Log($"[FacingCheck] No facing arrows found");
             return (true, null);
         }
 
@@ -978,6 +1011,36 @@ namespace BalloonOut.Data
                 "R" => dx > 0,  // 오른쪽 = x 증가
                 _ => false
             };
+        }
+
+        /// <summary>
+        /// 새 화살표를 배치할 때 기존 화살표들과 Facing 관계가 형성되는지 검사
+        /// Facing: 두 화살표의 Head가 인접하고 서로를 향하는 상태
+        /// </summary>
+        private static bool WouldCauseFacing(int headX, int headY, string headDir, List<BlockData> existingBlocks)
+        {
+            if (existingBlocks == null || existingBlocks.Count == 0) return false;
+
+            foreach (var existing in existingBlocks)
+            {
+                if (existing.cells == null || existing.cells.Count == 0) continue;
+
+                var existingHead = existing.cells[0];  // cells[0] = Head
+                int dx = existingHead.x - headX;
+                int dy = existingHead.y - headY;
+
+                // 인접한 경우만 검사 (맨해튼 거리 1)
+                if (Mathf.Abs(dx) + Mathf.Abs(dy) != 1) continue;
+
+                // 새 화살표가 기존 화살표를 향하는지
+                bool newPointsToExisting = IsDirectionTowards(headDir, dx, dy);
+                // 기존 화살표가 새 화살표를 향하는지
+                bool existingPointsToNew = IsDirectionTowards(existing.dir, -dx, -dy);
+
+                if (newPointsToExisting && existingPointsToNew)
+                    return true;  // Facing 발생!
+            }
+            return false;
         }
 
         /// <summary>
@@ -1461,8 +1524,8 @@ namespace BalloonOut.Data
                     if (i == 0)
                     {
                         placement = useBending
-                            ? PlaceFirstArrowBending(placeholderColor, length, config.gridSize, occupiedSet)
-                            : PlaceFirstArrow(placeholderColor, length, config.gridSize, occupiedSet);
+                            ? PlaceFirstArrowBending(placeholderColor, length, config.gridSize, occupiedSet, blocks)
+                            : PlaceFirstArrow(placeholderColor, length, config.gridSize, occupiedSet, blocks);
                     }
                     else
                     {
@@ -1471,22 +1534,22 @@ namespace BalloonOut.Data
                         if (useBranching)
                         {
                             placement = useBending
-                                ? PlaceFirstArrowBending(placeholderColor, length, config.gridSize, occupiedSet)
-                                : PlaceFirstArrow(placeholderColor, length, config.gridSize, occupiedSet);
+                                ? PlaceFirstArrowBending(placeholderColor, length, config.gridSize, occupiedSet, blocks)
+                                : PlaceFirstArrow(placeholderColor, length, config.gridSize, occupiedSet, blocks);
                         }
                         else
                         {
                             var prevBlock = blocks[i - 1];
                             placement = useBending
-                                ? FindBlockedPositionBending(placeholderColor, length, config.gridSize, occupiedSet, prevBlock.cells)
-                                : FindBlockedPosition(placeholderColor, length, config.gridSize, occupiedSet, prevBlock.cells);
+                                ? FindBlockedPositionBending(placeholderColor, length, config.gridSize, occupiedSet, prevBlock.cells, blocks)
+                                : FindBlockedPosition(placeholderColor, length, config.gridSize, occupiedSet, prevBlock.cells, blocks);
                         }
 
                         if (placement == null)
                         {
                             placement = useBending
-                                ? PlaceFallbackBending(placeholderColor, length, config.gridSize, occupiedSet)
-                                : PlaceFallback(placeholderColor, length, config.gridSize, occupiedSet);
+                                ? PlaceFallbackBending(placeholderColor, length, config.gridSize, occupiedSet, existingBlocks: blocks)
+                                : PlaceFallback(placeholderColor, length, config.gridSize, occupiedSet, existingBlocks: blocks);
                         }
                     }
 
