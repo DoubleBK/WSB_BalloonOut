@@ -35,6 +35,9 @@ namespace BalloonOut.Data
         /// <summary>Filler 여부</summary>
         public bool isFiller;
 
+        /// <summary>Decoy 여부 (함정 화살표 - 다른 화살표를 막고 먼저 탈출)</summary>
+        public bool isDecoy;
+
         /// <summary>
         /// Head 위치 반환
         /// </summary>

@@ -74,6 +74,7 @@ namespace BalloonOut.Data
             public float bendingChance = 1.0f;
             public bool branchingMode = false;
             public float branchingChance = 0.4f;
+            public int decoyArrowCount = 0;  // 함정 화살표 개수 (풍선 없이 탈출하는 화살표)
         }
 
         // ========== Internal Data Structures ==========
@@ -187,6 +188,15 @@ namespace BalloonOut.Data
             config.fillerEnabled = true;
             config.fillerMinLength = bendingEnabled ? 2 : 1;
             config.fillerMaxLength = Mathf.Max(2, bendingEnabled ? Mathf.Min(6, config.maxBlockLength - 2) : Mathf.Min(3, config.maxBlockLength - 1));
+
+            // Decoy 화살표: 그리드 크기에 따라 자동 설정
+            config.decoyArrowCount = sizeCategory switch
+            {
+                "small" => 0,   // 작은 그리드: Decoy 없음
+                "medium" => 1,  // 중간 그리드: 1개
+                "large" => 2,   // 큰 그리드: 2개
+                _ => 0
+            };
 
             return config;
         }
@@ -842,6 +852,7 @@ namespace BalloonOut.Data
             public List<Vector2Int> path;
             public bool isFiller;
             public bool isBending;
+            public bool isDecoy;  // 함정 화살표 (풍선 없이 탈출)
             public int originalIndex;
         }
 
@@ -1187,6 +1198,16 @@ namespace BalloonOut.Data
                 lanesCopy.Add(new List<string>(lane));
             }
 
+            // 원본 Queue 색상 저장 (Decoy 색상 할당용)
+            var originalQueueColors = new List<string>();
+            foreach (var lane in lanes)
+            {
+                foreach (var c in lane)
+                {
+                    originalQueueColors.Add(c);
+                }
+            }
+
             // blocks 복사 (탈출 시뮬레이션용)
             var remaining = new List<BlockData>();
             for (int idx = 0; idx < blocks.Count; idx++)
@@ -1262,28 +1283,47 @@ namespace BalloonOut.Data
                             }
                         }
 
+                        string assignedColor;
+                        bool isDecoy = false;
+
                         if (poppableColors.Count == 0)
                         {
-                            Debug.LogWarning($"[AssignColors] No poppable colors left for block {b.originalIndex}");
-                            return false;
-                        }
-
-                        // 랜덤하게 색상 선택
-                        string assignedColor = RandomPick(poppableColors);
-
-                        // 원본 block에 색상 할당
-                        blocks[b.originalIndex].color = assignedColor;
-
-                        // lane에서 해당 색상 팝
-                        for (int laneIdx = 0; laneIdx < lanesCopy.Count; laneIdx++)
-                        {
-                            var lane = lanesCopy[laneIdx];
-                            if (lane.Count > 0 && lane[lane.Count - 1] == assignedColor)
+                            // Decoy 화살표: 원본 Queue에 있는 색상 중 랜덤 할당
+                            // Decoy는 실제 게임에서 먼저 탈출하여 Main 대신 풍선을 팝함
+                            if (originalQueueColors.Count > 0)
                             {
-                                lane.RemoveAt(lane.Count - 1);
-                                break;
+                                assignedColor = RandomPick(originalQueueColors);
+                            }
+                            else
+                            {
+                                // Queue가 비어있으면 랜덤 색상 (드문 경우)
+                                var allColors = new[] { "R", "G", "B", "Y", "P", "O", "C", "K", "W", "L", "N", "M" };
+                                assignedColor = RandomPick(allColors);
+                            }
+                            isDecoy = true;
+                            Debug.Log($"[AssignColors] Block {b.originalIndex} is DECOY with color {assignedColor}");
+                            // Decoy는 lane에서 팝하지 않음 (Main이 같은 색상을 받을 수 있도록)
+                        }
+                        else
+                        {
+                            // Main 화살표: 팝 가능한 색상 중 선택
+                            assignedColor = RandomPick(poppableColors);
+
+                            // lane에서 해당 색상 팝
+                            for (int laneIdx = 0; laneIdx < lanesCopy.Count; laneIdx++)
+                            {
+                                var lane = lanesCopy[laneIdx];
+                                if (lane.Count > 0 && lane[lane.Count - 1] == assignedColor)
+                                {
+                                    lane.RemoveAt(lane.Count - 1);
+                                    break;
+                                }
                             }
                         }
+
+                        // 원본 block에 색상 및 Decoy 여부 할당
+                        blocks[b.originalIndex].color = assignedColor;
+                        blocks[b.originalIndex].isDecoy = isDecoy;
 
                         remaining.RemoveAt(i);
                         escaped = true;
@@ -1334,7 +1374,8 @@ namespace BalloonOut.Data
                         length = b.length,
                         cells = new List<Vector2Int>(b.cells),
                         originalIndex = idx,
-                        isFiller = b.isFiller  // Filler 여부 복사
+                        isFiller = b.isFiller,  // Filler 여부 복사
+                        isDecoy = b.isDecoy     // Decoy 여부 복사
                     });
                     colorMap[idx] = b.color;
                 }
@@ -1482,7 +1523,8 @@ namespace BalloonOut.Data
                         var b = selectedEscape.block;
                         int i = selectedEscape.index;
 
-                        // FIFO: lane[0]이 활성 풍선
+                        // FIFO: lane[0]이 활성 풍선 - Decoy도 색상이 맞으면 팝함
+                        // (단, Decoy에게는 Queue에 없는 색상이 할당되어 실제로 팝하지 않음)
                         foreach (var lane in queuesCopy)
                         {
                             if (lane.Count > 0 && lane[0] == b.color)
@@ -1564,13 +1606,15 @@ namespace BalloonOut.Data
 
                 Debug.Log($"Lanes (with miss): {string.Join(", ", lanes.ConvertAll(l => "[" + string.Join(",", l) + "]"))}");
 
-                // Step 3: 화살표 개수 = 총 풍선 개수
-                int arrowCount = 0;
+                // Step 3: 화살표 개수 = 총 풍선 개수 + Decoy 화살표
+                int mainArrowCount = 0;
                 foreach (var lane in lanes)
                 {
-                    arrowCount += lane.Count;
+                    mainArrowCount += lane.Count;
                 }
-                Debug.Log($"Arrow count: {arrowCount}");
+                int decoyCount = config.decoyArrowCount;
+                int arrowCount = mainArrowCount + decoyCount;
+                Debug.Log($"Arrow count: {arrowCount} (Main: {mainArrowCount}, Decoy: {decoyCount})");
 
                 // Step 4: 화살표 배치 (색상은 나중에 할당)
                 var blocks = new List<BlockData>();
@@ -1722,7 +1766,8 @@ namespace BalloonOut.Data
                             direction = b.dir,  // 방향은 유지 (U/D/L/R은 시각적 의미가 동일)
                             length = b.length,
                             order = orderMap.ContainsKey(idx) ? orderMap[idx] : 0,
-                            isFiller = b.isFiller
+                            isFiller = b.isFiller,
+                            isDecoy = b.isDecoy
                         };
 
                         // 꺾이는 화살표는 path 포함

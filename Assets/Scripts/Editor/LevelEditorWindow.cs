@@ -41,6 +41,7 @@ namespace BalloonOut.Editor
         private int _genLaneCount = 2;
         private int _genBalloonsPerLane = 2;
         private int _genMissArrowCount = 1;
+        private int _genDecoyArrowCount = 0;
         private int _genMinLength = 3;
         private int _genMaxLength = 8;
         private bool _genAutoCalculate = true;
@@ -567,6 +568,11 @@ namespace BalloonOut.Editor
             _genMissArrowCount = EditorGUILayout.IntSlider(_genMissArrowCount, 0, 10);
             EditorGUILayout.EndHorizontal();
 
+            EditorGUILayout.BeginHorizontal();
+            EditorGUILayout.LabelField("Decoy Arrows", GUILayout.Width(100));
+            _genDecoyArrowCount = EditorGUILayout.IntSlider(_genDecoyArrowCount, 0, 5);
+            EditorGUILayout.EndHorizontal();
+
             EditorGUILayout.Space(5);
 
             EditorGUILayout.BeginHorizontal();
@@ -606,10 +612,11 @@ namespace BalloonOut.Editor
 
             int totalCells = _genGridSize * _genGridSize;
             int targetOccupied = Mathf.FloorToInt(totalCells * _genTargetDensity);
-            int estimatedArrows = _genLaneCount * _genBalloonsPerLane + _genMissArrowCount;
+            int mainArrows = _genLaneCount * _genBalloonsPerLane + _genMissArrowCount;
+            int totalArrows = mainArrows + _genDecoyArrowCount;
 
             EditorGUILayout.LabelField($"  Grid: {_genGridSize}x{_genGridSize} = {totalCells} cells");
-            EditorGUILayout.LabelField($"  Main Arrows: {estimatedArrows}");
+            EditorGUILayout.LabelField($"  Main Arrows: {mainArrows}, Decoy: {_genDecoyArrowCount}, Total: {totalArrows}");
             EditorGUILayout.LabelField($"  Target Cells: {targetOccupied} ({_genTargetDensity * 100:F0}%)");
 
             EditorGUILayout.EndVertical();
@@ -622,10 +629,11 @@ namespace BalloonOut.Editor
             _genLaneCount = config.laneCount;
             _genBalloonsPerLane = config.balloonsPerLane;
             _genMissArrowCount = config.missArrowCount;
+            _genDecoyArrowCount = config.decoyArrowCount;
             _genMinLength = config.minBlockLength;
             _genMaxLength = config.maxBlockLength;
 
-            Debug.Log($"[LevelEditor] Auto calculated: lanes={_genLaneCount}, balloons={_genBalloonsPerLane}, miss={_genMissArrowCount}, len={_genMinLength}-{_genMaxLength}");
+            Debug.Log($"[LevelEditor] Auto calculated: lanes={_genLaneCount}, balloons={_genBalloonsPerLane}, miss={_genMissArrowCount}, decoy={_genDecoyArrowCount}, len={_genMinLength}-{_genMaxLength}");
         }
 
         private void GenerateNewLevel()
@@ -646,6 +654,7 @@ namespace BalloonOut.Editor
                 laneCount = _genLaneCount,
                 balloonsPerLane = _genBalloonsPerLane,
                 missArrowCount = _genMissArrowCount,
+                decoyArrowCount = _genDecoyArrowCount,
                 minBlockLength = _genMinLength,
                 maxBlockLength = _genMaxLength,
                 bendingChance = _genBendingEnabled ? 1.0f : 0f,
