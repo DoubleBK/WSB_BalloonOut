@@ -92,8 +92,9 @@ namespace BalloonOut.Core
                 return;
             }
 
-            // StageTable 기반으로 레벨 로드
-            LoadLevelByIdx(_startLevelIdx);
+            // 저장된 레벨 진행 상황 로드 (PlayerPrefs)
+            int savedLevel = GameProgressManager.LoadCurrentLevel(_startLevelIdx);
+            LoadLevelByIdx(savedLevel);
         }
 
         // ========== 공개 인터페이스 ==========
@@ -405,6 +406,9 @@ namespace BalloonOut.Core
         /// </summary>
         private void PlayClearSequence()
         {
+            // 레벨 클리어 저장 (다음 레벨로 진행)
+            GameProgressManager.OnLevelCleared(_currentLevelIdx);
+
             if (_confettiEffect != null)
             {
                 _confettiEffect.Play();

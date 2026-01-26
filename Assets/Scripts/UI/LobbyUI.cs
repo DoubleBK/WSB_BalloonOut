@@ -73,18 +73,21 @@ namespace BalloonOut.UI
             // 현재 레벨 로드
             LoadCurrentLevel();
 
-            // 레벨업 연출이 필요한지 확인
-            if (_previousLevel > 0 && _previousLevel < _currentLevel)
+            // 레벨업 연출이 필요한지 확인 (GameProgressManager에서 이전 레벨 확인)
+            int previousLevel = GameProgressManager.GetPreviousLevel();
+            if (previousLevel > 0 && previousLevel < _currentLevel)
             {
                 // 레벨업 연출 재생
-                PlayLevelUpAnimation(_previousLevel, _currentLevel);
+                PlayLevelUpAnimation(previousLevel, _currentLevel);
+                // 이전 레벨 정보 초기화
+                GameProgressManager.ClearPreviousLevel();
             }
             else
             {
                 UpdateLevelText();
             }
 
-            // 이전 레벨 초기화
+            // static 변수도 초기화 (호환성)
             _previousLevel = -1;
 
             // Home 탭 활성화
@@ -234,8 +237,8 @@ namespace BalloonOut.UI
 
         private void LoadCurrentLevel()
         {
-            // PlayerPrefs에서 현재 레벨 로드 (기본값 1)
-            _currentLevel = PlayerPrefs.GetInt("CurrentLevel", 1);
+            // GameProgressManager에서 현재 레벨 로드
+            _currentLevel = GameProgressManager.LoadCurrentLevel();
             Debug.Log($"[LobbyUI] Loaded current level: {_currentLevel}");
         }
 
@@ -323,9 +326,8 @@ namespace BalloonOut.UI
                 _resetButton.transform.DOPunchScale(Vector3.one * _buttonPunchScale, 0.2f, 1, 0.5f);
             }
 
-            // 모든 PlayerPrefs 데이터 초기화
-            PlayerPrefs.DeleteAll();
-            PlayerPrefs.Save();
+            // GameProgressManager를 통해 진행 상황 초기화
+            GameProgressManager.ResetProgress();
 
             // 현재 레벨을 1로 설정
             _currentLevel = 1;
@@ -418,18 +420,13 @@ namespace BalloonOut.UI
 
         /// <summary>
         /// 레벨 클리어 후 다음 레벨로 진행
+        /// (GameProgressManager.OnLevelCleared 사용 권장)
         /// </summary>
         public static void AdvanceToNextLevel()
         {
-            int currentLevel = PlayerPrefs.GetInt("CurrentLevel", 1);
-
-            // 이전 레벨 저장 (Lobby에서 연출용)
-            _previousLevel = currentLevel;
-
-            currentLevel++;
-            PlayerPrefs.SetInt("CurrentLevel", currentLevel);
-            PlayerPrefs.Save();
-            Debug.Log($"[LobbyUI] Advanced to level {currentLevel} (previous: {_previousLevel})");
+            int currentLevel = GameProgressManager.LoadCurrentLevel();
+            GameProgressManager.OnLevelCleared(currentLevel);
+            Debug.Log($"[LobbyUI] Advanced to next level via GameProgressManager");
         }
 
         /// <summary>
@@ -437,8 +434,7 @@ namespace BalloonOut.UI
         /// </summary>
         public static void SetCurrentLevel(int level)
         {
-            PlayerPrefs.SetInt("CurrentLevel", level);
-            PlayerPrefs.Save();
+            GameProgressManager.SaveCurrentLevel(level);
         }
 
         /// <summary>
@@ -446,7 +442,7 @@ namespace BalloonOut.UI
         /// </summary>
         public static int GetCurrentLevel()
         {
-            return PlayerPrefs.GetInt("CurrentLevel", 1);
+            return GameProgressManager.LoadCurrentLevel();
         }
     }
 }

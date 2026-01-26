@@ -1,7 +1,8 @@
 {
   "permissions": {
     "allow": [
-      "Bash(dir:*)"
+      "Bash(dir:*)",
+      "Bash(if exist \"d:\\\\WSB_BalloonOut\\\\Assets\\\\Scripts\\\\UI\\\\LobbyLevelDisplay.cs.meta\" del \"d:\\\\WSB_BalloonOut\\\\Assets\\\\Scripts\\\\UI\\\\LobbyLevelDisplay.cs.meta\")"
     ]
   }
 }
