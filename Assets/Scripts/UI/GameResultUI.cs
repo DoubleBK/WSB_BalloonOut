@@ -194,7 +194,9 @@ namespace BalloonOut.UI
 
         private void OnLevelCleared()
         {
-            ShowClear();
+            // 클리어 시에는 Confetti 연출 후 로비로 이동하므로 결과 패널 표시하지 않음
+            // Confetti 연출은 GameManager.PlayClearSequence()에서 처리
+            Debug.Log("[GameResultUI] Level cleared - Confetti sequence will handle transition");
         }
 
         private void OnLevelFailed()
@@ -234,8 +236,11 @@ namespace BalloonOut.UI
 
         private void OnMenuClicked()
         {
-            // TODO: 메인 메뉴 씬으로 이동
-            Debug.Log("Menu button clicked - Not implemented yet");
+            // 로비 씬으로 이동
+            if (GameManager.Instance != null)
+            {
+                GameManager.Instance.GoToLobby();
+            }
         }
     }
 }

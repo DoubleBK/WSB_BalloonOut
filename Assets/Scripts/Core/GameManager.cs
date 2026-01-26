@@ -1,9 +1,11 @@
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 using BalloonOut.Data;
 using BalloonOut.Game.Grid;
 using BalloonOut.Game.Arrow;
 using BalloonOut.UI;
+using BalloonOut.Effects;
 
 namespace BalloonOut.Core
 {
@@ -36,6 +38,10 @@ namespace BalloonOut.Core
 
         [Header("Level Settings")]
         [SerializeField] private int _startLevelIdx = 1;
+
+        [Header("Clear Sequence")]
+        [SerializeField] private ConfettiEffect _confettiEffect;
+        [SerializeField] private string _lobbySceneName = "LobbyScene";
 
         // ========== 내부 상태 변수 ==========
         private GameState _state = GameState.Ready;
@@ -384,11 +390,46 @@ namespace BalloonOut.Core
                 SetState(GameState.Clear);
                 OnLevelCleared?.Invoke();
                 Debug.Log("LEVEL CLEARED!");
+
+                // 클리어 시퀀스 시작 (Confetti → 로비 복귀)
+                PlayClearSequence();
                 return;
             }
 
             // 승리가 아니면 패배 조건 확인
             CheckFailCondition();
+        }
+
+        /// <summary>
+        /// 클리어 시퀀스 재생 (Confetti 연출 → 로비 복귀)
+        /// </summary>
+        private void PlayClearSequence()
+        {
+            if (_confettiEffect != null)
+            {
+                _confettiEffect.Play();
+
+                // Confetti 연출 종료 후 로비로 이동
+                float confettiDuration = _confettiEffect.Duration;
+                Invoke(nameof(GoToLobby), confettiDuration);
+
+                Debug.Log($"[GameManager] Clear sequence started. Going to lobby in {confettiDuration}s");
+            }
+            else
+            {
+                // ConfettiEffect가 없으면 바로 로비로 이동
+                Debug.LogWarning("[GameManager] ConfettiEffect not assigned. Going to lobby immediately.");
+                GoToLobby();
+            }
+        }
+
+        /// <summary>
+        /// 로비 씬으로 이동
+        /// </summary>
+        public void GoToLobby()
+        {
+            Debug.Log($"[GameManager] Loading lobby scene: {_lobbySceneName}");
+            SceneManager.LoadScene(_lobbySceneName);
         }
 
         /// <summary>

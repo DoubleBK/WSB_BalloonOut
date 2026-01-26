@@ -1,6 +1,6 @@
 using UnityEngine;
 
-namespace Game.Effects
+namespace BalloonOut.Effects
 {
     /// <summary>
     /// Confetti 이펙트
