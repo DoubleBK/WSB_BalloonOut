@@ -1260,16 +1260,36 @@ namespace BalloonOut.Editor
 
         private void LoadLevel(string levelName)
         {
-            _currentLevel = LevelSaver.Load(levelName);
-            if (_currentLevel != null)
+            // ScriptableObject에서 로드
+            string assetPath = $"Assets/Resources/ScriptableObjects/Stages/{levelName}.asset";
+            var stageData = AssetDatabase.LoadAssetAtPath<StageData>(assetPath);
+
+            if (stageData != null)
             {
-                _levelName = _currentLevel.name;
+                _currentLevel = stageData.ToLevelData();
+                _levelName = ExtractLevelNameFromAsset(levelName);
                 _gridSize = _currentLevel.gridSize;
                 _selectedArrowIndex = -1;
-                _validationDirty = true; // 검증 갱신 필요
-                Debug.Log($"[LevelEditor] Loaded level: {levelName}");
+                _validationDirty = true;
+                Debug.Log($"[LevelEditor] Loaded stage: {levelName}");
                 SceneView.RepaintAll();
             }
+            else
+            {
+                Debug.LogError($"[LevelEditor] Failed to load stage: {assetPath}");
+            }
+        }
+
+        /// <summary>
+        /// asset 파일명에서 레벨 이름 추출 (stage_XXX -> XXX)
+        /// </summary>
+        private string ExtractLevelNameFromAsset(string assetName)
+        {
+            if (assetName.StartsWith("stage_"))
+            {
+                return assetName.Substring(6); // "stage_" 제거
+            }
+            return assetName;
         }
 
         private void SaveLevel()
@@ -1339,7 +1359,29 @@ namespace BalloonOut.Editor
 
         private void RefreshLevelList()
         {
-            _levelList = LevelSaver.GetLevelList();
+            _levelList = new List<string>();
+
+            string stagesPath = "Assets/Resources/ScriptableObjects/Stages";
+
+            if (!System.IO.Directory.Exists(stagesPath))
+            {
+                return;
+            }
+
+            // .asset 파일들 검색
+            var assetFiles = System.IO.Directory.GetFiles(stagesPath, "*.asset");
+
+            foreach (var filePath in assetFiles)
+            {
+                // 파일명만 추출 (확장자 제외)
+                string fileName = System.IO.Path.GetFileNameWithoutExtension(filePath);
+                _levelList.Add(fileName);
+            }
+
+            // 정렬
+            _levelList.Sort();
+
+            Debug.Log($"[LevelEditor] Found {_levelList.Count} stage assets");
         }
 
         private void TestPlayLevel()
