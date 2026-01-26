@@ -624,7 +624,17 @@ namespace BalloonOut.Editor
                 if (generatedLevel != null)
                 {
                     _currentLevel = generatedLevel;
-                    _levelName = generatedLevel.name;
+
+                    // 사용자가 입력한 이름이 있으면 적용, 없으면 생성된 이름 사용
+                    if (!string.IsNullOrEmpty(_levelName) && _levelName != "NewLevel")
+                    {
+                        generatedLevel.name = _levelName;
+                    }
+                    else
+                    {
+                        _levelName = generatedLevel.name;
+                    }
+
                     _gridSize = generatedLevel.gridSize;
                     _selectedArrowIndex = -1;
                     _validationDirty = true; // 검증 갱신 필요
@@ -715,57 +725,122 @@ namespace BalloonOut.Editor
                 }
             }
 
-            // 그리드 셀 그리기
+            // 그리드 라인 그리기
+            Handles.color = new Color(0.5f, 0.5f, 0.5f, 0.6f);
+
+            // 수직선
+            for (int x = 0; x <= gridSize; x++)
+            {
+                Vector3 start = new Vector3(gridRect.x + x * PREVIEW_CELL_SIZE, gridRect.y, 0);
+                Vector3 end = new Vector3(gridRect.x + x * PREVIEW_CELL_SIZE, gridRect.y + gridSize * PREVIEW_CELL_SIZE, 0);
+                Handles.DrawLine(start, end);
+            }
+
+            // 수평선
+            for (int y = 0; y <= gridSize; y++)
+            {
+                Vector3 start = new Vector3(gridRect.x, gridRect.y + y * PREVIEW_CELL_SIZE, 0);
+                Vector3 end = new Vector3(gridRect.x + gridSize * PREVIEW_CELL_SIZE, gridRect.y + y * PREVIEW_CELL_SIZE, 0);
+                Handles.DrawLine(start, end);
+            }
+
+            // 빈 셀만 그리기 (화살표는 별도로 그림)
+            // Y좌표 반전: 인게임에서는 Y=0이 아래, 에디터 GUI에서는 Y=0이 위
             for (int y = 0; y < gridSize; y++)
             {
                 for (int x = 0; x < gridSize; x++)
                 {
-                    Rect cellRect = new Rect(
-                        gridRect.x + x * PREVIEW_CELL_SIZE,
-                        gridRect.y + y * PREVIEW_CELL_SIZE,
-                        PREVIEW_CELL_SIZE - 2,
-                        PREVIEW_CELL_SIZE - 2
-                    );
-
                     Vector2Int pos = new Vector2Int(x, y);
 
-                    if (occupiedCells.TryGetValue(pos, out var cellInfo))
+                    // 점유되지 않은 빈 셀만 표시
+                    if (!occupiedCells.ContainsKey(pos))
                     {
-                        // 화살표 셀
-                        EditorGUI.DrawRect(cellRect, cellInfo.color);
-
-                        // Head인 경우 방향 표시
-                        if (cellInfo.isHead)
-                        {
-                            string dirSymbol = cellInfo.dir switch
-                            {
-                                "U" => "▲",
-                                "D" => "▼",
-                                "L" => "◀",
-                                "R" => "▶",
-                                _ => "●"
-                            };
-
-                            GUIStyle headStyle = new GUIStyle(EditorStyles.boldLabel)
-                            {
-                                alignment = TextAnchor.MiddleCenter,
-                                fontSize = 12,
-                                normal = { textColor = Color.white }
-                            };
-                            GUI.Label(cellRect, dirSymbol, headStyle);
-                        }
-                    }
-                    else
-                    {
-                        // 빈 셀
+                        // Y좌표 반전하여 그리기
+                        int flippedY = gridSize - 1 - y;
+                        Rect cellRect = new Rect(
+                            gridRect.x + x * PREVIEW_CELL_SIZE + 1,
+                            gridRect.y + flippedY * PREVIEW_CELL_SIZE + 1,
+                            PREVIEW_CELL_SIZE - 2,
+                            PREVIEW_CELL_SIZE - 2
+                        );
                         EditorGUI.DrawRect(cellRect, new Color(0.2f, 0.2f, 0.2f, 0.5f));
                     }
-
-                    // 셀 테두리
-                    Handles.color = new Color(0.4f, 0.4f, 0.4f);
-                    Handles.DrawWireDisc(cellRect.center, Vector3.forward, 0); // dummy to set color
                 }
             }
+
+            // 화살표 그리기 (직선+원+삼각형 형태)
+            if (_currentLevel.arrows != null)
+            {
+                for (int arrowIdx = 0; arrowIdx < _currentLevel.arrows.Count; arrowIdx++)
+                {
+                    var arrow = _currentLevel.arrows[arrowIdx];
+                    Color arrowColor = GetPreviewColor(arrow.color);
+
+                    // 선택된 화살표는 하이라이트
+                    if (arrowIdx == _selectedArrowIndex)
+                    {
+                        arrowColor = Color.white;
+                    }
+
+                    DrawArrowInPreview(gridRect, arrow, arrowColor, gridSize);
+                }
+            }
+        }
+
+        private void DrawArrowInPreview(Rect gridRect, ArrowData arrow, Color arrowColor, int gridSize)
+        {
+            var cells = arrow.GetCells();
+            if (cells.Count == 0) return;
+
+            // 셀 좌표를 화면 좌표로 변환 (Y좌표 반전)
+            List<Vector3> screenPositions = new List<Vector3>();
+            foreach (var cell in cells)
+            {
+                // Y좌표 반전: 인게임에서는 Y=0이 아래, 에디터 GUI에서는 Y=0이 위
+                int flippedY = gridSize - 1 - cell.y;
+                float cx = gridRect.x + cell.x * PREVIEW_CELL_SIZE + PREVIEW_CELL_SIZE * 0.5f;
+                float cy = gridRect.y + flippedY * PREVIEW_CELL_SIZE + PREVIEW_CELL_SIZE * 0.5f;
+                screenPositions.Add(new Vector3(cx, cy, 0));
+            }
+
+            // Body: 직선으로 연결
+            Handles.color = arrowColor;
+            for (int i = 0; i < screenPositions.Count - 1; i++)
+            {
+                Handles.DrawAAPolyLine(3f, screenPositions[i], screenPositions[i + 1]);
+            }
+
+            // Tail: 동그라미 (첫 번째 셀)
+            Handles.DrawSolidDisc(screenPositions[0], Vector3.forward, 5f);
+
+            // Head: 삼각형 화살표 (마지막 셀)
+            DrawArrowHeadTriangle(screenPositions[screenPositions.Count - 1], arrow.direction, arrowColor);
+        }
+
+        private void DrawArrowHeadTriangle(Vector3 position, string direction, Color color)
+        {
+            Handles.color = color;
+            float size = PREVIEW_CELL_SIZE * 0.35f;
+
+            Vector2 dir = direction switch
+            {
+                "U" => Vector2.up,
+                "D" => Vector2.down,
+                "L" => Vector2.left,
+                "R" => Vector2.right,
+                _ => Vector2.right
+            };
+
+            // Unity Editor에서 Y축은 아래로 증가하므로 반전
+            dir.y = -dir.y;
+
+            Vector2 perp = new Vector2(-dir.y, dir.x);
+
+            Vector3 tip = position + (Vector3)(dir * size);
+            Vector3 left = position - (Vector3)(dir * size * 0.3f) + (Vector3)(perp * size * 0.6f);
+            Vector3 right = position - (Vector3)(dir * size * 0.3f) - (Vector3)(perp * size * 0.6f);
+
+            Handles.DrawAAConvexPolygon(tip, left, right);
         }
 
         private void DrawQueuePreview()
@@ -782,38 +857,80 @@ namespace BalloonOut.Editor
                 normal = { textColor = Color.white }
             };
 
+            // 활성 풍선 표시 스타일 (하단 = balloons[0])
+            GUIStyle activeStyle = new GUIStyle(EditorStyles.boldLabel)
+            {
+                alignment = TextAnchor.MiddleCenter,
+                fontSize = 11,
+                normal = { textColor = Color.yellow }
+            };
+
+            // 모든 Lane 중 가장 긴 것 찾기 (세로 높이 결정)
+            int maxBalloons = 0;
+            foreach (var lane in _currentLevel.lanes)
+            {
+                if (lane.balloons != null && lane.balloons.Count > maxBalloons)
+                    maxBalloons = lane.balloons.Count;
+            }
+
+            if (maxBalloons == 0)
+            {
+                EditorGUILayout.LabelField("(No balloons)", EditorStyles.miniLabel);
+                return;
+            }
+
+            // Lane 헤더 (가로로 나열)
+            EditorGUILayout.BeginHorizontal();
+            GUILayout.Space(10);
             for (int laneIdx = 0; laneIdx < _currentLevel.lanes.Count; laneIdx++)
             {
-                var lane = _currentLevel.lanes[laneIdx];
+                EditorGUILayout.LabelField($"Lane {laneIdx + 1}", EditorStyles.boldLabel, GUILayout.Width(35));
+                GUILayout.Space(5);
+            }
+            EditorGUILayout.EndHorizontal();
 
+            // 풍선 그리기 (위에서 아래로: balloons[last] → balloons[0])
+            // balloons[0]이 맨 아래 (활성), balloons[last]가 맨 위
+            for (int row = maxBalloons - 1; row >= 0; row--)
+            {
                 EditorGUILayout.BeginHorizontal();
-                EditorGUILayout.LabelField($"Lane {laneIdx + 1}:", GUILayout.Width(50));
+                GUILayout.Space(10);
 
-                if (lane.balloons != null && lane.balloons.Count > 0)
+                for (int laneIdx = 0; laneIdx < _currentLevel.lanes.Count; laneIdx++)
                 {
-                    foreach (var colorCode in lane.balloons)
-                    {
-                        Color balloonColor = GetPreviewColor(colorCode);
+                    var lane = _currentLevel.lanes[laneIdx];
 
-                        // GetRect로 영역 확보 후 DrawRect로 직접 색상 채우기
-                        Rect balloonRect = GUILayoutUtility.GetRect(28, 28, GUILayout.Width(28), GUILayout.Height(28));
+                    if (lane.balloons != null && row < lane.balloons.Count)
+                    {
+                        string colorCode = lane.balloons[row];
+                        Color balloonColor = GetPreviewColor(colorCode);
+                        bool isActive = (row == 0); // balloons[0]이 활성 풍선
+
+                        // 풍선 박스 그리기
+                        Rect balloonRect = GUILayoutUtility.GetRect(32, 32, GUILayout.Width(32), GUILayout.Height(32));
                         EditorGUI.DrawRect(balloonRect, balloonColor);
 
-                        // 테두리 그리기
-                        Handles.color = new Color(0.3f, 0.3f, 0.3f);
-                        Handles.DrawSolidRectangleWithOutline(balloonRect, Color.clear, new Color(0.2f, 0.2f, 0.2f));
+                        // 테두리 (활성 풍선은 노란색 테두리)
+                        Color borderColor = isActive ? Color.yellow : new Color(0.2f, 0.2f, 0.2f);
+                        Handles.DrawSolidRectangleWithOutline(balloonRect, Color.clear, borderColor);
 
                         // 색상 코드 라벨
-                        GUI.Label(balloonRect, colorCode, centeredStyle);
+                        GUI.Label(balloonRect, colorCode, isActive ? activeStyle : centeredStyle);
                     }
-                }
-                else
-                {
-                    EditorGUILayout.LabelField("(empty)", EditorStyles.miniLabel);
+                    else
+                    {
+                        // 빈 공간
+                        GUILayout.Space(32);
+                    }
+
+                    GUILayout.Space(8);
                 }
 
                 EditorGUILayout.EndHorizontal();
             }
+
+            // 활성 풍선 표시
+            EditorGUILayout.LabelField("  ↑ Active (can be popped)", EditorStyles.miniLabel);
         }
 
         private void DrawSolvableInfo()

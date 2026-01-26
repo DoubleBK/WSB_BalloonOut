@@ -67,20 +67,21 @@ namespace BalloonOut.UI
             for (int laneIdx = 0; laneIdx < _lanes.Count; laneIdx++)
             {
                 var lane = _lanes[laneIdx];
-                if (lane.Count > 0 && lane[lane.Count - 1] == color)
+                // balloons[0]이 활성 풍선 (가장 아래)
+                if (lane.Count > 0 && lane[0] == color)
                 {
-                    // 마지막 풍선 팝
-                    lane.RemoveAt(lane.Count - 1);
+                    // 첫 번째 풍선 팝
+                    lane.RemoveAt(0);
 
                     // UI 업데이트
                     if (_balloonImages.Count > laneIdx && _balloonImages[laneIdx].Count > 0)
                     {
                         var balloonList = _balloonImages[laneIdx];
-                        var lastBalloon = balloonList[balloonList.Count - 1];
-                        balloonList.RemoveAt(balloonList.Count - 1);
+                        var firstBalloon = balloonList[0];
+                        balloonList.RemoveAt(0);
 
                         // 팝 애니메이션
-                        AnimatePop(lastBalloon.gameObject);
+                        AnimatePop(firstBalloon.gameObject);
                     }
 
                     UpdateHeadHighlights();
@@ -118,23 +119,24 @@ namespace BalloonOut.UI
 
         /// <summary>
         /// 특정 색상의 풍선 월드 좌표 반환 (HomingArrow 타겟용)
-        /// 해당 색상의 Head 풍선(마지막 풍선) 위치를 반환
+        /// 해당 색상의 활성 풍선(첫 번째 풍선, 가장 아래) 위치를 반환
         /// </summary>
         public Vector3 GetBalloonWorldPosition(GameColor color)
         {
             for (int laneIdx = 0; laneIdx < _lanes.Count; laneIdx++)
             {
                 var lane = _lanes[laneIdx];
-                if (lane.Count > 0 && lane[lane.Count - 1] == color)
+                // balloons[0]이 활성 풍선 (가장 아래)
+                if (lane.Count > 0 && lane[0] == color)
                 {
-                    // 해당 레인의 마지막 풍선 (Head)
+                    // 해당 레인의 첫 번째 풍선 (활성)
                     if (_balloonImages.Count > laneIdx && _balloonImages[laneIdx].Count > 0)
                     {
                         var balloonList = _balloonImages[laneIdx];
-                        var headBalloon = balloonList[balloonList.Count - 1];
-                        if (headBalloon != null)
+                        var activeBalloon = balloonList[0];
+                        if (activeBalloon != null)
                         {
-                            return headBalloon.transform.position;
+                            return activeBalloon.transform.position;
                         }
                     }
                 }
@@ -152,6 +154,31 @@ namespace BalloonOut.UI
         {
             _balloonImages.Clear();
 
+            // _lanesContainer에 HorizontalLayoutGroup 설정 (Lane들을 가로로 배열)
+            if (_lanesContainer != null)
+            {
+                // 기존 LayoutGroup 제거 (VerticalLayoutGroup이 있을 수 있음)
+                var existingVerticalLayout = _lanesContainer.GetComponent<VerticalLayoutGroup>();
+                if (existingVerticalLayout != null)
+                {
+                    DestroyImmediate(existingVerticalLayout);
+                }
+
+                var containerLayout = _lanesContainer.GetComponent<HorizontalLayoutGroup>();
+                if (containerLayout == null)
+                {
+                    containerLayout = _lanesContainer.gameObject.AddComponent<HorizontalLayoutGroup>();
+                }
+
+                if (containerLayout != null)
+                {
+                    containerLayout.spacing = _laneSpacing;
+                    containerLayout.childAlignment = TextAnchor.LowerCenter;
+                    containerLayout.childForceExpandWidth = false;
+                    containerLayout.childForceExpandHeight = false;
+                }
+            }
+
             for (int laneIdx = 0; laneIdx < _lanes.Count; laneIdx++)
             {
                 // Lane 컨테이너 생성
@@ -159,6 +186,28 @@ namespace BalloonOut.UI
                 if (_lanePrefab != null)
                 {
                     laneObj = Instantiate(_lanePrefab, _lanesContainer);
+
+                    // 프리팹의 기존 LayoutGroup 제거 후 VerticalLayoutGroup 추가
+                    var existingLayout = laneObj.GetComponent<HorizontalLayoutGroup>();
+                    if (existingLayout != null)
+                    {
+                        DestroyImmediate(existingLayout);
+                    }
+
+                    var existingVertical = laneObj.GetComponent<VerticalLayoutGroup>();
+                    if (existingVertical == null)
+                    {
+                        var layout = laneObj.AddComponent<VerticalLayoutGroup>();
+                        layout.spacing = _balloonSpacing;
+                        layout.childAlignment = TextAnchor.LowerCenter;
+                        layout.childForceExpandWidth = false;
+                        layout.childForceExpandHeight = false;
+                        layout.reverseArrangement = true;  // balloons[0]이 아래에 표시되도록
+                    }
+                    else
+                    {
+                        existingVertical.reverseArrangement = true;
+                    }
                 }
                 else
                 {
@@ -166,17 +215,18 @@ namespace BalloonOut.UI
                     laneObj.transform.SetParent(_lanesContainer, false);
                     laneObj.AddComponent<RectTransform>();
                     laneObj.transform.localScale = Vector3.one;
-                    var layout = laneObj.AddComponent<HorizontalLayoutGroup>();
+                    var layout = laneObj.AddComponent<VerticalLayoutGroup>();
                     layout.spacing = _balloonSpacing;
-                    layout.childAlignment = TextAnchor.MiddleCenter;
+                    layout.childAlignment = TextAnchor.LowerCenter;
                     layout.childForceExpandWidth = false;
                     layout.childForceExpandHeight = false;
+                    layout.reverseArrangement = true;  // balloons[0]이 아래에 표시되도록
                 }
 
                 var lane = _lanes[laneIdx];
                 var balloonList = new List<Image>();
 
-                // 풍선 생성 (뒤에서부터 표시, 마지막이 Head)
+                // 풍선 생성 (balloons[0]이 활성 풍선, reverseArrangement로 인해 아래에 표시)
                 for (int i = 0; i < lane.Count; i++)
                 {
                     var color = lane[i];
@@ -259,18 +309,27 @@ namespace BalloonOut.UI
         }
 
         /// <summary>
-        /// Head 풍선 강조 (현재 비활성화 - 모든 풍선 동일 크기)
+        /// 활성 풍선 강조 (첫 번째 풍선, 가장 아래)
         /// </summary>
         private void UpdateHeadHighlights()
         {
-            // 모든 풍선 동일 크기 유지
             for (int laneIdx = 0; laneIdx < _balloonImages.Count; laneIdx++)
             {
                 var lane = _balloonImages[laneIdx];
                 for (int i = 0; i < lane.Count; i++)
                 {
                     var balloon = lane[i];
-                    balloon.transform.localScale = Vector3.one;
+                    if (balloon == null) continue;
+
+                    // 첫 번째(i==0)가 활성 풍선 - 약간 확대
+                    if (i == 0)
+                    {
+                        balloon.transform.localScale = Vector3.one * 1.1f;
+                    }
+                    else
+                    {
+                        balloon.transform.localScale = Vector3.one;
+                    }
                 }
             }
         }

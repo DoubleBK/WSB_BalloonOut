@@ -41,6 +41,20 @@ namespace BalloonOut.Data
             { "U", "D" }, { "D", "U" }, { "L", "R" }, { "R", "L" }
         };
 
+        /// <summary>
+        /// Generator 좌표계의 방향을 Game 좌표계로 변환 (Y축 반전)
+        /// Generator: U=(0,-1), D=(0,1) / Game: U=(0,1), D=(0,-1)
+        /// </summary>
+        private static string FlipYDirection(string dir)
+        {
+            return dir switch
+            {
+                "U" => "D",
+                "D" => "U",
+                _ => dir  // L, R은 그대로
+            };
+        }
+
         // ========== Configuration ==========
         [Serializable]
         public class GeneratorConfig
@@ -453,7 +467,7 @@ namespace BalloonOut.Data
 
         // ========== ReverseGrowth (Bending Arrow) ==========
         private static (int x, int y, string dir)? FindNextGrowthCell(int x, int y, string preferredDir,
-            HashSet<string> occupiedSet, int gridSize)
+            HashSet<string> occupiedSet, int gridSize, HashSet<string> selfPathSet = null)
         {
             var priority = TURN_PRIORITY[preferredDir];
             var shuffledTurns = new List<string> { priority[1], priority[2] };
@@ -467,10 +481,15 @@ namespace BalloonOut.Data
                 int nx = x + d.x;
                 int ny = y + d.y;
 
-                if (IsInBounds(nx, ny, gridSize) && !occupiedSet.Contains(CellKey(nx, ny)))
-                {
-                    return (nx, ny, dir);
-                }
+                // 다른 화살표 셀 검사
+                if (!IsInBounds(nx, ny, gridSize) || occupiedSet.Contains(CellKey(nx, ny)))
+                    continue;
+
+                // 자기 자신의 경로 검사 (자기 몸 통과 방지)
+                if (selfPathSet != null && selfPathSet.Contains(CellKey(nx, ny)))
+                    continue;
+
+                return (nx, ny, dir);
             }
             return null;
         }
@@ -480,18 +499,22 @@ namespace BalloonOut.Data
         {
             var path = new List<Vector2Int> { new Vector2Int(headX, headY) };
 
+            // 자기 자신의 경로를 추적 (자기 몸 통과 방지용)
+            var selfPathSet = new HashSet<string> { CellKey(headX, headY) };
+
             string currentDir = OPPOSITE[headDir];
             int currentX = headX;
             int currentY = headY;
 
             for (int i = 1; i < targetLength; i++)
             {
-                var next = FindNextGrowthCell(currentX, currentY, currentDir, occupiedSet, gridSize);
+                var next = FindNextGrowthCell(currentX, currentY, currentDir, occupiedSet, gridSize, selfPathSet);
 
                 if (!next.HasValue)
                     break;
 
                 path.Add(new Vector2Int(next.Value.x, next.Value.y));
+                selfPathSet.Add(CellKey(next.Value.x, next.Value.y));
                 currentX = next.Value.x;
                 currentY = next.Value.y;
                 currentDir = next.Value.dir;
@@ -697,7 +720,7 @@ namespace BalloonOut.Data
             public int originalIndex;
         }
 
-        private static List<BlockData> PlaceFillersForDensity(List<BlockData> blocks, HashSet<string> occupiedSet, GeneratorConfig cfg)
+        private static List<BlockData> PlaceFillersForDensity(List<BlockData> blocks, HashSet<string> occupiedSet, GeneratorConfig cfg, List<List<string>> lanes)
         {
             var fillers = new List<BlockData>();
             int totalCells = cfg.gridSize * cfg.gridSize;
@@ -711,11 +734,63 @@ namespace BalloonOut.Data
 
             Debug.Log($"  Filler: Current density {(currentOccupied / (float)totalCells * 100):F1}%, target {cfg.targetDensity * 100:F1}%");
 
+            // 예상 Filler 개수 계산
+            int remainingCells = targetOccupied - currentOccupied;
+            int avgFillerLength = (cfg.fillerMinLength + cfg.fillerMaxLength) / 2;
+            int estimatedFillerCount = Mathf.CeilToInt(remainingCells / (float)Mathf.Max(1, avgFillerLength));
+
+            // Queue에 Filler용 풍선 미리 추가
+            var fillerColors = new List<string>();
+            for (int i = 0; i < estimatedFillerCount; i++)
+            {
+                string color = RandomPick(COLORS);
+                fillerColors.Add(color);
+
+                // 가장 적은 풍선을 가진 Lane에 추가 (나중에 팝됨)
+                int minLaneIdx = 0;
+                int minCount = int.MaxValue;
+                for (int laneIdx = 0; laneIdx < lanes.Count; laneIdx++)
+                {
+                    if (lanes[laneIdx].Count < minCount)
+                    {
+                        minCount = lanes[laneIdx].Count;
+                        minLaneIdx = laneIdx;
+                    }
+                }
+                lanes[minLaneIdx].Add(color);
+            }
+
+            int fillerColorIdx = 0;
+
             while (currentOccupied < targetOccupied && attempts < maxAttempts)
             {
                 attempts++;
 
-                string color = RandomPick(COLORS);
+                // Filler 색상: 미리 추가된 풍선 색상 사용
+                string color;
+                if (fillerColorIdx < fillerColors.Count)
+                {
+                    color = fillerColors[fillerColorIdx];
+                }
+                else
+                {
+                    // 예상보다 많은 Filler가 필요한 경우, 추가 풍선도 추가
+                    color = RandomPick(COLORS);
+                    fillerColors.Add(color);
+
+                    int minLaneIdx = 0;
+                    int minCount = int.MaxValue;
+                    for (int laneIdx = 0; laneIdx < lanes.Count; laneIdx++)
+                    {
+                        if (lanes[laneIdx].Count < minCount)
+                        {
+                            minCount = lanes[laneIdx].Count;
+                            minLaneIdx = laneIdx;
+                        }
+                    }
+                    lanes[minLaneIdx].Add(color);
+                }
+
                 int length = RandomInt(cfg.fillerMinLength, cfg.fillerMaxLength);
 
                 PlacementResult placement = useBending
@@ -724,6 +799,8 @@ namespace BalloonOut.Data
 
                 if (placement != null)
                 {
+                    fillerColorIdx++;  // 색상 사용 완료
+
                     bool isBending = placement.path != null;
                     var fillerBlock = new BlockData
                     {
@@ -749,12 +826,95 @@ namespace BalloonOut.Data
                 }
             }
 
+            // 사용하지 않은 풍선 제거 (예상보다 적게 배치된 경우)
+            int unusedCount = fillerColors.Count - fillerColorIdx;
+            if (unusedCount > 0)
+            {
+                Debug.Log($"  Filler: Removing {unusedCount} unused balloon(s) from queue");
+
+                // 각 Lane에서 마지막에 추가된 풍선 제거
+                int toRemove = unusedCount;
+                for (int laneIdx = lanes.Count - 1; laneIdx >= 0 && toRemove > 0; laneIdx--)
+                {
+                    while (lanes[laneIdx].Count > 0 && toRemove > 0)
+                    {
+                        lanes[laneIdx].RemoveAt(lanes[laneIdx].Count - 1);
+                        toRemove--;
+                    }
+                }
+            }
+
             Debug.Log($"  Filler: Added {fillers.Count} fillers, final density {(currentOccupied / (float)totalCells * 100):F1}%");
 
             return fillers;
         }
 
         // ========== Validation ==========
+
+        /// <summary>
+        /// 마주보는 화살표 검사 (Head끼리 인접하고 서로를 향하는 경우)
+        /// </summary>
+        private static (bool valid, string reason) CheckFacingArrows(List<BlockData> blocks)
+        {
+            for (int i = 0; i < blocks.Count; i++)
+            {
+                for (int j = i + 1; j < blocks.Count; j++)
+                {
+                    var a = blocks[i];
+                    var b = blocks[j];
+
+                    // 각 화살표의 Head 위치 (Generator 내부에서는 cells[0]이 Head)
+                    if (a.cells == null || a.cells.Count == 0 || b.cells == null || b.cells.Count == 0)
+                        continue;
+
+                    var headA = a.cells[0];
+                    var headB = b.cells[0];
+
+                    // Head가 인접한지 확인
+                    int dx = headB.x - headA.x;
+                    int dy = headB.y - headA.y;
+
+                    // 인접한 경우 (상하좌우로 1칸 차이)
+                    if (Mathf.Abs(dx) + Mathf.Abs(dy) == 1)
+                    {
+                        // A가 B를 향하고, B가 A를 향하는지 확인
+                        bool aPointsToB = IsDirectionTowards(a.dir, dx, dy);
+                        bool bPointsToA = IsDirectionTowards(b.dir, -dx, -dy);
+
+                        if (aPointsToB && bPointsToA)
+                        {
+                            return (false, $"facing arrows at ({headA.x},{headA.y}) and ({headB.x},{headB.y})");
+                        }
+                    }
+                }
+            }
+            return (true, null);
+        }
+
+        /// <summary>
+        /// 방향이 특정 델타를 향하는지 확인
+        /// </summary>
+        private static bool IsDirectionTowards(string dir, int dx, int dy)
+        {
+            return dir switch
+            {
+                "U" => dy < 0,  // 위쪽 = y 감소
+                "D" => dy > 0,  // 아래쪽 = y 증가
+                "L" => dx < 0,  // 왼쪽 = x 감소
+                "R" => dx > 0,  // 오른쪽 = x 증가
+                _ => false
+            };
+        }
+
+        /// <summary>
+        /// Game 좌표계 방향을 Generator 좌표계로 역변환
+        /// </summary>
+        private static string UnflipYDirection(string dir)
+        {
+            // FlipYDirection과 동일 (Y 방향 swap은 대칭적)
+            return FlipYDirection(dir);
+        }
+
         /// <summary>
         /// LevelData 검증 (외부에서 호출 가능)
         /// </summary>
@@ -769,14 +929,19 @@ namespace BalloonOut.Data
             {
                 foreach (var arrow in levelData.arrows)
                 {
+                    // ArrowData.GetCells()는 cells[0]=TAIL, cells[last]=HEAD 순서
+                    // 검증 함수는 cells[0]=HEAD를 기대하므로 역순으로 변환
+                    var cells = arrow.GetCells();
+                    cells.Reverse();
+
                     var block = new BlockData
                     {
                         x = arrow.x,
                         y = arrow.y,
                         color = arrow.color,
-                        dir = arrow.direction,
+                        dir = UnflipYDirection(arrow.direction),  // Game → Generator 좌표계 역변환
                         length = arrow.length,
-                        cells = arrow.GetCells(),
+                        cells = cells,
                         isFiller = arrow.isFiller
                     };
                     blocks.Add(block);
@@ -825,6 +990,13 @@ namespace BalloonOut.Data
                         originalIndex = idx
                     });
                     colorMap[idx] = b.color;
+                }
+
+                // 마주보는 화살표 검사
+                var facingCheck = CheckFacingArrows(remaining);
+                if (!facingCheck.valid)
+                {
+                    return new ValidationResult { valid = false, reason = facingCheck.reason };
                 }
 
                 var queuesCopy = new List<List<string>>();
@@ -1040,7 +1212,7 @@ namespace BalloonOut.Data
 
                     if (currentDensity < config.targetDensity)
                     {
-                        var fillers = PlaceFillersForDensity(allBlocks, occupiedSet, config);
+                        var fillers = PlaceFillersForDensity(allBlocks, occupiedSet, config, lanes);
                         allBlocks.AddRange(fillers);
                     }
                 }
@@ -1084,19 +1256,47 @@ namespace BalloonOut.Data
                             x = b.x,
                             y = b.y,
                             color = b.color,
-                            direction = b.dir,
+                            direction = FlipYDirection(b.dir),  // Generator → Game 좌표계 변환
                             length = b.length,
                             order = orderMap.ContainsKey(idx) ? orderMap[idx] : 0,
                             isFiller = b.isFiller
                         };
 
                         // 꺾이는 화살표는 path 포함
-                        if (b.path != null)
+                        if (b.path != null && b.path.Count > 0)
                         {
                             arrowData.path = new List<Vector2IntSerializable>();
-                            foreach (var p in b.path)
+
+                            // path 역순으로 저장 (GrowArrowReverse는 HEAD-first, GetCells는 TAIL-first 기대)
+                            for (int pi = b.path.Count - 1; pi >= 0; pi--)
                             {
+                                var p = b.path[pi];
                                 arrowData.path.Add(new Vector2IntSerializable { x = p.x, y = p.y });
+                            }
+
+                            // Head 방향 검증: path[last-1] → path[last] 방향 계산
+                            // path 좌표는 Generator 좌표계 (y=0이 위쪽, y 증가가 아래쪽)
+                            if (arrowData.path.Count >= 2)
+                            {
+                                var secondLast = arrowData.path[arrowData.path.Count - 2];
+                                var head = arrowData.path[arrowData.path.Count - 1];
+
+                                int dx = head.x - secondLast.x;
+                                int dy = head.y - secondLast.y;
+
+                                // Generator 좌표계에서 방향 계산 후 Game 좌표계로 변환
+                                // Generator: U=(0,-1), D=(0,1), L=(-1,0), R=(1,0)
+                                string genDir = (dx, dy) switch
+                                {
+                                    (0, -1) => "U",  // Y 감소 = Up (Generator 좌표계)
+                                    (0, 1) => "D",   // Y 증가 = Down (Generator 좌표계)
+                                    (-1, 0) => "L",  // X 감소 = Left
+                                    (1, 0) => "R",   // X 증가 = Right
+                                    _ => b.dir
+                                };
+
+                                // Generator → Game 좌표계 변환
+                                arrowData.direction = FlipYDirection(genDir);
                             }
                         }
 
