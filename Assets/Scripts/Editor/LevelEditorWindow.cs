@@ -3,7 +3,6 @@ using UnityEngine;
 using UnityEditor;
 using BalloonOut.Core;
 using BalloonOut.Data;
-using BalloonOut.Game.Grid;
 
 namespace BalloonOut.Editor
 {
@@ -56,8 +55,8 @@ namespace BalloonOut.Editor
         private List<string> _levelList = new List<string>();
         private int _selectedLevelIndex = -1;
 
-        // Scene View 편집
-        private bool _isEditingInScene = false;
+        // Selected lane for balloon tab
+        private int _selectedLaneIndex = -1;
 
         // Preview 설정
         private const float LEFT_PANEL_WIDTH = 350f;
@@ -77,12 +76,11 @@ namespace BalloonOut.Editor
         private void OnEnable()
         {
             RefreshLevelList();
-            SceneView.duringSceneGui += OnSceneGUI;
         }
 
         private void OnDisable()
         {
-            SceneView.duringSceneGui -= OnSceneGUI;
+            // Cleanup if needed
         }
 
         private void OnGUI()
@@ -121,9 +119,6 @@ namespace BalloonOut.Editor
                     DrawGenerateTab();
                     break;
             }
-
-            EditorGUILayout.Space(10);
-            DrawSceneEditToggle();
 
             EditorGUILayout.EndScrollView();
             EditorGUILayout.EndVertical();
@@ -204,11 +199,6 @@ namespace BalloonOut.Editor
                 EditorGUILayout.LabelField("No levels found");
             }
 
-            if (GUILayout.Button("Refresh", GUILayout.Width(60)))
-            {
-                RefreshLevelList();
-            }
-
             EditorGUILayout.EndHorizontal();
 
             EditorGUILayout.EndVertical();
@@ -233,7 +223,45 @@ namespace BalloonOut.Editor
 
             GUI.enabled = true;
 
+            // Renew 버튼 - 에디터 상태 초기화
+            if (GUILayout.Button("Renew", GUILayout.Height(30)))
+            {
+                RenewEditor();
+            }
+
             EditorGUILayout.EndHorizontal();
+        }
+
+        /// <summary>
+        /// 에디터 상태 초기화 (창 재시작 없이)
+        /// </summary>
+        private void RenewEditor()
+        {
+            // 에디터 상태 초기화
+            _currentLevel = null;
+            _levelName = "NewLevel";
+            _gridSize = 6;
+            _selectedArrowIndex = -1;
+            _selectedLaneIndex = -1;
+            _cachedValidation = null;
+            _validationDirty = true;
+
+            // UI 상태 초기화
+            _currentTab = 0;
+            _scrollPosition = Vector2.zero;
+            _arrowListScroll = Vector2.zero;
+            _laneListScroll = Vector2.zero;
+            _previewScrollPosition = Vector2.zero;
+            _selectedLevelIndex = -1;
+
+            // 레벨 목록 새로고침
+            RefreshLevelList();
+
+            // Scene View 갱신
+            SceneView.RepaintAll();
+            Repaint();
+
+            Debug.Log("[LevelEditor] Editor renewed");
         }
 
         // ========== Arrow 탭 ==========
@@ -253,8 +281,8 @@ namespace BalloonOut.Editor
 
             EditorGUILayout.Space(5);
 
-            GUI.enabled = _currentLevel != null && _isEditingInScene;
-            EditorGUILayout.HelpBox("Scene View에서 셀을 클릭하여 화살표 배치", MessageType.Info);
+            GUI.enabled = _currentLevel != null;
+            EditorGUILayout.HelpBox("Preview 패널의 그리드를 클릭하여 화살표 배치\n우클릭: 삭제", MessageType.Info);
             GUI.enabled = true;
 
             EditorGUILayout.EndVertical();
@@ -702,12 +730,15 @@ namespace BalloonOut.Editor
             int gridSize = _currentLevel.gridSize;
             float totalSize = gridSize * PREVIEW_CELL_SIZE;
 
-            EditorGUILayout.LabelField($"Grid ({gridSize}x{gridSize})", EditorStyles.boldLabel);
+            EditorGUILayout.LabelField($"Grid ({gridSize}x{gridSize}) - Click to place, Right-click to delete", EditorStyles.boldLabel);
 
             // 그리드 영역 확보
             Rect gridRect = GUILayoutUtility.GetRect(totalSize + 20, totalSize + 20);
             gridRect.x += 10;
             gridRect.y += 5;
+
+            // 클릭 이벤트 처리 (그리드 렌더링 전에 처리)
+            HandlePreviewGridInput(gridRect, gridSize);
 
             // 점유된 셀 계산
             var occupiedCells = new Dictionary<Vector2Int, (Color color, bool isHead, string dir)>();
@@ -850,6 +881,88 @@ namespace BalloonOut.Editor
             Vector3 right = position - (Vector3)(dir * size * 0.3f) - (Vector3)(perp * size * 0.6f);
 
             Handles.DrawAAConvexPolygon(tip, left, right);
+        }
+
+        /// <summary>
+        /// Preview 그리드에서 클릭 이벤트 처리
+        /// </summary>
+        private void HandlePreviewGridInput(Rect gridRect, int gridSize)
+        {
+            Event e = Event.current;
+
+            // 그리드 영역 내에서만 처리
+            Rect clickableArea = new Rect(gridRect.x, gridRect.y, gridSize * PREVIEW_CELL_SIZE, gridSize * PREVIEW_CELL_SIZE);
+
+            if (!clickableArea.Contains(e.mousePosition))
+                return;
+
+            // 좌클릭: 배치 또는 선택
+            if (e.type == EventType.MouseDown && e.button == 0)
+            {
+                Vector2Int gridPos = ScreenToGridPosition(e.mousePosition, gridRect, gridSize);
+
+                if (IsValidGridPosition(gridPos, gridSize))
+                {
+                    HandleGridLeftClick(gridPos);
+                    e.Use();
+                    Repaint();
+                }
+            }
+            // 우클릭: 삭제
+            else if (e.type == EventType.MouseDown && e.button == 1)
+            {
+                Vector2Int gridPos = ScreenToGridPosition(e.mousePosition, gridRect, gridSize);
+
+                if (IsValidGridPosition(gridPos, gridSize))
+                {
+                    RemoveArrowAt(gridPos);
+                    e.Use();
+                    Repaint();
+                }
+            }
+        }
+
+        /// <summary>
+        /// 화면 좌표를 그리드 좌표로 변환
+        /// </summary>
+        private Vector2Int ScreenToGridPosition(Vector2 mousePos, Rect gridRect, int gridSize)
+        {
+            int cellX = Mathf.FloorToInt((mousePos.x - gridRect.x) / PREVIEW_CELL_SIZE);
+            // Y좌표 반전: 에디터 GUI에서는 Y=0이 위, 인게임에서는 Y=0이 아래
+            int screenY = Mathf.FloorToInt((mousePos.y - gridRect.y) / PREVIEW_CELL_SIZE);
+            int cellY = gridSize - 1 - screenY;
+
+            return new Vector2Int(cellX, cellY);
+        }
+
+        /// <summary>
+        /// 그리드 좌표 유효성 검사
+        /// </summary>
+        private bool IsValidGridPosition(Vector2Int pos, int gridSize)
+        {
+            return pos.x >= 0 && pos.x < gridSize && pos.y >= 0 && pos.y < gridSize;
+        }
+
+        /// <summary>
+        /// 좌클릭 처리: 기존 화살표 선택 또는 새 화살표 배치
+        /// </summary>
+        private void HandleGridLeftClick(Vector2Int gridPos)
+        {
+            var existingArrow = FindArrowAt(gridPos);
+
+            if (existingArrow != null)
+            {
+                // 기존 화살표 선택
+                _selectedArrowIndex = _currentLevel.arrows.IndexOf(existingArrow);
+                Debug.Log($"[LevelEditor] Arrow selected at ({gridPos.x}, {gridPos.y})");
+            }
+            else
+            {
+                // 새 화살표 배치
+                PlaceArrow(gridPos);
+            }
+
+            SceneView.RepaintAll();
         }
 
         private void DrawQueuePreview()
@@ -1135,183 +1248,6 @@ namespace BalloonOut.Editor
             };
         }
 
-        // ========== Scene 편집 토글 ==========
-        private void DrawSceneEditToggle()
-        {
-            EditorGUILayout.BeginVertical("box");
-
-            EditorGUILayout.BeginHorizontal();
-            _isEditingInScene = EditorGUILayout.Toggle("Scene Edit Mode", _isEditingInScene);
-
-            if (_isEditingInScene)
-            {
-                GUILayout.Label("🔵 Active", EditorStyles.boldLabel);
-            }
-
-            EditorGUILayout.EndHorizontal();
-
-            if (_isEditingInScene)
-            {
-                EditorGUILayout.HelpBox("Scene View에서 그리드 셀을 클릭하여 화살표를 배치합니다.\n좌클릭: 배치 | Shift+클릭: 삭제", MessageType.Info);
-            }
-
-            EditorGUILayout.EndVertical();
-        }
-
-        // ========== Scene GUI ==========
-        private void OnSceneGUI(SceneView sceneView)
-        {
-            if (_currentLevel == null)
-                return;
-
-            // GridSystem 참조 가져오기
-            var gridSystem = FindObjectOfType<GridSystem>();
-            if (gridSystem == null)
-                return;
-
-            int gridSize = _currentLevel.gridSize;
-            float cellSize = gridSystem.CellSize;
-            Vector2 gridOrigin = gridSystem.GridOrigin;
-
-            // 그리드 그리기
-            DrawGrid(gridSize, cellSize, gridOrigin);
-
-            // 화살표 그리기
-            DrawArrows(gridSystem);
-
-            // 편집 모드일 때 입력 처리
-            if (_isEditingInScene)
-            {
-                HandleSceneInput(gridSystem, gridSize, cellSize, gridOrigin);
-            }
-        }
-
-        private void DrawGrid(int gridSize, float cellSize, Vector2 origin)
-        {
-            Handles.color = new Color(0.5f, 0.5f, 0.5f, 0.5f);
-
-            for (int x = 0; x <= gridSize; x++)
-            {
-                Vector3 start = new Vector3(origin.x + x * cellSize - cellSize * 0.5f, origin.y - cellSize * 0.5f, 0);
-                Vector3 end = new Vector3(origin.x + x * cellSize - cellSize * 0.5f, origin.y + gridSize * cellSize - cellSize * 0.5f, 0);
-                Handles.DrawLine(start, end);
-            }
-
-            for (int y = 0; y <= gridSize; y++)
-            {
-                Vector3 start = new Vector3(origin.x - cellSize * 0.5f, origin.y + y * cellSize - cellSize * 0.5f, 0);
-                Vector3 end = new Vector3(origin.x + gridSize * cellSize - cellSize * 0.5f, origin.y + y * cellSize - cellSize * 0.5f, 0);
-                Handles.DrawLine(start, end);
-            }
-        }
-
-        private void DrawArrows(GridSystem gridSystem)
-        {
-            if (_currentLevel.arrows == null)
-                return;
-
-            for (int i = 0; i < _currentLevel.arrows.Count; i++)
-            {
-                var arrow = _currentLevel.arrows[i];
-                var cells = arrow.GetCells();
-
-                bool isSelected = i == _selectedArrowIndex;
-                Color arrowColor = GetArrowColor(arrow.color);
-
-                if (isSelected)
-                {
-                    arrowColor = Color.white;
-                }
-
-                // 셀 그리기
-                foreach (var cell in cells)
-                {
-                    Vector2 worldPos = gridSystem.GridToWorld(cell);
-                    float size = gridSystem.CellSize * 0.8f;
-
-                    Handles.color = arrowColor;
-                    Handles.DrawSolidRectangleWithOutline(
-                        new Rect(worldPos.x - size * 0.5f, worldPos.y - size * 0.5f, size, size),
-                        new Color(arrowColor.r, arrowColor.g, arrowColor.b, 0.5f),
-                        arrowColor
-                    );
-                }
-
-                // Head 표시 (방향 화살표)
-                if (cells.Count > 0)
-                {
-                    Vector2 headPos = gridSystem.GridToWorld(cells[cells.Count - 1]);
-                    Vector2 dir = GetDirectionVector(arrow.Direction);
-
-                    Handles.color = Color.white;
-                    Handles.DrawLine(
-                        headPos,
-                        headPos + dir * gridSystem.CellSize * 0.4f
-                    );
-                }
-            }
-        }
-
-        private Color GetArrowColor(string colorCode)
-        {
-            return colorCode switch
-            {
-                "R" => new Color(1f, 0.2f, 0.2f),
-                "G" => new Color(0.2f, 0.8f, 0.2f),
-                "B" => new Color(0.2f, 0.4f, 1f),
-                "Y" => new Color(1f, 0.9f, 0.2f),
-                "P" => new Color(0.6f, 0.2f, 0.8f),
-                "O" => new Color(1f, 0.5f, 0.1f),
-                _ => Color.white
-            };
-        }
-
-        private Vector2 GetDirectionVector(ArrowDirection dir)
-        {
-            return dir switch
-            {
-                ArrowDirection.Up => Vector2.up,
-                ArrowDirection.Down => Vector2.down,
-                ArrowDirection.Left => Vector2.left,
-                ArrowDirection.Right => Vector2.right,
-                _ => Vector2.up
-            };
-        }
-
-        private void HandleSceneInput(GridSystem gridSystem, int gridSize, float cellSize, Vector2 origin)
-        {
-            Event e = Event.current;
-
-            if (e.type == EventType.MouseDown && e.button == 0)
-            {
-                Vector2 mousePos = HandleUtility.GUIPointToWorldRay(e.mousePosition).origin;
-                Vector2Int gridPos = gridSystem.WorldToGrid(mousePos);
-
-                if (gridPos.x >= 0 && gridPos.x < gridSize && gridPos.y >= 0 && gridPos.y < gridSize)
-                {
-                    if (e.shift)
-                    {
-                        // Shift + 클릭: 해당 위치의 화살표 삭제
-                        RemoveArrowAt(gridPos);
-                    }
-                    else
-                    {
-                        // 클릭: 화살표 배치
-                        PlaceArrow(gridPos);
-                    }
-
-                    e.Use();
-                    Repaint();
-                }
-            }
-
-            // Scene View가 이 이벤트를 처리하지 않도록
-            if (_isEditingInScene)
-            {
-                HandleUtility.AddDefaultControl(GUIUtility.GetControlID(FocusType.Passive));
-            }
-        }
-
         // ========== 레벨 관리 ==========
         private void CreateNewLevel()
         {
@@ -1341,14 +1277,63 @@ namespace BalloonOut.Editor
             if (_currentLevel == null)
                 return;
 
-            if (LevelSaver.Save(_currentLevel))
+            if (string.IsNullOrEmpty(_levelName))
             {
-                RefreshLevelList();
-                EditorUtility.DisplayDialog("Save", $"Level '{_currentLevel.name}' saved successfully!", "OK");
+                EditorUtility.DisplayDialog("Error", "Level name is empty", "OK");
+                return;
+            }
+
+            // stage_{Name}.asset 형식으로 저장
+            string fileName = $"stage_{_levelName}.asset";
+
+            // ScriptableObject로 저장
+            bool success = SaveAsScriptableObject(_currentLevel, fileName);
+            if (success)
+            {
+                Debug.Log($"[LevelEditor] Stage saved: {fileName}");
+                EditorUtility.DisplayDialog("Save", $"Stage '{fileName}' saved successfully!", "OK");
             }
             else
             {
-                EditorUtility.DisplayDialog("Error", "Failed to save level.", "OK");
+                EditorUtility.DisplayDialog("Error", "Failed to save stage.", "OK");
+            }
+        }
+
+        private bool SaveAsScriptableObject(LevelData levelData, string fileName)
+        {
+            try
+            {
+                string stagesPath = "Assets/Resources/ScriptableObjects/Stages";
+
+                if (!System.IO.Directory.Exists(stagesPath))
+                {
+                    System.IO.Directory.CreateDirectory(stagesPath);
+                }
+
+                // StageData ScriptableObject 생성
+                var stageData = ScriptableObject.CreateInstance<StageData>();
+                stageData.CopyFrom(levelData);
+
+                // 파일 저장
+                string assetPath = $"{stagesPath}/{fileName}";
+
+                // 기존 파일이 있으면 삭제 (덮어쓰기)
+                if (System.IO.File.Exists(assetPath))
+                {
+                    AssetDatabase.DeleteAsset(assetPath);
+                }
+
+                AssetDatabase.CreateAsset(stageData, assetPath);
+                AssetDatabase.SaveAssets();
+                AssetDatabase.Refresh();
+
+                Debug.Log($"[LevelEditor] ScriptableObject saved: {assetPath}");
+                return true;
+            }
+            catch (System.Exception e)
+            {
+                Debug.LogError($"[LevelEditor] Save failed: {e.Message}");
+                return false;
             }
         }
 
@@ -1444,5 +1429,6 @@ namespace BalloonOut.Editor
 
             return null;
         }
+
     }
 }
