@@ -34,11 +34,11 @@ namespace BalloonOut.Editor
         private readonly string[] _tabNames = { "Arrows", "Balloons", "Settings", "Generate" };
 
         // Generator 설정
-        private int _genGridSize = 8;
-        private float _genTargetDensity = 0.5f;
+        private int _genGridSize = 16;
+        private float _genTargetDensity = 0.9f;
         private bool _genBendingEnabled = true;
-        private bool _genFillerEnabled = true;
-        private int _genLaneCount = 2;
+        private bool _genFillerEnabled = false;
+        private int _genLaneCount = 3;
         private int _genBalloonsPerLane = 2;
         private int _genMissArrowCount = 1;
         private int _genDecoyArrowCount = 0;
@@ -511,7 +511,7 @@ namespace BalloonOut.Editor
             EditorGUILayout.BeginVertical("box");
             EditorGUILayout.LabelField("Basic Settings", EditorStyles.boldLabel);
 
-            _genGridSize = EditorGUILayout.IntSlider("Grid Size", _genGridSize, 4, 16);
+            _genGridSize = EditorGUILayout.IntSlider("Grid Size", _genGridSize, 4, 30);
             _genTargetDensity = EditorGUILayout.Slider("Target Density", _genTargetDensity, 0.2f, 1.0f);
             EditorGUILayout.LabelField($"  → {(_genTargetDensity * 100):F0}% of grid will be filled", EditorStyles.miniLabel);
 

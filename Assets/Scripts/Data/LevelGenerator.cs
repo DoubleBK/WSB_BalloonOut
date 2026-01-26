@@ -60,14 +60,14 @@ namespace BalloonOut.Data
         [Serializable]
         public class GeneratorConfig
         {
-            public int gridSize = 8;
-            public int laneCount = 2;
+            public int gridSize = 16;
+            public int laneCount = 3;
             public int balloonsPerLane = 2;
             public int missArrowCount = 1;
             public int minBlockLength = 3;
             public int maxBlockLength = 8;
-            public float targetDensity = 0.5f;
-            public bool fillerEnabled = true;
+            public float targetDensity = 0.9f;
+            public bool fillerEnabled = false;
             public int fillerMinLength = 2;
             public int fillerMaxLength = 5;
             public bool bendingEnabled = true;
@@ -101,102 +101,75 @@ namespace BalloonOut.Data
         }
 
         // ========== Auto Parameter Calculation ==========
-        public static GeneratorConfig CalculateAutoParams(int gridSize, float targetDensity = 0.5f, bool bendingEnabled = true)
+        /// <summary>
+        /// 밀도 기반 파라미터 자동 계산
+        /// Filler 없이 목표 밀도(90%+)를 달성하도록 설계
+        /// 지원 Grid Size: 6~30
+        /// </summary>
+        public static GeneratorConfig CalculateAutoParams(int gridSize, float targetDensity = 0.9f, bool bendingEnabled = true)
         {
             var config = new GeneratorConfig
             {
                 gridSize = gridSize,
                 targetDensity = targetDensity,
-                bendingEnabled = bendingEnabled
+                bendingEnabled = bendingEnabled,
+                fillerEnabled = false  // Filler 기본 비활성화 (Facing/Deadlock 이슈 방지)
             };
 
-            string sizeCategory = gridSize <= 6 ? "small" : gridSize <= 9 ? "medium" : "large";
+            int totalCells = gridSize * gridSize;
+            int targetOccupied = Mathf.FloorToInt(totalCells * targetDensity);
 
+            // 화살표 길이 설정 (Grid Size와 Bending 여부에 따라)
+            // 큰 그리드에서는 더 긴 화살표 허용
             if (bendingEnabled)
             {
-                switch (sizeCategory)
-                {
-                    case "small":
-                        config.laneCount = 2;
-                        config.balloonsPerLane = 2;
-                        config.missArrowCount = 1;
-                        config.minBlockLength = 3;
-                        config.maxBlockLength = 6;
-                        break;
-                    case "medium":
-                        config.laneCount = 2;
-                        config.balloonsPerLane = 3;
-                        config.missArrowCount = 2;
-                        config.minBlockLength = 4;
-                        config.maxBlockLength = 8;
-                        break;
-                    case "large":
-                        config.laneCount = 3;
-                        config.balloonsPerLane = 3;
-                        config.missArrowCount = 3;
-                        config.minBlockLength = 5;
-                        config.maxBlockLength = 10;
-                        break;
-                }
+                config.minBlockLength = Mathf.Max(3, gridSize / 3);
+                config.maxBlockLength = Mathf.Min(gridSize + 6, 35);  // 최대 35까지 허용
             }
             else
             {
-                switch (sizeCategory)
-                {
-                    case "small":
-                        config.laneCount = 2;
-                        config.balloonsPerLane = 2;
-                        config.missArrowCount = 1;
-                        config.minBlockLength = 2;
-                        config.maxBlockLength = 4;
-                        break;
-                    case "medium":
-                        config.laneCount = 2;
-                        config.balloonsPerLane = 3;
-                        config.missArrowCount = 2;
-                        config.minBlockLength = 2;
-                        config.maxBlockLength = 5;
-                        break;
-                    case "large":
-                        config.laneCount = 3;
-                        config.balloonsPerLane = 3;
-                        config.missArrowCount = 3;
-                        config.minBlockLength = 3;
-                        config.maxBlockLength = 6;
-                        break;
-                }
+                config.minBlockLength = Mathf.Max(2, gridSize / 4);
+                config.maxBlockLength = Mathf.Min(gridSize, 15);
             }
 
-            // 목표 밀도에 맞춰 조정
-            int totalCells = gridSize * gridSize;
             float avgLength = (config.minBlockLength + config.maxBlockLength) / 2f;
-            int baseArrowCount = config.laneCount * config.balloonsPerLane + config.missArrowCount;
-            float baseDensity = (baseArrowCount * avgLength) / totalCells;
 
-            if (targetDensity > baseDensity + 0.15f)
-            {
-                if (bendingEnabled)
-                {
-                    config.maxBlockLength = Mathf.Min(config.maxBlockLength + 3, 20);
-                }
-                else
-                {
-                    config.missArrowCount += Mathf.Min(2, 5 - config.missArrowCount);
-                }
-            }
+            // 필요한 화살표 개수 계산 (목표 밀도 달성)
+            int requiredArrows = Mathf.CeilToInt(targetOccupied / avgLength);
 
-            config.fillerEnabled = true;
+            // Lane 개수: Grid Size에 비례 (3~6개)
+            config.laneCount = Mathf.Clamp(gridSize / 4, 3, 6);
+
+            // Decoy 개수: Grid Size에 따라 점진적 증가
+            // 6 이하: 0, 7-12: 1, 13-20: 2, 21+: 3
+            config.decoyArrowCount = gridSize <= 6 ? 0 :
+                                     gridSize <= 12 ? 1 :
+                                     gridSize <= 20 ? 2 : 3;
+
+            // Balloon/Miss 분배: 필요 화살표에서 Decoy 제외 후 분배
+            int mainArrowsNeeded = requiredArrows - config.decoyArrowCount;
+
+            // balloonsPerLane 계산 (최소 2개, 최대 8개)
+            config.balloonsPerLane = Mathf.Clamp(mainArrowsNeeded / config.laneCount - 1, 2, 8);
+
+            // 기본 화살표 수 계산
+            int baseArrows = config.laneCount * config.balloonsPerLane;
+
+            // missArrowCount: 남은 필요 화살표 수 (최소 1개, 최대 10개)
+            config.missArrowCount = Mathf.Clamp(mainArrowsNeeded - baseArrows, 1, 10);
+
+            // Filler 설정 (비활성화되어도 파라미터는 유지)
             config.fillerMinLength = bendingEnabled ? 2 : 1;
-            config.fillerMaxLength = Mathf.Max(2, bendingEnabled ? Mathf.Min(6, config.maxBlockLength - 2) : Mathf.Min(3, config.maxBlockLength - 1));
+            config.fillerMaxLength = Mathf.Max(2, bendingEnabled ?
+                Mathf.Min(8, config.maxBlockLength - 2) :
+                Mathf.Min(4, config.maxBlockLength - 1));
 
-            // Decoy 화살표: 그리드 크기에 따라 자동 설정
-            config.decoyArrowCount = sizeCategory switch
-            {
-                "small" => 0,   // 작은 그리드: Decoy 없음
-                "medium" => 1,  // 중간 그리드: 1개
-                "large" => 2,   // 큰 그리드: 2개
-                _ => 0
-            };
+            // 예상 밀도 로그
+            int totalArrows = config.laneCount * config.balloonsPerLane + config.missArrowCount + config.decoyArrowCount;
+            float expectedDensity = (totalArrows * avgLength) / totalCells;
+            Debug.Log($"[AutoCalc] Grid={gridSize}, Target={targetDensity:P0}, Expected={expectedDensity:P0}");
+            Debug.Log($"[AutoCalc] Arrows: {totalArrows} (lanes={config.laneCount} x balloons={config.balloonsPerLane} + miss={config.missArrowCount} + decoy={config.decoyArrowCount})");
+            Debug.Log($"[AutoCalc] Length: {config.minBlockLength}-{config.maxBlockLength} (avg={avgLength:F1})");
 
             return config;
         }
