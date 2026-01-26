@@ -28,7 +28,7 @@ namespace BalloonOut.Game.Arrow
         [SerializeField, Range(0.1f, 0.5f)] private float _headTailOffset = 0.35f;
         [SerializeField, Range(0.1f, 2f)] private float _headScale = 1f;
         [SerializeField, Range(0, 20)] private int _numCapVertices = 10;
-        [SerializeField, Range(0, 10)] private int _numCornerVertices = 5;
+        [SerializeField, Range(0, 10)] private int _numCornerVertices = 5;  // 5 = 부드러운 코너
 
         // ========== 내부 상태 ==========
         private Color _currentColor = Color.white;
@@ -328,19 +328,25 @@ namespace BalloonOut.Game.Arrow
             if (_lineRenderer == null)
                 return;
 
+            // ArrowPopBall 방식: 단순하게 셀 위치 + tail/head 오프셋만 사용
+            // numCornerVertices가 부드러운 코너 처리를 담당
             _lineRenderer.positionCount = positions.Count + 2;
 
+            // Tail 돌출점
             _lineRenderer.SetPosition(0, (Vector3)tailOffset);
 
+            // 셀 포인트들 (로컬 좌표)
             for (int i = 0; i < positions.Count; i++)
             {
                 Vector3 localPos = positions[i] - positions[0];
                 _lineRenderer.SetPosition(i + 1, localPos);
             }
 
+            // Head 돌출점
             Vector3 lastCellLocal = positions[positions.Count - 1] - positions[0];
             _lineRenderer.SetPosition(positions.Count + 1, lastCellLocal + (Vector3)headOffset);
 
+            // 두께 유지
             _lineRenderer.startWidth = _lineWidth;
             _lineRenderer.endWidth = _lineWidth;
         }
@@ -396,50 +402,15 @@ namespace BalloonOut.Game.Arrow
             _currentSplinePoints.Add(tailPoint);
             pointIndex++;
 
-            // 코너 오프셋
-            float cornerOffset = 0.15f;
-
+            // 단순하게 모든 셀 포인트 추가 (ArrowPopBall 방식)
             for (int i = 0; i < positions.Count; i++)
             {
                 Vector3 localPos = positions[i] - positions[0];
-                bool isCorner = IsCornerPoint(positions, i);
-
-                if (isCorner)
-                {
-                    // 코너: 이전 방향에서 오는 포인트
-                    Vector2 dirBefore = (positions[i] - positions[i - 1]).normalized;
-                    Vector3 beforeCorner = localPos - (Vector3)(dirBefore * cornerOffset);
-                    spline.InsertPointAt(pointIndex, beforeCorner);
-                    spline.SetTangentMode(pointIndex, ShapeTangentMode.Linear);
-                    spline.SetHeight(pointIndex, _lineWidth);
-                    _currentSplinePoints.Add(beforeCorner);
-                    pointIndex++;
-
-                    // 코너: 실제 코너 포인트 (중간 연결점)
-                    spline.InsertPointAt(pointIndex, localPos);
-                    spline.SetTangentMode(pointIndex, ShapeTangentMode.Linear);
-                    spline.SetHeight(pointIndex, _lineWidth);
-                    _currentSplinePoints.Add(localPos);
-                    pointIndex++;
-
-                    // 코너: 다음 방향으로 나가는 포인트
-                    Vector2 dirAfter = (positions[i + 1] - positions[i]).normalized;
-                    Vector3 afterCorner = localPos + (Vector3)(dirAfter * cornerOffset);
-                    spline.InsertPointAt(pointIndex, afterCorner);
-                    spline.SetTangentMode(pointIndex, ShapeTangentMode.Linear);
-                    spline.SetHeight(pointIndex, _lineWidth);
-                    _currentSplinePoints.Add(afterCorner);
-                    pointIndex++;
-                }
-                else
-                {
-                    // 직선 구간
-                    spline.InsertPointAt(pointIndex, localPos);
-                    spline.SetTangentMode(pointIndex, ShapeTangentMode.Linear);
-                    spline.SetHeight(pointIndex, _lineWidth);
-                    _currentSplinePoints.Add(localPos);
-                    pointIndex++;
-                }
+                spline.InsertPointAt(pointIndex, localPos);
+                spline.SetTangentMode(pointIndex, ShapeTangentMode.Linear);
+                spline.SetHeight(pointIndex, _lineWidth);
+                _currentSplinePoints.Add(localPos);
+                pointIndex++;
             }
 
             // Head 포인트
@@ -456,21 +427,6 @@ namespace BalloonOut.Game.Arrow
             {
                 _shapeRenderer.enabled = true;
             }
-        }
-
-        /// <summary>
-        /// 해당 인덱스가 코너(방향 전환) 포인트인지 판별
-        /// </summary>
-        private bool IsCornerPoint(List<Vector2> positions, int index)
-        {
-            if (index <= 0 || index >= positions.Count - 1)
-                return false;
-
-            Vector2 dirBefore = (positions[index] - positions[index - 1]).normalized;
-            Vector2 dirAfter = (positions[index + 1] - positions[index]).normalized;
-
-            float dot = Vector2.Dot(dirBefore, dirAfter);
-            return dot < 0.99f;
         }
 
         private void SetupHeadRenderer(Color color, ArrowDirection direction)
