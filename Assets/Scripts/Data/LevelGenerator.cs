@@ -437,9 +437,10 @@ namespace BalloonOut.Data
             return candidates.Count > 0 ? RandomPick(candidates) : null;
         }
 
-        private static PlacementResult PlaceFallback(string color, int length, int gridSize, HashSet<string> occupiedSet)
+        private static PlacementResult PlaceFallback(string color, int length, int gridSize, HashSet<string> occupiedSet, HashSet<string> forbiddenCells = null, bool checkCanEscape = false)
         {
             var candidates = new List<PlacementResult>();
+            var fallbackCandidates = new List<PlacementResult>();  // forbidden cells와 겹치는 후보
             var dirs = new List<string>(DIRECTIONS);
             Shuffle(dirs);
 
@@ -454,15 +455,61 @@ namespace BalloonOut.Data
                         if (!AllCellsInBounds(cells, gridSize)) continue;
                         if (HasOverlap(cells, occupiedSet)) continue;
 
-                        candidates.Add(new PlacementResult
+                        // Filler용: 이 화살표가 실제로 탈출 가능한지 확인
+                        if (checkCanEscape)
+                        {
+                            var escapePath = GetEscapePath(x, y, dir, gridSize);
+                            bool canEscape = true;
+                            foreach (var p in escapePath)
+                            {
+                                if (occupiedSet.Contains(CellKey(p)))
+                                {
+                                    canEscape = false;
+                                    break;
+                                }
+                            }
+                            if (!canEscape) continue;  // 탈출 불가능하면 스킵
+                        }
+
+                        var result = new PlacementResult
                         {
                             x = x, y = y, dir = dir, cells = cells
-                        });
+                        };
+
+                        // forbidden cells와 겹치는지 확인
+                        if (forbiddenCells != null)
+                        {
+                            bool overlapsWithForbidden = false;
+                            foreach (var cell in cells)
+                            {
+                                if (forbiddenCells.Contains(CellKey(cell)))
+                                {
+                                    overlapsWithForbidden = true;
+                                    break;
+                                }
+                            }
+
+                            if (overlapsWithForbidden)
+                            {
+                                fallbackCandidates.Add(result);  // 후순위
+                                continue;
+                            }
+                        }
+
+                        candidates.Add(result);  // 우선순위
                     }
                 }
             }
 
-            return candidates.Count > 0 ? RandomPick(candidates) : null;
+            // 우선: forbidden cells와 안 겹치는 후보
+            if (candidates.Count > 0)
+                return RandomPick(candidates);
+
+            // 차선: forbidden cells와 겹치는 후보 (밀도 목표 달성을 위해)
+            if (fallbackCandidates.Count > 0)
+                return RandomPick(fallbackCandidates);
+
+            return null;
         }
 
         // ========== ReverseGrowth (Bending Arrow) ==========
@@ -671,9 +718,10 @@ namespace BalloonOut.Data
             return candidates.Count > 0 ? RandomPick(candidates) : null;
         }
 
-        private static PlacementResult PlaceFallbackBending(string color, int length, int gridSize, HashSet<string> occupiedSet)
+        private static PlacementResult PlaceFallbackBending(string color, int length, int gridSize, HashSet<string> occupiedSet, HashSet<string> forbiddenCells = null, bool checkCanEscape = false)
         {
             var candidates = new List<PlacementResult>();
+            var fallbackCandidates = new List<PlacementResult>();  // forbidden cells와 겹치는 후보
 
             for (int x = 0; x < gridSize; x++)
             {
@@ -690,20 +738,66 @@ namespace BalloonOut.Data
 
                         if (result.HasValue && result.Value.path.Count >= Mathf.Min(length, 2))
                         {
-                            candidates.Add(new PlacementResult
+                            // Filler용: 이 화살표가 실제로 탈출 가능한지 확인
+                            if (checkCanEscape)
+                            {
+                                var escapePath = GetEscapePath(x, y, headDir, gridSize);
+                                bool canEscape = true;
+                                foreach (var p in escapePath)
+                                {
+                                    if (occupiedSet.Contains(CellKey(p)))
+                                    {
+                                        canEscape = false;
+                                        break;
+                                    }
+                                }
+                                if (!canEscape) continue;  // 탈출 불가능하면 스킵
+                            }
+
+                            var placementResult = new PlacementResult
                             {
                                 x = x,
                                 y = y,
                                 headDir = result.Value.headDir,
                                 path = result.Value.path,
                                 cells = result.Value.path
-                            });
+                            };
+
+                            // forbidden cells와 겹치는지 확인
+                            if (forbiddenCells != null)
+                            {
+                                bool overlapsWithForbidden = false;
+                                foreach (var cell in result.Value.path)
+                                {
+                                    if (forbiddenCells.Contains(CellKey(cell)))
+                                    {
+                                        overlapsWithForbidden = true;
+                                        break;
+                                    }
+                                }
+
+                                if (overlapsWithForbidden)
+                                {
+                                    fallbackCandidates.Add(placementResult);  // 후순위
+                                    continue;
+                                }
+                            }
+
+                            candidates.Add(placementResult);  // 우선순위
                         }
                     }
                 }
             }
 
-            return candidates.Count > 0 ? RandomPick(candidates) : null;
+            // 우선: forbidden cells와 안 겹치는 후보
+            if (candidates.Count > 0)
+                return RandomPick(candidates);
+
+            // 차선: forbidden cells와 겹치는 후보 (밀도 목표 달성을 위해)
+            if (fallbackCandidates.Count > 0)
+                return RandomPick(fallbackCandidates);
+
+            return null;
         }
 
         // ========== Filler Placement ==========
@@ -731,6 +825,20 @@ namespace BalloonOut.Data
             int maxAttempts = 100;
 
             bool useBending = cfg.bendingEnabled && cfg.bendingChance > 0;
+
+            // Main 화살표들의 탈출 경로 계산 (Filler가 이 셀들을 피하도록)
+            var escapePaths = new HashSet<string>();
+            foreach (var block in blocks)
+            {
+                if (block.cells == null || block.cells.Count == 0) continue;
+                var head = block.cells[0];  // path[0] = HEAD
+                var path = GetEscapePath(head.x, head.y, block.dir, cfg.gridSize);
+                foreach (var cell in path)
+                {
+                    escapePaths.Add(CellKey(cell));
+                }
+            }
+            Debug.Log($"  Filler: Main arrows' escape paths contain {escapePaths.Count} cells");
 
             Debug.Log($"  Filler: Current density {(currentOccupied / (float)totalCells * 100):F1}%, target {cfg.targetDensity * 100:F1}%");
 
@@ -793,21 +901,23 @@ namespace BalloonOut.Data
 
                 int length = RandomInt(cfg.fillerMinLength, cfg.fillerMaxLength);
 
+                // checkCanEscape = true: Filler가 실제로 탈출 가능한 위치에만 배치
                 PlacementResult placement = useBending
-                    ? PlaceFallbackBending(color, length, cfg.gridSize, occupiedSet)
-                    : PlaceFallback(color, length, cfg.gridSize, occupiedSet);
+                    ? PlaceFallbackBending(color, length, cfg.gridSize, occupiedSet, escapePaths, checkCanEscape: true)
+                    : PlaceFallback(color, length, cfg.gridSize, occupiedSet, escapePaths, checkCanEscape: true);
 
                 if (placement != null)
                 {
                     fillerColorIdx++;  // 색상 사용 완료
 
                     bool isBending = placement.path != null;
+                    string fillerDir = isBending ? placement.headDir : placement.dir;
                     var fillerBlock = new BlockData
                     {
                         x = placement.x,
                         y = placement.y,
                         color = color,
-                        dir = isBending ? placement.headDir : placement.dir,
+                        dir = fillerDir,
                         length = placement.cells.Count,
                         cells = placement.cells,
                         isFiller = true,
@@ -820,6 +930,14 @@ namespace BalloonOut.Data
                     foreach (var c in placement.cells)
                     {
                         occupiedSet.Add(CellKey(c));
+                    }
+
+                    // 이 Filler의 탈출 경로도 escapePaths에 추가
+                    // 다음 Filler가 이 Filler의 탈출 경로를 막지 않도록
+                    var fillerEscapePath = GetEscapePath(placement.x, placement.y, fillerDir, cfg.gridSize);
+                    foreach (var cell in fillerEscapePath)
+                    {
+                        escapePaths.Add(CellKey(cell));
                     }
 
                     currentOccupied = occupiedSet.Count;
@@ -988,7 +1106,8 @@ namespace BalloonOut.Data
                         dir = b.dir,
                         length = b.length,
                         cells = new List<Vector2Int>(b.cells),
-                        originalIndex = idx
+                        originalIndex = idx,
+                        isFiller = b.isFiller  // Filler 여부 복사
                     });
                     colorMap[idx] = b.color;
                 }
@@ -1026,42 +1145,69 @@ namespace BalloonOut.Data
 
                     bool escaped = false;
 
-                    for (int i = 0; i < remaining.Count; i++)
+                    // Two-pass approach: Main arrows first, then Fillers
+                    // Pass 0: Main arrows only (Fillers can block Main, so Main escapes first)
+                    // Pass 1: Filler arrows only (with balloon activation check)
+                    for (int pass = 0; pass < 2 && !escaped; pass++)
                     {
-                        var b = remaining[i];
-                        var d = DIR_VECTORS[b.dir];
-                        var head = b.cells[0];
-
-                        int cx = head.x + d.x;
-                        int cy = head.y + d.y;
-                        bool blocked = false;
-
-                        while (IsInBounds(cx, cy, gridSize))
+                        for (int i = 0; i < remaining.Count; i++)
                         {
-                            if (occupied.Contains(CellKey(cx, cy)))
-                            {
-                                blocked = true;
-                                break;
-                            }
-                            cx += d.x;
-                            cy += d.y;
-                        }
+                            var b = remaining[i];
 
-                        if (!blocked)
-                        {
-                            foreach (var lane in queuesCopy)
+                            // Pass 0: Skip Fillers (Main only)
+                            // Pass 1: Skip non-Fillers (Filler only)
+                            if (pass == 0 && b.isFiller) continue;
+                            if (pass == 1 && !b.isFiller) continue;
+
+                            // Filler: 풍선이 활성화(lane[end])되어야만 탈출 가능
+                            if (b.isFiller)
                             {
-                                if (lane.Count > 0 && lane[lane.Count - 1] == b.color)
+                                bool balloonActive = false;
+                                foreach (var lane in queuesCopy)
                                 {
-                                    lane.RemoveAt(lane.Count - 1);
+                                    if (lane.Count > 0 && lane[lane.Count - 1] == b.color)
+                                    {
+                                        balloonActive = true;
+                                        break;
+                                    }
+                                }
+                                if (!balloonActive) continue;
+                            }
+
+                            var d = DIR_VECTORS[b.dir];
+                            var head = b.cells[0];
+
+                            int cx = head.x + d.x;
+                            int cy = head.y + d.y;
+                            bool blocked = false;
+
+                            while (IsInBounds(cx, cy, gridSize))
+                            {
+                                if (occupied.Contains(CellKey(cx, cy)))
+                                {
+                                    blocked = true;
                                     break;
                                 }
+                                cx += d.x;
+                                cy += d.y;
                             }
 
-                            escapeSequence.Add(b.originalIndex);
-                            remaining.RemoveAt(i);
-                            escaped = true;
-                            break;
+                            if (!blocked)
+                            {
+                                foreach (var lane in queuesCopy)
+                                {
+                                    if (lane.Count > 0 && lane[lane.Count - 1] == b.color)
+                                    {
+                                        lane.RemoveAt(lane.Count - 1);
+                                        break;
+                                    }
+                                }
+
+                                escapeSequence.Add(b.originalIndex);
+                                remaining.RemoveAt(i);
+                                escaped = true;
+                                break;
+                            }
                         }
                     }
 
