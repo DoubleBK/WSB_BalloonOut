@@ -34,14 +34,18 @@ namespace BalloonOut.Core
         [Header("Homing Arrow Settings")]
         [SerializeField] private bool _useHomingArrow = true;
 
-        [Header("Test Level")]
-        [SerializeField] private string _testLevelName = "Test_001";
+        [Header("Level Settings")]
+        [SerializeField] private int _startLevelIdx = 1;
 
         // ========== 내부 상태 변수 ==========
         private GameState _state = GameState.Ready;
         private LevelData _currentLevel;
         private List<ArrowController> _arrows = new List<ArrowController>();
         private bool _isProcessing = false;
+
+        // ========== 레벨 진행 ==========
+        private int _currentLevelIdx = 1;
+        private StageTableEntry _currentStageEntry;
 
         // ========== 에디터 테스트용 ==========
         private static LevelData _editorTestLevel;
@@ -57,6 +61,9 @@ namespace BalloonOut.Core
         // ========== 프로퍼티 ==========
         public GameState State => _state;
         public LevelData CurrentLevel => _currentLevel;
+        public int CurrentLevelIdx => _currentLevelIdx;
+        public StageTableEntry CurrentStageEntry => _currentStageEntry;
+        public int TotalLevelCount => StageLoader.GetTotalLevelCount();
 
         // ========== 유니티 라이프사이클 ==========
         private void Awake()
@@ -79,26 +86,61 @@ namespace BalloonOut.Core
                 return;
             }
 
-            // 기본 테스트 레벨 로드
-            LoadLevel(_testLevelName);
+            // StageTable 기반으로 레벨 로드
+            LoadLevelByIdx(_startLevelIdx);
         }
 
         // ========== 공개 인터페이스 ==========
 
         /// <summary>
-        /// 레벨 로드
+        /// LevelIdx로 레벨 로드 (StageTable 기반)
         /// </summary>
-        public void LoadLevel(string levelName)
+        public void LoadLevelByIdx(int levelIdx)
         {
-            var levelData = LevelLoader.Load(levelName);
+            _currentStageEntry = StageLoader.GetEntryByLevelIdx(levelIdx);
+            if (_currentStageEntry == null)
+            {
+                Debug.LogError($"[GameManager] LevelIdx {levelIdx} not found in StageTable");
+                return;
+            }
+
+            var levelData = StageLoader.LoadByLevelIdx(levelIdx);
             if (levelData != null)
             {
+                _currentLevelIdx = levelIdx;
                 InitializeLevel(levelData);
+                Debug.Log($"[GameManager] Loaded Level {levelIdx} (Stage: {_currentStageEntry.StageIdx}, Difficulty: {_currentStageEntry.Difficulty})");
             }
             else
             {
-                Debug.LogError($"Failed to load level: {levelName}");
+                Debug.LogError($"[GameManager] Failed to load level by idx: {levelIdx}");
             }
+        }
+
+        /// <summary>
+        /// 다음 레벨로 진행
+        /// </summary>
+        public bool NextLevel()
+        {
+            int nextLevelIdx = _currentLevelIdx + 1;
+            var nextEntry = StageLoader.GetEntryByLevelIdx(nextLevelIdx);
+
+            if (nextEntry == null)
+            {
+                Debug.Log($"[GameManager] No more levels! Current: {_currentLevelIdx}");
+                return false;
+            }
+
+            LoadLevelByIdx(nextLevelIdx);
+            return true;
+        }
+
+        /// <summary>
+        /// 특정 레벨로 이동
+        /// </summary>
+        public void GoToLevel(int levelIdx)
+        {
+            LoadLevelByIdx(levelIdx);
         }
 
         /// <summary>
@@ -145,7 +187,12 @@ namespace BalloonOut.Core
         /// </summary>
         public void RestartLevel()
         {
-            if (_currentLevel != null)
+            // StageTable 기반 재로드 (데이터 무결성 보장)
+            if (_currentLevelIdx > 0)
+            {
+                LoadLevelByIdx(_currentLevelIdx);
+            }
+            else if (_currentLevel != null)
             {
                 InitializeLevel(_currentLevel);
             }

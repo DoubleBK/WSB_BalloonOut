@@ -17,11 +17,13 @@ namespace BalloonOut.UI
 
         [Header("Buttons")]
         [SerializeField] private Button _restartButton;
+        [SerializeField] private Button _nextLevelButton;
         [SerializeField] private Button _menuButton;
 
         [Header("Texts (Optional)")]
         [SerializeField] private Text _titleText;
         [SerializeField] private Text _messageText;
+        [SerializeField] private Text _levelInfoText;
 
         [Header("Settings")]
         [SerializeField] private string _clearTitle = "CLEAR!";
@@ -36,6 +38,11 @@ namespace BalloonOut.UI
             if (_restartButton != null)
             {
                 _restartButton.onClick.AddListener(OnRestartClicked);
+            }
+
+            if (_nextLevelButton != null)
+            {
+                _nextLevelButton.onClick.AddListener(OnNextLevelClicked);
             }
 
             if (_menuButton != null)
@@ -69,6 +76,11 @@ namespace BalloonOut.UI
             if (_restartButton != null)
             {
                 _restartButton.onClick.RemoveListener(OnRestartClicked);
+            }
+
+            if (_nextLevelButton != null)
+            {
+                _nextLevelButton.onClick.RemoveListener(OnNextLevelClicked);
             }
 
             if (_menuButton != null)
@@ -139,6 +151,43 @@ namespace BalloonOut.UI
             {
                 _messageText.text = isClear ? _clearMessage : _failedMessage;
             }
+
+            // 레벨 정보 업데이트
+            UpdateLevelInfo();
+
+            // 다음 레벨 버튼 표시 (클리어 시에만, 다음 레벨이 있을 때만)
+            if (_nextLevelButton != null)
+            {
+                bool hasNextLevel = isClear && HasNextLevel();
+                _nextLevelButton.gameObject.SetActive(hasNextLevel);
+            }
+        }
+
+        /// <summary>
+        /// 레벨 정보 업데이트
+        /// </summary>
+        private void UpdateLevelInfo()
+        {
+            if (_levelInfoText == null) return;
+            if (GameManager.Instance == null) return;
+
+            int currentLevel = GameManager.Instance.CurrentLevelIdx;
+            int totalLevels = GameManager.Instance.TotalLevelCount;
+            var stageEntry = GameManager.Instance.CurrentStageEntry;
+
+            string difficulty = stageEntry != null ? stageEntry.Difficulty : "Normal";
+            _levelInfoText.text = $"Level {currentLevel} / {totalLevels}\n{difficulty}";
+        }
+
+        /// <summary>
+        /// 다음 레벨 존재 여부 확인
+        /// </summary>
+        private bool HasNextLevel()
+        {
+            if (GameManager.Instance == null) return false;
+
+            int nextLevelIdx = GameManager.Instance.CurrentLevelIdx + 1;
+            return BalloonOut.Data.StageLoader.GetEntryByLevelIdx(nextLevelIdx) != null;
         }
 
         // ========== 이벤트 핸들러 ==========
@@ -167,6 +216,19 @@ namespace BalloonOut.UI
             if (GameManager.Instance != null)
             {
                 GameManager.Instance.RestartLevel();
+            }
+        }
+
+        private void OnNextLevelClicked()
+        {
+            if (GameManager.Instance != null)
+            {
+                bool hasNext = GameManager.Instance.NextLevel();
+                if (!hasNext)
+                {
+                    Debug.Log("[GameResultUI] No more levels available!");
+                    // 모든 레벨 클리어 시 처리 (필요 시 추가)
+                }
             }
         }
 
