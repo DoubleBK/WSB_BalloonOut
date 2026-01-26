@@ -66,6 +66,13 @@ namespace BalloonOut.Game.Arrow
         // 활성 화살표 수 추적 (디버그용)
         private static int _activeArrowCount = 0;
 
+        // ========== 탭/드래그 판정용 ==========
+        private bool _isPotentialTap = false;       // 탭 후보 상태
+        private Vector2 _tapStartScreenPos;         // 시작 화면 좌표
+        private float _tapStartTime;                // 시작 시간
+        private const float TAP_MAX_DISTANCE = 20f; // 탭 최대 이동 거리 (픽셀)
+        private const float TAP_MAX_DURATION = 0.5f; // 탭 최대 지속 시간 (초)
+
         // ========== 이벤트 ==========
         public event Action<ArrowController> OnTapped;
         public event Action<ArrowController> OnExtracted;
@@ -97,6 +104,7 @@ namespace BalloonOut.Game.Arrow
         private void OnDisable()
         {
             _activeArrowCount--;
+            _isPotentialTap = false;  // 탭 상태 초기화
             Debug.Log($"[ArrowController] Arrow {_id} OnDisable, active count: {_activeArrowCount}");
 
             // 파괴된 화살표가 _lastTouchedArrow면 클리어
@@ -783,8 +791,9 @@ namespace BalloonOut.Game.Arrow
         // ========== 입력 처리 ==========
         private void Update()
         {
-            // 터치/클릭 시작 감지 (먼저 체크)
+            // ===== 1. 입력 감지 =====
             bool inputDown = false;
+            bool inputUp = false;
             Vector2 inputPos = Vector2.zero;
 
 #if UNITY_EDITOR || UNITY_STANDALONE
@@ -793,67 +802,92 @@ namespace BalloonOut.Game.Arrow
                 inputDown = true;
                 inputPos = Input.mousePosition;
             }
-#else
-            if (Input.touchCount > 0 && Input.GetTouch(0).phase == TouchPhase.Began)
+            if (Input.GetMouseButtonUp(0))
             {
-                inputDown = true;
-                inputPos = Input.GetTouch(0).position;
+                inputUp = true;
+                inputPos = Input.mousePosition;
+            }
+#else
+            if (Input.touchCount > 0)
+            {
+                Touch touch = Input.GetTouch(0);
+                if (touch.phase == TouchPhase.Began)
+                {
+                    inputDown = true;
+                    inputPos = touch.position;
+                }
+                else if (touch.phase == TouchPhase.Ended || touch.phase == TouchPhase.Canceled)
+                {
+                    inputUp = true;
+                    inputPos = touch.position;
+                }
             }
 #endif
 
-            // 입력이 있을 때만 디버그 로그 출력
+            // ===== 2. 클릭 시작 처리 (탭 후보 등록) =====
             if (inputDown)
             {
-                bool hasDragged = CameraController.Instance != null && CameraController.Instance.HasDragged;
-                Debug.Log($"[ArrowController] Arrow {_id} Input detected! State={_state}, IsAppearing={_animationHelper?.IsAppearing}, HasDragged={hasDragged}, ActiveArrows={_activeArrowCount}");
-            }
+                // 상태 체크 (Idle 상태에서만 탭 가능)
+                if (_state != ArrowState.Idle) return;
+                if (_animationHelper != null && _animationHelper.IsAppearing) return;
 
-            // Idle 상태가 아니면 입력 무시
-            if (_state != ArrowState.Idle) return;
-            if (_animationHelper != null && _animationHelper.IsAppearing) return;
+                // 화면 좌표를 월드 좌표로 변환
+                Vector3 worldPos3D = Camera.main.ScreenToWorldPoint(inputPos);
+                Vector2 touchWorldPos = new Vector2(worldPos3D.x, worldPos3D.y);
 
-            // CameraController에서 실제 드래그가 발생했으면 입력 무시
-            // (IsDragging은 클릭 시작 시 바로 true가 되므로 HasDragged 사용)
-            if (CameraController.Instance != null && CameraController.Instance.HasDragged)
-            {
-                if (inputDown)
+                // 화살표 위에서 시작했는지 확인
+                if (IsTouchOnArrowCells(touchWorldPos))
                 {
-                    Debug.Log($"[ArrowController] Arrow {_id} blocked by HasDragged=true");
+                    // 같은 프레임에서 다른 화살표가 이미 터치됐으면 무시
+                    if (_lastInputFrame == Time.frameCount && _lastTouchedArrow != null)
+                        return;
+
+                    // 탭 후보로 등록
+                    _isPotentialTap = true;
+                    _tapStartScreenPos = inputPos;
+                    _tapStartTime = Time.time;
+                    _lastInputFrame = Time.frameCount;
+                    _lastTouchedArrow = this;
+
+                    Debug.Log($"[ArrowController] Arrow {_id} tap started at {inputPos}");
                 }
-                return;
             }
 
-            if (!inputDown) return;
-
-            // 같은 프레임에서 이미 다른 화살표가 터치되었으면 무시
-            if (_lastInputFrame == Time.frameCount && _lastTouchedArrow != null)
+            // ===== 3. 클릭 종료 처리 (탭 판정) =====
+            if (inputUp && _isPotentialTap)
             {
-                return;
-            }
+                _isPotentialTap = false;
 
-            // 화면 좌표를 월드 좌표로 변환
-            Vector3 worldPos3D = Camera.main.ScreenToWorldPoint(inputPos);
-            Vector2 touchWorldPos = new Vector2(worldPos3D.x, worldPos3D.y);
-
-            // 터치 위치가 이 화살표 셀 내에 있는지 확인
-            if (IsTouchOnArrowCells(touchWorldPos))
-            {
-                // 이 프레임에서 터치된 화살표로 등록
-                _lastInputFrame = Time.frameCount;
-                _lastTouchedArrow = this;
-
-                int subscriberCount = OnTapped?.GetInvocationList()?.Length ?? 0;
-                Debug.Log($"[ArrowController] Touch at {touchWorldPos} IS on Arrow {_id}, invoking OnTapped (subscribers: {subscriberCount})");
-
-                if (OnTapped != null)
+                // 상태 재확인 (드래그 중 상태가 변경됐을 수 있음)
+                if (_state != ArrowState.Idle)
                 {
-                    OnTapped.Invoke(this);
-                    Debug.Log($"[ArrowController] OnTapped.Invoke completed for Arrow {_id}");
+                    Debug.Log($"[ArrowController] Arrow {_id} tap cancelled - state changed to {_state}");
+                    return;
+                }
+
+                float distance = Vector2.Distance(inputPos, _tapStartScreenPos);
+                float duration = Time.time - _tapStartTime;
+
+                Debug.Log($"[ArrowController] Arrow {_id} input ended: distance={distance:F1}px, duration={duration:F2}s");
+
+                // 탭 판정: 거리와 시간 모두 임계값 이하
+                if (distance < TAP_MAX_DISTANCE && duration < TAP_MAX_DURATION)
+                {
+                    Debug.Log($"[ArrowController] Arrow {_id} TAP detected! Invoking OnTapped");
+                    OnTapped?.Invoke(this);
                 }
                 else
                 {
-                    Debug.LogError($"[ArrowController] OnTapped is NULL for Arrow {_id}! Event not subscribed.");
+                    Debug.Log($"[ArrowController] Arrow {_id} was DRAG or HOLD, not TAP");
                 }
+            }
+
+            // ===== 4. 탭 취소 조건 =====
+            // 드래그가 감지되면 탭 후보 취소
+            if (_isPotentialTap && CameraController.Instance != null && CameraController.Instance.HasDragged)
+            {
+                Debug.Log($"[ArrowController] Arrow {_id} tap cancelled - drag detected");
+                _isPotentialTap = false;
             }
         }
 
