@@ -854,50 +854,23 @@ namespace BalloonOut.Data
 
             Debug.Log($"  Filler: Current density {(currentOccupied / (float)totalCells * 100):F1}%, target {cfg.targetDensity * 100:F1}%");
 
-            // 예상 Filler 개수 계산
-            int remainingCells = targetOccupied - currentOccupied;
-            int avgFillerLength = (cfg.fillerMinLength + cfg.fillerMaxLength) / 2;
-            int estimatedFillerCount = Mathf.CeilToInt(remainingCells / (float)Mathf.Max(1, avgFillerLength));
-
-            // Queue에 Filler용 풍선 미리 추가
-            var fillerColors = new List<string>();
-            for (int i = 0; i < estimatedFillerCount; i++)
-            {
-                string color = RandomPick(COLORS);
-                fillerColors.Add(color);
-
-                // 가장 적은 풍선을 가진 Lane의 앞에 삽입 (Main 화살표 팝 후 활성화됨)
-                int minLaneIdx = 0;
-                int minCount = int.MaxValue;
-                for (int laneIdx = 0; laneIdx < lanes.Count; laneIdx++)
-                {
-                    if (lanes[laneIdx].Count < minCount)
-                    {
-                        minCount = lanes[laneIdx].Count;
-                        minLaneIdx = laneIdx;
-                    }
-                }
-                lanes[minLaneIdx].Insert(0, color);  // 앞에 삽입
-            }
-
-            int fillerColorIdx = 0;
-
             while (currentOccupied < targetOccupied && attempts < maxAttempts)
             {
                 attempts++;
 
-                // Filler 색상: 미리 추가된 풍선 색상 사용
-                string color;
-                if (fillerColorIdx < fillerColors.Count)
-                {
-                    color = fillerColors[fillerColorIdx];
-                }
-                else
-                {
-                    // 예상보다 많은 Filler가 필요한 경우, 추가 풍선도 추가
-                    color = RandomPick(COLORS);
-                    fillerColors.Add(color);
+                // Filler 색상: 랜덤 선택 (배치 성공 후에만 Queue에 추가)
+                string color = RandomPick(COLORS);
+                int length = RandomInt(cfg.fillerMinLength, cfg.fillerMaxLength);
 
+                // checkCanEscape = true: Filler가 실제로 탈출 가능한 위치에만 배치
+                PlacementResult placement = useBending
+                    ? PlaceFallbackBending(color, length, cfg.gridSize, occupiedSet, escapePaths, checkCanEscape: true)
+                    : PlaceFallback(color, length, cfg.gridSize, occupiedSet, escapePaths, checkCanEscape: true);
+
+                if (placement != null)
+                {
+                    // 배치 성공! 이제 Queue에 풍선 추가
+                    // 가장 적은 풍선을 가진 Lane의 앞에 삽입 (Main 화살표 팝 후 활성화됨)
                     int minLaneIdx = 0;
                     int minCount = int.MaxValue;
                     for (int laneIdx = 0; laneIdx < lanes.Count; laneIdx++)
@@ -909,18 +882,6 @@ namespace BalloonOut.Data
                         }
                     }
                     lanes[minLaneIdx].Insert(0, color);  // 앞에 삽입
-                }
-
-                int length = RandomInt(cfg.fillerMinLength, cfg.fillerMaxLength);
-
-                // checkCanEscape = true: Filler가 실제로 탈출 가능한 위치에만 배치
-                PlacementResult placement = useBending
-                    ? PlaceFallbackBending(color, length, cfg.gridSize, occupiedSet, escapePaths, checkCanEscape: true)
-                    : PlaceFallback(color, length, cfg.gridSize, occupiedSet, escapePaths, checkCanEscape: true);
-
-                if (placement != null)
-                {
-                    fillerColorIdx++;  // 색상 사용 완료
 
                     bool isBending = placement.path != null;
                     string fillerDir = isBending ? placement.headDir : placement.dir;
@@ -953,25 +914,6 @@ namespace BalloonOut.Data
                     }
 
                     currentOccupied = occupiedSet.Count;
-                }
-            }
-
-            // 사용하지 않은 풍선 제거 (예상보다 적게 배치된 경우)
-            // Filler 풍선은 앞(index 0)에 추가되었으므로 앞에서 제거
-            int unusedCount = fillerColors.Count - fillerColorIdx;
-            if (unusedCount > 0)
-            {
-                Debug.Log($"  Filler: Removing {unusedCount} unused balloon(s) from queue");
-
-                // 각 Lane의 앞에서 풍선 제거 (Insert(0)으로 추가했으므로)
-                int toRemove = unusedCount;
-                for (int laneIdx = lanes.Count - 1; laneIdx >= 0 && toRemove > 0; laneIdx--)
-                {
-                    while (lanes[laneIdx].Count > 0 && toRemove > 0)
-                    {
-                        lanes[laneIdx].RemoveAt(0);  // 앞에서 제거
-                        toRemove--;
-                    }
                 }
             }
 
@@ -1092,6 +1034,142 @@ namespace BalloonOut.Data
             return ValidateGeneratedLevel(blocks, lanes, levelData.gridSize);
         }
 
+        /// <summary>
+        /// 화살표 탈출 순서에 맞춰 색상을 동적으로 할당
+        /// 핵심: 물리적 탈출 순서를 먼저 계산하고, 그 순서대로 팝 가능한 색상을 선택
+        /// </summary>
+        private static bool AssignColorsInEscapeOrder(List<BlockData> blocks, List<List<string>> lanes, int gridSize)
+        {
+            if (blocks == null || blocks.Count == 0 || lanes == null)
+                return false;
+
+            // lanes 복사 (팝 시뮬레이션용)
+            var lanesCopy = new List<List<string>>();
+            foreach (var lane in lanes)
+            {
+                lanesCopy.Add(new List<string>(lane));
+            }
+
+            // blocks 복사 (탈출 시뮬레이션용)
+            var remaining = new List<BlockData>();
+            for (int idx = 0; idx < blocks.Count; idx++)
+            {
+                var b = blocks[idx];
+                remaining.Add(new BlockData
+                {
+                    x = b.x,
+                    y = b.y,
+                    color = "", // 색상은 나중에 할당
+                    dir = b.dir,
+                    length = b.length,
+                    cells = new List<Vector2Int>(b.cells),
+                    path = b.path,
+                    isBending = b.isBending,
+                    isFiller = b.isFiller,
+                    originalIndex = idx
+                });
+            }
+
+            int iterations = 0;
+            int maxIterations = 100;
+
+            while (remaining.Count > 0 && iterations < maxIterations)
+            {
+                iterations++;
+
+                // 현재 점유 셀 계산
+                var occupied = new HashSet<string>();
+                foreach (var b in remaining)
+                {
+                    foreach (var c in b.cells)
+                    {
+                        occupied.Add(CellKey(c));
+                    }
+                }
+
+                bool escaped = false;
+
+                // 탈출 가능한 화살표 찾기
+                for (int i = 0; i < remaining.Count; i++)
+                {
+                    var b = remaining[i];
+
+                    var d = DIR_VECTORS[b.dir];
+                    var head = b.cells[0];
+
+                    int cx = head.x + d.x;
+                    int cy = head.y + d.y;
+                    bool blocked = false;
+
+                    while (IsInBounds(cx, cy, gridSize))
+                    {
+                        if (occupied.Contains(CellKey(cx, cy)))
+                        {
+                            blocked = true;
+                            break;
+                        }
+                        cx += d.x;
+                        cy += d.y;
+                    }
+
+                    if (!blocked)
+                    {
+                        // 탈출 가능! 현재 팝 가능한 색상 중 하나 선택
+                        var poppableColors = new List<string>();
+                        for (int laneIdx = 0; laneIdx < lanesCopy.Count; laneIdx++)
+                        {
+                            var lane = lanesCopy[laneIdx];
+                            if (lane.Count > 0)
+                            {
+                                poppableColors.Add(lane[lane.Count - 1]); // LIFO: lane[end]가 활성
+                            }
+                        }
+
+                        if (poppableColors.Count == 0)
+                        {
+                            Debug.LogWarning($"[AssignColors] No poppable colors left for block {b.originalIndex}");
+                            return false;
+                        }
+
+                        // 랜덤하게 색상 선택
+                        string assignedColor = RandomPick(poppableColors);
+
+                        // 원본 block에 색상 할당
+                        blocks[b.originalIndex].color = assignedColor;
+
+                        // lane에서 해당 색상 팝
+                        for (int laneIdx = 0; laneIdx < lanesCopy.Count; laneIdx++)
+                        {
+                            var lane = lanesCopy[laneIdx];
+                            if (lane.Count > 0 && lane[lane.Count - 1] == assignedColor)
+                            {
+                                lane.RemoveAt(lane.Count - 1);
+                                break;
+                            }
+                        }
+
+                        remaining.RemoveAt(i);
+                        escaped = true;
+                        break;
+                    }
+                }
+
+                if (!escaped)
+                {
+                    Debug.LogWarning($"[AssignColors] Deadlock: {remaining.Count} blocks cannot escape");
+                    return false;
+                }
+            }
+
+            if (remaining.Count > 0)
+            {
+                Debug.LogWarning($"[AssignColors] Timeout: {remaining.Count} blocks remaining");
+                return false;
+            }
+
+            return true;
+        }
+
         private static ValidationResult ValidateGeneratedLevel(List<BlockData> blocks, List<List<string>> lanes, int gridSize)
         {
             try
@@ -1171,13 +1249,13 @@ namespace BalloonOut.Data
                             if (pass == 0 && b.isFiller) continue;
                             if (pass == 1 && !b.isFiller) continue;
 
-                            // Filler: 풍선이 활성화(lane[end])되어야만 탈출 가능
+                            // Filler: 풍선이 활성화(lane[0])되어야만 탈출 가능 (FIFO)
                             if (b.isFiller)
                             {
                                 bool balloonActive = false;
                                 foreach (var lane in queuesCopy)
                                 {
-                                    if (lane.Count > 0 && lane[lane.Count - 1] == b.color)
+                                    if (lane.Count > 0 && lane[0] == b.color)
                                     {
                                         balloonActive = true;
                                         break;
@@ -1206,11 +1284,12 @@ namespace BalloonOut.Data
 
                             if (!blocked)
                             {
+                                // FIFO: lane[0]이 활성 풍선
                                 foreach (var lane in queuesCopy)
                                 {
-                                    if (lane.Count > 0 && lane[lane.Count - 1] == b.color)
+                                    if (lane.Count > 0 && lane[0] == b.color)
                                     {
-                                        lane.RemoveAt(lane.Count - 1);
+                                        lane.RemoveAt(0);
                                         break;
                                     }
                                 }
@@ -1278,20 +1357,34 @@ namespace BalloonOut.Data
 
                 // Step 1: Queue 생성
                 var lanes = GenerateQueue(config);
-                Debug.Log($"Lanes: {string.Join(", ", lanes.ConvertAll(l => "[" + string.Join(",", l) + "]"))}");
 
-                // Step 2: 색상 순서 (탈출 순서)
-                var colors = GetColorSequence(lanes, config.missArrowCount);
-                Debug.Log($"Colors (escape order): {string.Join(",", colors)}");
+                // Step 2: Miss 풍선 추가 (기존 GetColorSequence의 Step 1과 동일)
+                for (int mi = 0; mi < config.missArrowCount; mi++)
+                {
+                    string missColor = RandomPick(COLORS);
+                    int laneIdx = RandomInt(0, lanes.Count - 1);
+                    int insertPos = RandomInt(0, lanes[laneIdx].Count);
+                    lanes[laneIdx].Insert(insertPos, missColor);
+                }
 
-                // Step 3: 순차적 의존성 배치
+                Debug.Log($"Lanes (with miss): {string.Join(", ", lanes.ConvertAll(l => "[" + string.Join(",", l) + "]"))}");
+
+                // Step 3: 화살표 개수 = 총 풍선 개수
+                int arrowCount = 0;
+                foreach (var lane in lanes)
+                {
+                    arrowCount += lane.Count;
+                }
+                Debug.Log($"Arrow count: {arrowCount}");
+
+                // Step 4: 화살표 배치 (색상은 나중에 할당)
                 var blocks = new List<BlockData>();
                 var occupiedSet = new HashSet<string>();
                 bool success = true;
 
-                for (int i = 0; i < colors.Count; i++)
+                for (int i = 0; i < arrowCount; i++)
                 {
-                    string color = colors[i];
+                    string placeholderColor = "X"; // 플레이스홀더 색상
                     int length = RandomInt(config.minBlockLength, config.maxBlockLength);
 
                     PlacementResult placement = null;
@@ -1300,8 +1393,8 @@ namespace BalloonOut.Data
                     if (i == 0)
                     {
                         placement = useBending
-                            ? PlaceFirstArrowBending(color, length, config.gridSize, occupiedSet)
-                            : PlaceFirstArrow(color, length, config.gridSize, occupiedSet);
+                            ? PlaceFirstArrowBending(placeholderColor, length, config.gridSize, occupiedSet)
+                            : PlaceFirstArrow(placeholderColor, length, config.gridSize, occupiedSet);
                     }
                     else
                     {
@@ -1310,22 +1403,22 @@ namespace BalloonOut.Data
                         if (useBranching)
                         {
                             placement = useBending
-                                ? PlaceFirstArrowBending(color, length, config.gridSize, occupiedSet)
-                                : PlaceFirstArrow(color, length, config.gridSize, occupiedSet);
+                                ? PlaceFirstArrowBending(placeholderColor, length, config.gridSize, occupiedSet)
+                                : PlaceFirstArrow(placeholderColor, length, config.gridSize, occupiedSet);
                         }
                         else
                         {
                             var prevBlock = blocks[i - 1];
                             placement = useBending
-                                ? FindBlockedPositionBending(color, length, config.gridSize, occupiedSet, prevBlock.cells)
-                                : FindBlockedPosition(color, length, config.gridSize, occupiedSet, prevBlock.cells);
+                                ? FindBlockedPositionBending(placeholderColor, length, config.gridSize, occupiedSet, prevBlock.cells)
+                                : FindBlockedPosition(placeholderColor, length, config.gridSize, occupiedSet, prevBlock.cells);
                         }
 
                         if (placement == null)
                         {
                             placement = useBending
-                                ? PlaceFallbackBending(color, length, config.gridSize, occupiedSet)
-                                : PlaceFallback(color, length, config.gridSize, occupiedSet);
+                                ? PlaceFallbackBending(placeholderColor, length, config.gridSize, occupiedSet)
+                                : PlaceFallback(placeholderColor, length, config.gridSize, occupiedSet);
                         }
                     }
 
@@ -1341,7 +1434,7 @@ namespace BalloonOut.Data
                     {
                         x = placement.x,
                         y = placement.y,
-                        color = color,
+                        color = placeholderColor, // 색상은 나중에 할당
                         dir = isBending ? placement.headDir : placement.dir,
                         length = placement.cells.Count,
                         cells = placement.cells,
@@ -1355,12 +1448,20 @@ namespace BalloonOut.Data
                         occupiedSet.Add(CellKey(c));
                     }
 
-                    Debug.Log($"  Arrow {i}: {color} at ({placement.x},{placement.y}) dir={block.dir} len={block.length}{(isBending ? " [bending]" : "")}");
+                    Debug.Log($"  Arrow {i}: at ({placement.x},{placement.y}) dir={block.dir} len={block.length}{(isBending ? " [bending]" : "")}");
                 }
 
                 if (!success) continue;
 
-                // Step 4: 필러 추가
+                // Step 5: 탈출 순서에 맞춰 색상 할당
+                if (!AssignColorsInEscapeOrder(blocks, lanes, config.gridSize))
+                {
+                    Debug.Log("  Color assignment failed");
+                    continue;
+                }
+                Debug.Log($"  Colors assigned: {string.Join(",", blocks.ConvertAll(b => b.color))}");
+
+                // Step 6: 필러 추가
                 var allBlocks = new List<BlockData>(blocks);
                 int mainBlockCount = blocks.Count;
 
@@ -1376,7 +1477,7 @@ namespace BalloonOut.Data
                     }
                 }
 
-                // Step 5: 검증
+                // Step 7: 검증
                 var validation = ValidateGeneratedLevel(allBlocks, lanes, config.gridSize);
                 Debug.Log($"Validation: valid={validation.valid}, reason={validation.reason}");
 

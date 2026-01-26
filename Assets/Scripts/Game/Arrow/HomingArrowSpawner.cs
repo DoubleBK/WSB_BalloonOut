@@ -68,20 +68,24 @@ namespace BalloonOut.Game.Arrow
         /// </summary>
         private IEnumerator DelayedArrowTransition(ArrowController arrow, ArrowDirection exitDir)
         {
-            // Arrow 정보 미리 저장
+            // Arrow 정보 미리 저장 (Arrow가 파괴되기 전에!)
             GameColor color = arrow.Color;
             int arrowLength = arrow.TotalLength;
             Vector2 exitDirection = GetDirectionVector(exitDir);
+            Vector2 initialHeadPos = arrow.GetHeadWorldPosition();
+
+            Debug.Log($"[HomingArrowSpawner] DelayedArrowTransition started: color={color}, initialPos={initialHeadPos}");
 
             // 딜레이 대기
             yield return new WaitForSeconds(_transitionDelay);
 
-            // Arrow가 아직 존재하면 현재 위치에서 전환
+            // Arrow가 아직 존재하면 현재 위치 사용, 아니면 저장된 위치 사용
+            Vector2 spawnPosition;
             if (arrow != null && arrow.gameObject != null)
             {
-                Vector2 currentHeadPos = arrow.GetHeadWorldPosition();
+                spawnPosition = arrow.GetHeadWorldPosition();
 
-                Debug.Log($"[HomingArrowSpawner] DelayedArrowTransition: color={color}, currentPos={currentHeadPos}");
+                Debug.Log($"[HomingArrowSpawner] Arrow still exists, using current pos: {spawnPosition}");
 
                 // Arrow 페이드 아웃 시작
                 arrow.StartFadeOutTransition(_fadeOutDuration, () =>
@@ -91,12 +95,22 @@ namespace BalloonOut.Game.Arrow
                         Destroy(arrow.gameObject);
                     }
                 });
+            }
+            else
+            {
+                // Arrow가 이미 파괴됨 - 저장된 위치 사용
+                spawnPosition = initialHeadPos;
+                Debug.Log($"[HomingArrowSpawner] Arrow already destroyed, using saved pos: {spawnPosition}");
+            }
 
-                // HomingArrow 생성
-                if (_queueUI != null && _homingArrowPrefab != null)
-                {
-                    StartCoroutine(SpawnHomingArrowAtPosition(currentHeadPos, exitDirection, color, arrowLength));
-                }
+            // HomingArrow 생성 (Arrow 존재 여부와 무관하게 항상 생성)
+            if (_queueUI != null && _homingArrowPrefab != null)
+            {
+                StartCoroutine(SpawnHomingArrowAtPosition(spawnPosition, exitDirection, color, arrowLength));
+            }
+            else
+            {
+                Debug.LogWarning($"[HomingArrowSpawner] Cannot spawn HomingArrow: _queueUI={_queueUI != null}, _homingArrowPrefab={_homingArrowPrefab != null}");
             }
         }
 

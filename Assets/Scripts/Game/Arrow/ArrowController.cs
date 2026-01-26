@@ -59,6 +59,10 @@ namespace BalloonOut.Game.Arrow
         // 셀별 개별 콜라이더
         private List<BoxCollider2D> _cellColliders = new List<BoxCollider2D>();
 
+        // 전역 입력 처리용 정적 변수 (같은 프레임에서 중복 터치 방지)
+        private static int _lastInputFrame = -1;
+        private static ArrowController _lastTouchedArrow = null;
+
         // ========== 이벤트 ==========
         public event Action<ArrowController> OnTapped;
         public event Action<ArrowController> OnExtracted;
@@ -755,15 +759,97 @@ namespace BalloonOut.Game.Arrow
         }
 
         // ========== 입력 처리 ==========
-        private void OnMouseDown()
+        private void Update()
         {
-            Debug.Log($"[ArrowController] OnMouseDown called! Arrow {_id}, State: {_state}");
+            // Idle 상태가 아니면 입력 무시
+            if (_state != ArrowState.Idle) return;
+            if (_animationHelper != null && _animationHelper.IsAppearing) return;
 
-            if (_state == ArrowState.Idle)
+            // 터치/클릭 시작 감지
+            bool inputDown = false;
+            Vector2 inputPos = Vector2.zero;
+
+#if UNITY_EDITOR || UNITY_STANDALONE
+            if (Input.GetMouseButtonDown(0))
             {
-                Debug.Log($"[ArrowController] Invoking OnTapped for Arrow {_id}");
+                inputDown = true;
+                inputPos = Input.mousePosition;
+            }
+#else
+            if (Input.touchCount > 0 && Input.GetTouch(0).phase == TouchPhase.Began)
+            {
+                inputDown = true;
+                inputPos = Input.GetTouch(0).position;
+            }
+#endif
+
+            if (!inputDown) return;
+
+            // 같은 프레임에서 이미 다른 화살표가 터치되었으면 무시
+            if (_lastInputFrame == Time.frameCount && _lastTouchedArrow != null)
+            {
+                return;
+            }
+
+            // 화면 좌표를 월드 좌표로 변환
+            Vector3 worldPos3D = Camera.main.ScreenToWorldPoint(inputPos);
+            Vector2 touchWorldPos = new Vector2(worldPos3D.x, worldPos3D.y);
+
+            // 터치 위치가 이 화살표 셀 내에 있는지 확인
+            if (IsTouchOnArrowCells(touchWorldPos))
+            {
+                // 이 프레임에서 터치된 화살표로 등록
+                _lastInputFrame = Time.frameCount;
+                _lastTouchedArrow = this;
+
+                Debug.Log($"[ArrowController] Touch at {touchWorldPos} IS on Arrow {_id}, invoking OnTapped");
                 OnTapped?.Invoke(this);
             }
+        }
+
+        /// <summary>
+        /// 터치 위치가 화살표 셀 내에 있는지 확인
+        /// </summary>
+        private bool IsTouchOnArrowCells(Vector2 worldPos)
+        {
+            // GridSystem이 없으면 기존 동작 유지 (터치 허용)
+            if (GridSystem.Instance == null)
+            {
+                Debug.LogWarning($"[ArrowController] GridSystem.Instance is null, allowing touch");
+                return true;
+            }
+
+            // _cellWorldPositions가 비어있으면 기존 동작 유지 (터치 허용)
+            if (_cellWorldPositions == null || _cellWorldPositions.Count == 0)
+            {
+                Debug.LogWarning($"[ArrowController] _cellWorldPositions is null or empty for Arrow {_id}, allowing touch");
+                return true;
+            }
+
+            float cellSize = GridSystem.Instance.CellSize;
+            // 여유분 20% 추가 (터치 영역 확장)
+            float halfCell = cellSize * 0.6f;
+
+            foreach (var cellPos in _cellWorldPositions)
+            {
+                // 셀 중심에서 반경 내에 있는지 확인
+                float dx = Mathf.Abs(worldPos.x - cellPos.x);
+                float dy = Mathf.Abs(worldPos.y - cellPos.y);
+
+                if (dx <= halfCell && dy <= halfCell)
+                {
+                    return true;  // 터치가 이 셀 안에 있음
+                }
+            }
+
+            // 디버그: 첫 번째 셀과의 거리 출력
+            if (_cellWorldPositions.Count > 0)
+            {
+                var firstCell = _cellWorldPositions[0];
+                Debug.Log($"[ArrowController] Arrow {_id}: touch={worldPos}, firstCell={firstCell}, cellSize={cellSize}, halfCell={halfCell}");
+            }
+
+            return false;  // 어떤 셀에도 속하지 않음
         }
 
         // ========== 에디터 전용 ==========
