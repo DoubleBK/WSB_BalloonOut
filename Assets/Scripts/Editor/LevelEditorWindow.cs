@@ -45,7 +45,7 @@ namespace BalloonOut.Editor
         private int _genMinLength = 3;
         private int _genMaxLength = 8;
         private bool _genAutoCalculate = true;
-        private bool _genBranchingMode = false;
+        private bool _genBranchingMode = true;  // 기본값: On
         private float _genBranchingChance = 0.4f;
 
         // Validation 캐시
@@ -473,8 +473,8 @@ namespace BalloonOut.Editor
             EditorGUILayout.BeginVertical("box");
             EditorGUILayout.LabelField("Basic Settings", EditorStyles.boldLabel);
 
-            _genGridSize = EditorGUILayout.IntSlider("Grid Size", _genGridSize, 5, 12);
-            _genTargetDensity = EditorGUILayout.Slider("Target Density", _genTargetDensity, 0.2f, 0.8f);
+            _genGridSize = EditorGUILayout.IntSlider("Grid Size", _genGridSize, 4, 16);
+            _genTargetDensity = EditorGUILayout.Slider("Target Density", _genTargetDensity, 0.2f, 1.0f);
             EditorGUILayout.LabelField($"  → {(_genTargetDensity * 100):F0}% of grid will be filled", EditorStyles.miniLabel);
 
             EditorGUILayout.Space(5);

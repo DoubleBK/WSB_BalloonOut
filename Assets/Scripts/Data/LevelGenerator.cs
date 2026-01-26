@@ -746,7 +746,7 @@ namespace BalloonOut.Data
                 string color = RandomPick(COLORS);
                 fillerColors.Add(color);
 
-                // 가장 적은 풍선을 가진 Lane에 추가 (나중에 팝됨)
+                // 가장 적은 풍선을 가진 Lane의 앞에 삽입 (Main 화살표 팝 후 활성화됨)
                 int minLaneIdx = 0;
                 int minCount = int.MaxValue;
                 for (int laneIdx = 0; laneIdx < lanes.Count; laneIdx++)
@@ -757,7 +757,7 @@ namespace BalloonOut.Data
                         minLaneIdx = laneIdx;
                     }
                 }
-                lanes[minLaneIdx].Add(color);
+                lanes[minLaneIdx].Insert(0, color);  // 앞에 삽입
             }
 
             int fillerColorIdx = 0;
@@ -788,7 +788,7 @@ namespace BalloonOut.Data
                             minLaneIdx = laneIdx;
                         }
                     }
-                    lanes[minLaneIdx].Add(color);
+                    lanes[minLaneIdx].Insert(0, color);  // 앞에 삽입
                 }
 
                 int length = RandomInt(cfg.fillerMinLength, cfg.fillerMaxLength);
@@ -827,18 +827,19 @@ namespace BalloonOut.Data
             }
 
             // 사용하지 않은 풍선 제거 (예상보다 적게 배치된 경우)
+            // Filler 풍선은 앞(index 0)에 추가되었으므로 앞에서 제거
             int unusedCount = fillerColors.Count - fillerColorIdx;
             if (unusedCount > 0)
             {
                 Debug.Log($"  Filler: Removing {unusedCount} unused balloon(s) from queue");
 
-                // 각 Lane에서 마지막에 추가된 풍선 제거
+                // 각 Lane의 앞에서 풍선 제거 (Insert(0)으로 추가했으므로)
                 int toRemove = unusedCount;
                 for (int laneIdx = lanes.Count - 1; laneIdx >= 0 && toRemove > 0; laneIdx--)
                 {
                     while (lanes[laneIdx].Count > 0 && toRemove > 0)
                     {
-                        lanes[laneIdx].RemoveAt(lanes[laneIdx].Count - 1);
+                        lanes[laneIdx].RemoveAt(0);  // 앞에서 제거
                         toRemove--;
                     }
                 }
@@ -1241,10 +1242,13 @@ namespace BalloonOut.Data
                         stats = new LevelStats()
                     };
 
-                    // Lanes 변환
+                    // Lanes 변환 (LIFO → FIFO 순서로 역순 변환)
+                    // Generator 내부: lane[end]가 활성 풍선, Game: lane[0]이 활성 풍선
                     foreach (var lane in lanes)
                     {
-                        levelData.lanes.Add(new LaneData { balloons = new List<string>(lane) });
+                        var reversed = new List<string>(lane);
+                        reversed.Reverse();
+                        levelData.lanes.Add(new LaneData { balloons = reversed });
                     }
 
                     // Arrows 변환

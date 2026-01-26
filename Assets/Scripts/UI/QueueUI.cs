@@ -202,11 +202,11 @@ namespace BalloonOut.UI
                         layout.childAlignment = TextAnchor.LowerCenter;
                         layout.childForceExpandWidth = false;
                         layout.childForceExpandHeight = false;
-                        layout.reverseArrangement = true;  // balloons[0]이 아래에 표시되도록
+                        layout.reverseArrangement = false;  // 풍선이 위로 쌓이도록 (Grid 침범 방지)
                     }
                     else
                     {
-                        existingVertical.reverseArrangement = true;
+                        existingVertical.reverseArrangement = false;
                     }
                 }
                 else
@@ -220,13 +220,13 @@ namespace BalloonOut.UI
                     layout.childAlignment = TextAnchor.LowerCenter;
                     layout.childForceExpandWidth = false;
                     layout.childForceExpandHeight = false;
-                    layout.reverseArrangement = true;  // balloons[0]이 아래에 표시되도록
+                    layout.reverseArrangement = false;  // 풍선이 위로 쌓이도록 (Grid 침범 방지)
                 }
 
                 var lane = _lanes[laneIdx];
                 var balloonList = new List<Image>();
 
-                // 풍선 생성 (balloons[0]이 활성 풍선, reverseArrangement로 인해 아래에 표시)
+                // 풍선 생성 (balloons[0]이 활성 풍선, 가장 아래에서 위로 쌓임)
                 for (int i = 0; i < lane.Count; i++)
                 {
                     var color = lane[i];
