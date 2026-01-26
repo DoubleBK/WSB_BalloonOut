@@ -1,0 +1,165 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 95a8d77c43572b24994755a6f515373f, type: 3}
+  m_Name: stage_000005
+  m_EditorClassIdentifier: 
+  stageName: 000005
+  gridSize: 6
+  lanes:
+  - balloons:
+    - B
+    - P
+    - G
+  - balloons:
+    - O
+    - Y
+    - G
+    - P
+    - O
+  arrows:
+  - x: 5
+    y: 5
+    color: O
+    direction: U
+    length: 4
+    path:
+    - x: 5
+      y: 2
+    - x: 5
+      y: 3
+    - x: 5
+      y: 4
+    - x: 5
+      y: 5
+    order: 1
+    isFiller: 0
+  - x: 0
+    y: 5
+    color: O
+    direction: U
+    length: 5
+    path:
+    - x: 0
+      y: 1
+    - x: 0
+      y: 2
+    - x: 0
+      y: 3
+    - x: 0
+      y: 4
+    - x: 0
+      y: 5
+    order: 7
+    isFiller: 0
+  - x: 5
+    y: 1
+    color: Y
+    direction: R
+    length: 6
+    path:
+    - x: 1
+      y: 0
+    - x: 1
+      y: 1
+    - x: 2
+      y: 1
+    - x: 3
+      y: 1
+    - x: 4
+      y: 1
+    - x: 5
+      y: 1
+    order: 6
+    isFiller: 0
+  - x: 3
+    y: 0
+    color: P
+    direction: L
+    length: 3
+    path:
+    - x: 5
+      y: 0
+    - x: 4
+      y: 0
+    - x: 3
+      y: 0
+    order: 8
+    isFiller: 0
+  - x: 1
+    y: 5
+    color: B
+    direction: U
+    length: 3
+    path:
+    - x: 1
+      y: 3
+    - x: 1
+      y: 4
+    - x: 1
+      y: 5
+    order: 4
+    isFiller: 0
+  - x: 1
+    y: 2
+    color: G
+    direction: L
+    length: 5
+    path:
+    - x: 4
+      y: 3
+    - x: 4
+      y: 2
+    - x: 3
+      y: 2
+    - x: 2
+      y: 2
+    - x: 1
+      y: 2
+    order: 5
+    isFiller: 0
+  - x: 3
+    y: 5
+    color: P
+    direction: U
+    length: 6
+    path:
+    - x: 2
+      y: 5
+    - x: 2
+      y: 4
+    - x: 2
+      y: 3
+    - x: 3
+      y: 3
+    - x: 3
+      y: 4
+    - x: 3
+      y: 5
+    order: 2
+    isFiller: 0
+  - x: 4
+    y: 5
+    color: G
+    direction: U
+    length: 2
+    path:
+    - x: 4
+      y: 4
+    - x: 4
+      y: 5
+    order: 3
+    isFiller: 0
+  stats:
+    density: 0.9444444
+    mainArrows: 8
+    fillers: 0
+    totalArrows: 8
