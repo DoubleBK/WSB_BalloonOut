@@ -1111,10 +1111,7 @@ namespace BalloonOut.Editor
                 if (_cachedValidation.escapeColors != null && _cachedValidation.escapeColors.Count > 0)
                 {
                     EditorGUILayout.Space(5);
-                    EditorGUILayout.LabelField("Solution Order:", EditorStyles.boldLabel);
-
-                    // 색상과 순서 표시
-                    EditorGUILayout.BeginHorizontal();
+                    EditorGUILayout.LabelField($"Solution Order: ({_cachedValidation.escapeColors.Count})", EditorStyles.boldLabel);
 
                     GUIStyle orderStyle = new GUIStyle(EditorStyles.boldLabel)
                     {
@@ -1123,30 +1120,72 @@ namespace BalloonOut.Editor
                         normal = { textColor = Color.white }
                     };
 
-                    int displayCount = Mathf.Min(_cachedValidation.escapeColors.Count, 15); // 최대 15개만 표시
-                    for (int i = 0; i < displayCount; i++)
+                    // 한 줄에 표시할 아이템 수 (박스 24px + 화살표 12px + 여유)
+                    int itemsPerRow = 10;
+                    int totalCount = _cachedValidation.escapeColors.Count;
+
+                    for (int rowStart = 0; rowStart < totalCount; rowStart += itemsPerRow)
                     {
-                        string colorCode = _cachedValidation.escapeColors[i];
-                        Color arrowColor = GetPreviewColor(colorCode);
+                        EditorGUILayout.BeginHorizontal();
 
-                        // 순서 번호 + 색상 박스
-                        Rect rect = GUILayoutUtility.GetRect(24, 24, GUILayout.Width(24), GUILayout.Height(24));
-                        EditorGUI.DrawRect(rect, arrowColor);
-                        GUI.Label(rect, (i + 1).ToString(), orderStyle);
+                        int rowEnd = Mathf.Min(rowStart + itemsPerRow, totalCount);
+                        for (int i = rowStart; i < rowEnd; i++)
+                        {
+                            string colorCode = _cachedValidation.escapeColors[i];
+                            Color arrowColor = GetPreviewColor(colorCode);
 
-                        // 화살표 표시 (마지막 제외)
-                        if (i < displayCount - 1)
+                            // 현재 선택된 화살표인지 확인
+                            bool isSelected = false;
+                            int arrowIdx = -1;
+                            if (_cachedValidation.escapeSequence != null && i < _cachedValidation.escapeSequence.Count)
+                            {
+                                arrowIdx = _cachedValidation.escapeSequence[i];
+                                isSelected = (arrowIdx == _selectedArrowIndex);
+                            }
+
+                            // 순서 번호 + 색상 박스
+                            Rect rect = GUILayoutUtility.GetRect(24, 24, GUILayout.Width(24), GUILayout.Height(24));
+
+                            // 선택된 경우 흰색 테두리 먼저 그리기
+                            if (isSelected)
+                            {
+                                Rect borderRect = new Rect(rect.x - 2, rect.y - 2, rect.width + 4, rect.height + 4);
+                                EditorGUI.DrawRect(borderRect, Color.white);
+                            }
+
+                            EditorGUI.DrawRect(rect, arrowColor);
+                            GUI.Label(rect, (i + 1).ToString(), orderStyle);
+
+                            // 클릭 감지 - 해당 화살표 선택
+                            if (Event.current.type == EventType.MouseDown &&
+                                Event.current.button == 0 &&
+                                rect.Contains(Event.current.mousePosition))
+                            {
+                                if (arrowIdx >= 0)
+                                {
+                                    _selectedArrowIndex = arrowIdx;
+                                    GUI.changed = true;
+                                    Repaint();
+                                }
+                                Event.current.Use();
+                            }
+
+                            // 화살표 표시 (줄 끝과 전체 마지막 제외)
+                            if (i < rowEnd - 1)
+                            {
+                                GUILayout.Label("→", GUILayout.Width(12));
+                            }
+                        }
+
+                        // 줄 끝에 다음 줄로 연결되는 화살표 표시
+                        if (rowEnd < totalCount)
                         {
                             GUILayout.Label("→", GUILayout.Width(12));
                         }
-                    }
 
-                    if (_cachedValidation.escapeColors.Count > displayCount)
-                    {
-                        EditorGUILayout.LabelField($"...+{_cachedValidation.escapeColors.Count - displayCount}", EditorStyles.miniLabel);
+                        GUILayout.FlexibleSpace();
+                        EditorGUILayout.EndHorizontal();
                     }
-
-                    EditorGUILayout.EndHorizontal();
                 }
             }
             else
