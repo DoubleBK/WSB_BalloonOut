@@ -760,12 +760,6 @@ namespace BalloonOut.Editor
                     var cells = arrow.GetCells();
                     Color arrowColor = GetPreviewColor(arrow.color);
 
-                    // 선택된 화살표는 하이라이트
-                    if (arrowIdx == _selectedArrowIndex)
-                    {
-                        arrowColor = Color.white;
-                    }
-
                     for (int i = 0; i < cells.Count; i++)
                     {
                         bool isHead = (i == cells.Count - 1); // 마지막이 Head
@@ -817,6 +811,27 @@ namespace BalloonOut.Editor
                 }
             }
 
+            // 선택된 화살표 셀 하이라이트 (반투명 색상으로 배경 채우기)
+            if (_currentLevel.arrows != null && _selectedArrowIndex >= 0 && _selectedArrowIndex < _currentLevel.arrows.Count)
+            {
+                var selectedArrow = _currentLevel.arrows[_selectedArrowIndex];
+                var selectedCells = selectedArrow.GetCells();
+                Color highlightColor = GetPreviewColor(selectedArrow.color);
+                highlightColor.a = 0.4f; // 반투명
+
+                foreach (var cell in selectedCells)
+                {
+                    int flippedY = gridSize - 1 - cell.y;
+                    Rect cellRect = new Rect(
+                        gridRect.x + cell.x * PREVIEW_CELL_SIZE,
+                        gridRect.y + flippedY * PREVIEW_CELL_SIZE,
+                        PREVIEW_CELL_SIZE,
+                        PREVIEW_CELL_SIZE
+                    );
+                    EditorGUI.DrawRect(cellRect, highlightColor);
+                }
+            }
+
             // 화살표 그리기 (직선+원+삼각형 형태)
             if (_currentLevel.arrows != null)
             {
@@ -824,12 +839,6 @@ namespace BalloonOut.Editor
                 {
                     var arrow = _currentLevel.arrows[arrowIdx];
                     Color arrowColor = GetPreviewColor(arrow.color);
-
-                    // 선택된 화살표는 하이라이트
-                    if (arrowIdx == _selectedArrowIndex)
-                    {
-                        arrowColor = Color.white;
-                    }
 
                     DrawArrowInPreview(gridRect, arrow, arrowColor, gridSize);
                 }
