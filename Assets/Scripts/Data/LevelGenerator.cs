@@ -1022,7 +1022,7 @@ namespace BalloonOut.Data
                         x = arrow.x,
                         y = gridSize - 1 - arrow.y,  // Y 좌표도 플립
                         color = arrow.color,
-                        dir = UnflipYDirection(arrow.direction),  // Game → Generator 좌표계 역변환
+                        dir = arrow.direction,  // 방향은 유지 (U/D/L/R은 시각적 의미가 동일)
                         length = arrow.length,
                         cells = cells,
                         isFiller = arrow.isFiller
@@ -1585,9 +1585,9 @@ namespace BalloonOut.Data
                         var arrowData = new ArrowData
                         {
                             x = b.x,
-                            y = b.y,
+                            y = config.gridSize - 1 - b.y,  // Generator → Game 좌표계 변환 (Y 플립)
                             color = b.color,
-                            direction = FlipYDirection(b.dir),  // Generator → Game 좌표계 변환
+                            direction = b.dir,  // 방향은 유지 (U/D/L/R은 시각적 의미가 동일)
                             length = b.length,
                             order = orderMap.ContainsKey(idx) ? orderMap[idx] : 0,
                             isFiller = b.isFiller
@@ -1599,14 +1599,18 @@ namespace BalloonOut.Data
                             arrowData.path = new List<Vector2IntSerializable>();
 
                             // path 역순으로 저장 (GrowArrowReverse는 HEAD-first, GetCells는 TAIL-first 기대)
+                            // Generator → Game 좌표계 변환 (Y 플립)
                             for (int pi = b.path.Count - 1; pi >= 0; pi--)
                             {
                                 var p = b.path[pi];
-                                arrowData.path.Add(new Vector2IntSerializable { x = p.x, y = p.y });
+                                arrowData.path.Add(new Vector2IntSerializable {
+                                    x = p.x,
+                                    y = config.gridSize - 1 - p.y  // Y 좌표 플립
+                                });
                             }
 
                             // Head 방향 검증: path[last-1] → path[last] 방향 계산
-                            // path 좌표는 Generator 좌표계 (y=0이 위쪽, y 증가가 아래쪽)
+                            // path 좌표는 이미 Game 좌표계로 변환됨 (y=0이 하단, y 증가가 위쪽)
                             if (arrowData.path.Count >= 2)
                             {
                                 var secondLast = arrowData.path[arrowData.path.Count - 2];
@@ -1615,19 +1619,19 @@ namespace BalloonOut.Data
                                 int dx = head.x - secondLast.x;
                                 int dy = head.y - secondLast.y;
 
-                                // Generator 좌표계에서 방향 계산 후 Game 좌표계로 변환
-                                // Generator: U=(0,-1), D=(0,1), L=(-1,0), R=(1,0)
-                                string genDir = (dx, dy) switch
+                                // Game 좌표계에서 방향 계산
+                                // Game: U=(0,1), D=(0,-1), L=(-1,0), R=(1,0)
+                                string gameDir = (dx, dy) switch
                                 {
-                                    (0, -1) => "U",  // Y 감소 = Up (Generator 좌표계)
-                                    (0, 1) => "D",   // Y 증가 = Down (Generator 좌표계)
+                                    (0, 1) => "U",   // Y 증가 = Up (Game 좌표계)
+                                    (0, -1) => "D",  // Y 감소 = Down (Game 좌표계)
                                     (-1, 0) => "L",  // X 감소 = Left
                                     (1, 0) => "R",   // X 증가 = Right
-                                    _ => b.dir
+                                    _ => b.dir  // 기본값은 원래 방향 유지
                                 };
 
-                                // Generator → Game 좌표계 변환
-                                arrowData.direction = FlipYDirection(genDir);
+                                // 이미 Game 좌표계이므로 추가 변환 불필요
+                                arrowData.direction = gameDir;
                             }
                         }
 
