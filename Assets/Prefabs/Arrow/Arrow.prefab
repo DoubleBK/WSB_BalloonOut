@@ -74,9 +74,9 @@ MonoBehaviour:
   _shapeRenderer: {fileID: 0}
   _lineRenderer: {fileID: 9008595528271327410}
   _headRenderer: {fileID: 1606016314437030341}
-  _lineWidth: 0.3
-  _headTailOffset: 0.35
-  _headScale: 1.2
+  _lineWidth: 0.15
+  _headTailOffset: 0.2
+  _headScale: 1
   _numCapVertices: 10
   _numCornerVertices: 5
 --- !u!114 &-6855559475930686023
