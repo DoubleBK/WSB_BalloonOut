@@ -18,13 +18,11 @@ namespace BalloonOut.Game.Arrow
         [Header("필수 참조")]
         [SerializeField] private ArrowVisualRenderer _visualRenderer;
         [SerializeField] private ArrowAnimationHelper _animationHelper;
+        [SerializeField] private ArrowInput _arrowInput;
+        [SerializeField] private ArrowMovement _arrowMovement;
         [SerializeField] private BoxCollider2D _collider;
 
-        [Header("이동 설정")]
-        [SerializeField] private float _moveSpeed = 8f;
-
         [Header("애니메이션 설정")]
-        [SerializeField] private Ease _moveEase = Ease.OutQuad;
         [SerializeField] private float _launchPunchScale = 0.15f;
         [SerializeField] private float _launchPunchDuration = 0.1f;
 
@@ -33,45 +31,16 @@ namespace BalloonOut.Game.Arrow
         private GameColor _color;
         private ArrowState _state;
         private List<Vector2Int> _occupiedCells;
+        private List<Vector2> _cellWorldPositions;
         private Vector2Int _headPosition;
         private ArrowDirection _headDirection;
         private Vector2Int _moveDirection;
 
-        // Snake 이동용 변수
-        private bool _isExtracting;
-        private bool _isReturning;
-        private bool _ignoreCollision;
-        private float _moveProgress;
-        private List<Vector2> _cellWorldPositions;
-        private List<Vector2> _previousWorldPositions;
-        private Tween _moveTween;
-
-        // 발사 시점 위치 백업 (충돌 시 복원용)
-        private List<Vector2Int> _launchOccupiedCells;
-        private List<Vector2> _launchWorldPositions;
-        private Vector2Int _launchHeadPosition;
-        private int _returnStepsRemaining;
-
-        // 이동 경로 기록 (역방향 복귀용)
-        private List<List<Vector2Int>> _movementHistory;
-        private int _currentHistoryIndex;
-
         // 셀별 개별 콜라이더
         private List<BoxCollider2D> _cellColliders = new List<BoxCollider2D>();
 
-        // 전역 입력 처리용 정적 변수 (같은 프레임에서 중복 터치 방지)
-        private static int _lastInputFrame = -1;
-        private static ArrowController _lastTouchedArrow = null;
-
         // 활성 화살표 수 추적 (디버그용)
         private static int _activeArrowCount = 0;
-
-        // ========== 탭/드래그 판정용 ==========
-        private bool _isPotentialTap = false;       // 탭 후보 상태
-        private Vector2 _tapStartScreenPos;         // 시작 화면 좌표
-        private float _tapStartTime;                // 시작 시간
-        private const float TAP_MAX_DISTANCE = 20f; // 탭 최대 이동 거리 (픽셀)
-        private const float TAP_MAX_DURATION = 0.5f; // 탭 최대 지속 시간 (초)
 
         // ========== 이벤트 ==========
         public event Action<ArrowController> OnTapped;
@@ -91,7 +60,7 @@ namespace BalloonOut.Game.Arrow
         public int TotalLength => _occupiedCells?.Count ?? 0;
         public ArrowState State => _state;
         public bool CanLaunch => _state == ArrowState.Idle && !(_animationHelper?.IsAppearing ?? false);
-        public bool IsExtracting => _isExtracting;
+        public bool IsExtracting => _arrowMovement?.IsExtracting ?? false;
         public bool IsAppearing => _animationHelper?.IsAppearing ?? false;
 
         // ========== 유니티 라이프사이클 ==========
@@ -104,20 +73,11 @@ namespace BalloonOut.Game.Arrow
         private void OnDisable()
         {
             _activeArrowCount--;
-            _isPotentialTap = false;  // 탭 상태 초기화
             Debug.Log($"[ArrowController] Arrow {_id} OnDisable, active count: {_activeArrowCount}");
-
-            // 파괴된 화살표가 _lastTouchedArrow면 클리어
-            if (_lastTouchedArrow == this)
-            {
-                _lastTouchedArrow = null;
-                Debug.Log($"[ArrowController] Cleared _lastTouchedArrow (was Arrow {_id})");
-            }
         }
 
         private void OnDestroy()
         {
-            _moveTween?.Kill();
             ClearCellColliders();
         }
 
@@ -130,7 +90,6 @@ namespace BalloonOut.Game.Arrow
             _id = id;
             _color = data.Color;
             _state = ArrowState.Idle;
-            _isExtracting = false;
 
             // 셀 목록 계산
             _occupiedCells = data.GetCells();
@@ -159,6 +118,25 @@ namespace BalloonOut.Game.Arrow
                 _animationHelper.Initialize(_visualRenderer);
             }
 
+            // 입력 처리기 초기화
+            if (_arrowInput != null)
+            {
+                _arrowInput.Initialize(this, _id);
+                _arrowInput.OnTapDetected += HandleTapDetected;
+            }
+
+            // 이동 처리기 초기화
+            if (_arrowMovement != null)
+            {
+                _arrowMovement.Initialize(_occupiedCells, _headPosition, _moveDirection);
+                _arrowMovement.OnPositionsChanged += HandlePositionsChanged;
+                _arrowMovement.OnStepComplete += HandleStepComplete;
+                _arrowMovement.OnExtractionStarted += HandleExtractionStarted;
+                _arrowMovement.OnExtracted += HandleExtracted;
+                _arrowMovement.OnBlocked += HandleBlocked;
+                _arrowMovement.OnReturnComplete += HandleReturnComplete;
+            }
+
             RegisterOccupiedCells(true);
             UpdateCollider();
         }
@@ -173,9 +151,6 @@ namespace BalloonOut.Game.Arrow
             if (_state != ArrowState.Idle)
                 return;
 
-            _ignoreCollision = false;
-            BackupLaunchPosition();
-
             Debug.Log($"[ArrowController] Arrow {_id} starting movement, Direction: {_headDirection}");
 
             // 이동 시작 이벤트 발생
@@ -183,7 +158,12 @@ namespace BalloonOut.Game.Arrow
 
             // 펀치 애니메이션과 이동을 동시에 시작
             transform.DOPunchScale(Vector3.one * _launchPunchScale, _launchPunchDuration, 1, 0f);
-            TryMoveToNext();
+
+            if (_arrowMovement != null)
+            {
+                SetState(ArrowState.Moving);
+                _arrowMovement.StartMove();
+            }
         }
 
         /// <summary>
@@ -194,20 +174,15 @@ namespace BalloonOut.Game.Arrow
             if (_state != ArrowState.Idle)
                 return;
 
-            _ignoreCollision = true;
-
             OnMoveStarted?.Invoke(this);
-
-            _isExtracting = true;
-            RegisterOccupiedCells(false);
-
-            Vector2 headWorldPos = GetHeadWorldPosition();
-            OnExtractionStarted?.Invoke(this, headWorldPos, _headDirection);
 
             transform.DOPunchScale(Vector3.one * _launchPunchScale, _launchPunchDuration, 1, 0f);
 
-            Vector2Int nextHeadPos = _headPosition + _moveDirection;
-            StartSnakeExtract(nextHeadPos);
+            if (_arrowMovement != null)
+            {
+                SetState(ArrowState.Moving);
+                _arrowMovement.StartMoveIgnoreCollision();
+            }
         }
 
         /// <summary>
@@ -321,143 +296,29 @@ namespace BalloonOut.Game.Arrow
         /// </summary>
         public void Cleanup()
         {
+            // 입력 이벤트 구독 해제
+            if (_arrowInput != null)
+            {
+                _arrowInput.OnTapDetected -= HandleTapDetected;
+            }
+
+            // 이동 이벤트 구독 해제
+            if (_arrowMovement != null)
+            {
+                _arrowMovement.OnPositionsChanged -= HandlePositionsChanged;
+                _arrowMovement.OnStepComplete -= HandleStepComplete;
+                _arrowMovement.OnExtractionStarted -= HandleExtractionStarted;
+                _arrowMovement.OnExtracted -= HandleExtracted;
+                _arrowMovement.OnBlocked -= HandleBlocked;
+                _arrowMovement.OnReturnComplete -= HandleReturnComplete;
+                _arrowMovement.Cleanup();
+            }
+
             RegisterOccupiedCells(false);
             _occupiedCells?.Clear();
         }
 
         // ========== 내부 유틸리티 ==========
-        private void BackupLaunchPosition()
-        {
-            _launchOccupiedCells = new List<Vector2Int>(_occupiedCells);
-            _launchWorldPositions = new List<Vector2>(_cellWorldPositions);
-            _launchHeadPosition = _headPosition;
-
-            _movementHistory = new List<List<Vector2Int>>();
-            _movementHistory.Add(new List<Vector2Int>(_occupiedCells));
-        }
-
-        private void RecordMovementSnapshot()
-        {
-            _movementHistory?.Add(new List<Vector2Int>(_occupiedCells));
-        }
-
-        private void StartReverseReturn()
-        {
-            if (_movementHistory == null || _movementHistory.Count <= 1)
-            {
-                _animationHelper?.ApplyMistakeVisual(_color);
-                SetState(ArrowState.Idle);
-                OnStopped?.Invoke(this);
-                return;
-            }
-
-            _previousWorldPositions = new List<Vector2>(_cellWorldPositions);
-            _currentHistoryIndex = _movementHistory.Count - 1;
-            _returnStepsRemaining = _movementHistory.Count - 1;
-            _isReturning = true;
-            SetState(ArrowState.Moving);
-
-            StartReverseMoveTween();
-        }
-
-        private void StartReverseMoveTween()
-        {
-            _moveTween?.Kill();
-
-            float duration = 1f / _moveSpeed;
-
-            _moveProgress = 0f;
-            _moveTween = DOTween.To(
-                () => _moveProgress,
-                x =>
-                {
-                    _moveProgress = x;
-                    UpdateReverseReturnAnimation(_moveProgress);
-                },
-                1f,
-                duration
-            )
-            .SetEase(_moveEase)
-            .OnComplete(CompleteReverseStep);
-        }
-
-        private void UpdateReverseReturnAnimation(float t)
-        {
-            if (_previousWorldPositions == null || _currentHistoryIndex <= 0)
-                return;
-
-            List<Vector2Int> targetCells = _movementHistory[_currentHistoryIndex - 1];
-            List<Vector2> targetPositions = new List<Vector2>();
-            foreach (var cell in targetCells)
-            {
-                targetPositions.Add(GridSystem.Instance.GridToWorld(cell));
-            }
-
-            List<Vector2> animatedPositions = new List<Vector2>();
-            int cellCount = Mathf.Max(_previousWorldPositions.Count, targetPositions.Count);
-
-            for (int i = 0; i < cellCount; i++)
-            {
-                Vector2 startPos = i < _previousWorldPositions.Count
-                    ? _previousWorldPositions[i]
-                    : targetPositions[i];
-
-                Vector2 targetPos = i < targetPositions.Count
-                    ? targetPositions[i]
-                    : startPos;
-
-                animatedPositions.Add(Vector2.Lerp(startPos, targetPos, t));
-            }
-
-            UpdateLineRendererWithPositions(animatedPositions);
-        }
-
-        private void CompleteReverseStep()
-        {
-            _currentHistoryIndex--;
-            if (_currentHistoryIndex < 0)
-                _currentHistoryIndex = 0;
-
-            List<Vector2Int> targetCells = _movementHistory[_currentHistoryIndex];
-
-            RegisterOccupiedCells(false);
-            _occupiedCells = new List<Vector2Int>(targetCells);
-            CacheWorldPositions();
-            RegisterOccupiedCells(true);
-
-            if (_occupiedCells.Count > 0)
-            {
-                _headPosition = _occupiedCells[_occupiedCells.Count - 1];
-            }
-
-            _returnStepsRemaining--;
-            _previousWorldPositions = new List<Vector2>(_cellWorldPositions);
-
-            UpdateLineRenderer();
-
-            if (_currentHistoryIndex <= 0 || _returnStepsRemaining <= 0)
-            {
-                RegisterOccupiedCells(false);
-                _occupiedCells = new List<Vector2Int>(_launchOccupiedCells);
-                _cellWorldPositions = new List<Vector2>(_launchWorldPositions);
-                _headPosition = _launchHeadPosition;
-                RegisterOccupiedCells(true);
-
-                _isReturning = false;
-                _movementHistory = null;
-                UpdateLineRenderer();
-
-                _animationHelper?.ApplyMistakeVisual(_color);
-
-                SetState(ArrowState.Idle);
-                OnStopped?.Invoke(this);
-            }
-            else
-            {
-                StartReverseMoveTween();
-            }
-        }
-
         private void CacheWorldPositions()
         {
             _cellWorldPositions = new List<Vector2>();
@@ -474,244 +335,6 @@ namespace BalloonOut.Game.Arrow
 
             _state = newState;
             OnStateChanged?.Invoke(this);
-        }
-
-        private void TryMoveToNext()
-        {
-            Vector2Int nextHeadPos = _headPosition + _moveDirection;
-
-            if (GridSystem.Instance.IsOutOfWorldBounds(nextHeadPos))
-            {
-                if (!_isExtracting)
-                {
-                    _isExtracting = true;
-                    RegisterOccupiedCells(false);
-
-                    Vector2 headWorldPos = GetHeadWorldPosition();
-                    OnExtractionStarted?.Invoke(this, headWorldPos, _headDirection);
-                }
-
-                StartSnakeExtract(nextHeadPos);
-                return;
-            }
-
-            if (!CanMoveTo(nextHeadPos))
-            {
-                bool isArrowCollision = GridSystem.Instance.IsOccupied(nextHeadPos);
-
-                if (isArrowCollision)
-                {
-                    OnCollided?.Invoke(this);
-                }
-                else
-                {
-                    OnWallHit?.Invoke(this);
-                }
-
-                StartReverseReturn();
-                return;
-            }
-
-            StartSnakeMove(nextHeadPos);
-        }
-
-        private void StartSnakeMove(Vector2Int nextHeadPos)
-        {
-            _previousWorldPositions = new List<Vector2>(_cellWorldPositions);
-
-            Vector2Int tailPos = _occupiedCells[0];
-            if (GridSystem.Instance.IsValidPosition(tailPos))
-            {
-                GridSystem.Instance.SetOccupied(tailPos, false);
-            }
-
-            if (GridSystem.Instance.IsValidPosition(nextHeadPos))
-            {
-                GridSystem.Instance.SetOccupied(nextHeadPos, true);
-            }
-
-            SetState(ArrowState.Moving);
-            StartMoveTween();
-        }
-
-        private void StartSnakeExtract(Vector2Int nextHeadPos)
-        {
-            _previousWorldPositions = new List<Vector2>(_cellWorldPositions);
-            SetState(ArrowState.Moving);
-            StartMoveTween();
-        }
-
-        private void StartMoveTween()
-        {
-            _moveTween?.Kill();
-
-            float duration = 1f / _moveSpeed;
-
-            _moveProgress = 0f;
-            _moveTween = DOTween.To(
-                () => _moveProgress,
-                x =>
-                {
-                    _moveProgress = x;
-                    UpdateSnakeAnimation(_moveProgress);
-                },
-                1f,
-                duration
-            )
-            .SetEase(_moveEase)
-            .OnComplete(CompleteOneStep);
-        }
-
-        /// <summary>
-        /// Snake 애니메이션 업데이트 - 경로 기반 슬라이딩
-        /// </summary>
-        private void UpdateSnakeAnimation(float t)
-        {
-            if (_previousWorldPositions == null || _previousWorldPositions.Count == 0)
-                return;
-
-            List<Vector2> animatedPositions = new List<Vector2>();
-            float cellSize = GridSystem.Instance.CellSize;
-
-            Vector2 headStartPos = _previousWorldPositions[_previousWorldPositions.Count - 1];
-            Vector2 headTargetPos = headStartPos + (Vector2)_moveDirection * cellSize;
-
-            if (_isExtracting)
-            {
-                // 탈출 중: 꼬리가 수축하면서 경로를 따라 이동
-                Vector2 tailTargetPos = _previousWorldPositions.Count > 1
-                    ? _previousWorldPositions[1]
-                    : headTargetPos;
-
-                Vector2 shrinkingTailPos = Vector2.Lerp(_previousWorldPositions[0], tailTargetPos, t);
-                animatedPositions.Add(shrinkingTailPos);
-
-                for (int i = 1; i < _previousWorldPositions.Count; i++)
-                {
-                    Vector2 startPos = _previousWorldPositions[i];
-                    Vector2 targetPos = (i == _previousWorldPositions.Count - 1)
-                        ? headTargetPos
-                        : _previousWorldPositions[i + 1];
-
-                    animatedPositions.Add(Vector2.Lerp(startPos, targetPos, t));
-                }
-            }
-            else
-            {
-                // 개선된 경로 기반 슬라이딩
-                List<Vector2> fullPath = new List<Vector2>(_previousWorldPositions);
-                fullPath.Add(headTargetPos);
-
-                int cellCount = _cellWorldPositions.Count;
-
-                for (int i = 0; i < cellCount; i++)
-                {
-                    float virtualIndex = i + t;
-                    Vector2 pos = GetPointOnPath(fullPath, virtualIndex);
-                    animatedPositions.Add(pos);
-                }
-            }
-
-            UpdateLineRendererWithPositions(animatedPositions);
-        }
-
-        /// <summary>
-        /// 경로 상의 특정 위치(index) 좌표를 반환
-        /// </summary>
-        private Vector2 GetPointOnPath(List<Vector2> path, float index)
-        {
-            if (path == null || path.Count == 0)
-                return Vector2.zero;
-
-            if (index <= 0)
-                return path[0];
-            if (index >= path.Count - 1)
-                return path[path.Count - 1];
-
-            int floorIndex = Mathf.FloorToInt(index);
-            float fraction = index - floorIndex;
-
-            Vector2 p0 = path[floorIndex];
-            Vector2 p1 = path[floorIndex + 1];
-
-            return Vector2.Lerp(p0, p1, fraction);
-        }
-
-        private void CompleteOneStep()
-        {
-            Vector2Int nextHeadPos = _headPosition + _moveDirection;
-
-            if (_isExtracting)
-            {
-                if (_occupiedCells.Count > 0)
-                {
-                    _occupiedCells.RemoveAt(0);
-                    _cellWorldPositions.RemoveAt(0);
-                }
-
-                _occupiedCells.Add(nextHeadPos);
-                _cellWorldPositions.Add(GridSystem.Instance.GridToWorld(nextHeadPos));
-                _headPosition = nextHeadPos;
-
-                if (_occupiedCells.Count == 0 || AreAllCellsOutOfBounds())
-                {
-                    SetState(ArrowState.Extracted);
-                    OnExtracted?.Invoke(this);
-                    Destroy(gameObject);
-                    return;
-                }
-
-                _previousWorldPositions = new List<Vector2>(_cellWorldPositions);
-            }
-            else
-            {
-                _occupiedCells.RemoveAt(0);
-                _occupiedCells.Add(nextHeadPos);
-                _headPosition = nextHeadPos;
-
-                CacheWorldPositions();
-                RecordMovementSnapshot();
-                _previousWorldPositions = new List<Vector2>(_cellWorldPositions);
-            }
-
-            UpdateLineRenderer();
-            TryMoveToNext();
-        }
-
-        private bool AreAllCellsOutOfBounds()
-        {
-            foreach (var cell in _occupiedCells)
-            {
-                if (!GridSystem.Instance.IsOutOfWorldBounds(cell))
-                    return false;
-            }
-            return true;
-        }
-
-        private bool CanMoveTo(Vector2Int nextHeadPos)
-        {
-            if (_ignoreCollision)
-                return true;
-
-            if (_occupiedCells.Count > 0 && nextHeadPos == _occupiedCells[0])
-                return true;
-
-            for (int i = 1; i < _occupiedCells.Count; i++)
-            {
-                if (nextHeadPos == _occupiedCells[i])
-                    return false;
-            }
-
-            if (GridSystem.Instance.IsOutOfBounds(nextHeadPos) &&
-                !GridSystem.Instance.IsOutOfWorldBounds(nextHeadPos))
-            {
-                return true;
-            }
-
-            if (GridSystem.Instance.IsOccupied(nextHeadPos))
-                return false;
-
-            return true;
         }
 
         private void RegisterOccupiedCells(bool occupied)
@@ -788,152 +411,74 @@ namespace BalloonOut.Game.Arrow
             _cellColliders.Clear();
         }
 
-        // ========== 입력 처리 ==========
-        private void Update()
+        // ========== 입력 이벤트 핸들러 ==========
+        /// <summary>
+        /// ArrowInput에서 탭 감지 시 호출
+        /// </summary>
+        private void HandleTapDetected()
         {
-            // ===== 1. 입력 감지 =====
-            bool inputDown = false;
-            bool inputUp = false;
-            Vector2 inputPos = Vector2.zero;
+            Debug.Log($"[ArrowController] Arrow {_id} HandleTapDetected, invoking OnTapped");
+            OnTapped?.Invoke(this);
+        }
 
-#if UNITY_EDITOR || UNITY_STANDALONE
-            if (Input.GetMouseButtonDown(0))
+        // ========== 이동 이벤트 핸들러 ==========
+        private void HandlePositionsChanged(List<Vector2> positions)
+        {
+            UpdateLineRendererWithPositions(positions);
+        }
+
+        private void HandleStepComplete()
+        {
+            // ArrowMovement에서 위치 데이터 동기화
+            if (_arrowMovement != null)
             {
-                inputDown = true;
-                inputPos = Input.mousePosition;
+                _occupiedCells = new List<Vector2Int>(_arrowMovement.OccupiedCells);
+                _cellWorldPositions = new List<Vector2>(_arrowMovement.CellWorldPositions);
+                _headPosition = _arrowMovement.HeadPosition;
             }
-            if (Input.GetMouseButtonUp(0))
+            UpdateLineRenderer();
+        }
+
+        private void HandleExtractionStarted()
+        {
+            Vector2 headWorldPos = GetHeadWorldPosition();
+            OnExtractionStarted?.Invoke(this, headWorldPos, _headDirection);
+        }
+
+        private void HandleExtracted()
+        {
+            SetState(ArrowState.Extracted);
+            OnExtracted?.Invoke(this);
+            Destroy(gameObject);
+        }
+
+        private void HandleBlocked(bool isArrowCollision)
+        {
+            if (isArrowCollision)
             {
-                inputUp = true;
-                inputPos = Input.mousePosition;
+                OnCollided?.Invoke(this);
             }
-#else
-            if (Input.touchCount > 0)
+            else
             {
-                Touch touch = Input.GetTouch(0);
-                if (touch.phase == TouchPhase.Began)
-                {
-                    inputDown = true;
-                    inputPos = touch.position;
-                }
-                else if (touch.phase == TouchPhase.Ended || touch.phase == TouchPhase.Canceled)
-                {
-                    inputUp = true;
-                    inputPos = touch.position;
-                }
-            }
-#endif
-
-            // ===== 2. 클릭 시작 처리 (탭 후보 등록) =====
-            if (inputDown)
-            {
-                // 상태 체크 (Idle 상태에서만 탭 가능)
-                if (_state != ArrowState.Idle) return;
-                if (_animationHelper != null && _animationHelper.IsAppearing) return;
-
-                // 화면 좌표를 월드 좌표로 변환
-                Vector3 worldPos3D = Camera.main.ScreenToWorldPoint(inputPos);
-                Vector2 touchWorldPos = new Vector2(worldPos3D.x, worldPos3D.y);
-
-                // 화살표 위에서 시작했는지 확인
-                if (IsTouchOnArrowCells(touchWorldPos))
-                {
-                    // 같은 프레임에서 다른 화살표가 이미 터치됐으면 무시
-                    if (_lastInputFrame == Time.frameCount && _lastTouchedArrow != null)
-                        return;
-
-                    // 탭 후보로 등록
-                    _isPotentialTap = true;
-                    _tapStartScreenPos = inputPos;
-                    _tapStartTime = Time.time;
-                    _lastInputFrame = Time.frameCount;
-                    _lastTouchedArrow = this;
-
-                    Debug.Log($"[ArrowController] Arrow {_id} tap started at {inputPos}");
-                }
-            }
-
-            // ===== 3. 클릭 종료 처리 (탭 판정) =====
-            if (inputUp && _isPotentialTap)
-            {
-                _isPotentialTap = false;
-
-                // 상태 재확인 (드래그 중 상태가 변경됐을 수 있음)
-                if (_state != ArrowState.Idle)
-                {
-                    Debug.Log($"[ArrowController] Arrow {_id} tap cancelled - state changed to {_state}");
-                    return;
-                }
-
-                float distance = Vector2.Distance(inputPos, _tapStartScreenPos);
-                float duration = Time.time - _tapStartTime;
-
-                Debug.Log($"[ArrowController] Arrow {_id} input ended: distance={distance:F1}px, duration={duration:F2}s");
-
-                // 탭 판정: 거리와 시간 모두 임계값 이하
-                if (distance < TAP_MAX_DISTANCE && duration < TAP_MAX_DURATION)
-                {
-                    Debug.Log($"[ArrowController] Arrow {_id} TAP detected! Invoking OnTapped");
-                    OnTapped?.Invoke(this);
-                }
-                else
-                {
-                    Debug.Log($"[ArrowController] Arrow {_id} was DRAG or HOLD, not TAP");
-                }
-            }
-
-            // ===== 4. 탭 취소 조건 =====
-            // 드래그가 감지되면 탭 후보 취소
-            if (_isPotentialTap && CameraController.Instance != null && CameraController.Instance.HasDragged)
-            {
-                Debug.Log($"[ArrowController] Arrow {_id} tap cancelled - drag detected");
-                _isPotentialTap = false;
+                OnWallHit?.Invoke(this);
             }
         }
 
-        /// <summary>
-        /// 터치 위치가 화살표 셀 내에 있는지 확인
-        /// </summary>
-        private bool IsTouchOnArrowCells(Vector2 worldPos)
+        private void HandleReturnComplete()
         {
-            // GridSystem이 없으면 기존 동작 유지 (터치 허용)
-            if (GridSystem.Instance == null)
+            // ArrowMovement에서 위치 데이터 동기화
+            if (_arrowMovement != null)
             {
-                Debug.LogWarning($"[ArrowController] GridSystem.Instance is null, allowing touch");
-                return true;
+                _occupiedCells = new List<Vector2Int>(_arrowMovement.OccupiedCells);
+                _cellWorldPositions = new List<Vector2>(_arrowMovement.CellWorldPositions);
+                _headPosition = _arrowMovement.HeadPosition;
             }
 
-            // _cellWorldPositions가 비어있으면 기존 동작 유지 (터치 허용)
-            if (_cellWorldPositions == null || _cellWorldPositions.Count == 0)
-            {
-                Debug.LogWarning($"[ArrowController] _cellWorldPositions is null or empty for Arrow {_id}, allowing touch");
-                return true;
-            }
+            UpdateLineRenderer();
+            _animationHelper?.ApplyMistakeVisual(_color);
 
-            float cellSize = GridSystem.Instance.CellSize;
-            // 여유분 20% 추가 (터치 영역 확장)
-            float halfCell = cellSize * 0.6f;
-
-            foreach (var cellPos in _cellWorldPositions)
-            {
-                // 셀 중심에서 반경 내에 있는지 확인
-                float dx = Mathf.Abs(worldPos.x - cellPos.x);
-                float dy = Mathf.Abs(worldPos.y - cellPos.y);
-
-                if (dx <= halfCell && dy <= halfCell)
-                {
-                    return true;  // 터치가 이 셀 안에 있음
-                }
-            }
-
-            // 디버그: 첫 번째 셀과의 거리 출력
-            if (_cellWorldPositions.Count > 0)
-            {
-                var firstCell = _cellWorldPositions[0];
-                Debug.Log($"[ArrowController] Arrow {_id}: touch={worldPos}, firstCell={firstCell}, cellSize={cellSize}, halfCell={halfCell}");
-            }
-
-            return false;  // 어떤 셀에도 속하지 않음
+            SetState(ArrowState.Idle);
+            OnStopped?.Invoke(this);
         }
 
         // ========== 에디터 전용 ==========

@@ -14,6 +14,8 @@ GameObject:
   - component: {fileID: -6855559475930686023}
   - component: {fileID: 9008595528271327410}
   - component: {fileID: 4197109924360535689}
+  - component: {fileID: 2522430557595058814}
+  - component: {fileID: -2806948065712774567}
   m_Layer: 0
   m_Name: Arrow
   m_TagString: Untagged
@@ -51,9 +53,9 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   _visualRenderer: {fileID: -8690141840393885430}
   _animationHelper: {fileID: -6855559475930686023}
+  _arrowInput: {fileID: 2522430557595058814}
+  _arrowMovement: {fileID: -2806948065712774567}
   _collider: {fileID: 4197109924360535689}
-  _moveSpeed: 20
-  _moveEase: 6
   _launchPunchScale: 0
   _launchPunchDuration: 0
 --- !u!114 &-8690141840393885430
@@ -242,6 +244,35 @@ BoxCollider2D:
   serializedVersion: 2
   m_Size: {x: 1, y: 1}
   m_EdgeRadius: 0
+--- !u!114 &2522430557595058814
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3427126534941519750}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 995fa369e89fac54cbb957319327bb16, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  _tapMaxDistance: 20
+  _tapMaxDuration: 0.5
+  _touchAreaExpand: 0.2
+--- !u!114 &-2806948065712774567
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3427126534941519750}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 2d4e04b33c1579d4d93ac0bca431c94e, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  _moveSpeed: 20
+  _moveEase: 6
 --- !u!1 &7952769600429014614
 GameObject:
   m_ObjectHideFlags: 0
