@@ -333,21 +333,11 @@ namespace BalloonOut.Game.Arrow
             // 기존 애니메이션 중지
             _hintTween?.Kill();
 
-            // 진동 애니메이션 시작
-            _hintTween = transform.DOShakeScale(0.5f, 0.15f, 10, 90f)
-                .SetLoops(-1, LoopType.Restart);
-
             // 시각적 하이라이트 (VisualRenderer에 위임)
             _visualRenderer?.SetHighlight(true);
 
-            // 3초 후 자동 해제
-            DOVirtual.DelayedCall(3f, () =>
-            {
-                if (_isHintHighlighted)
-                {
-                    HideHintHighlight();
-                }
-            });
+            // 색상 펄스 애니메이션 시작
+            _visualRenderer?.StartPulseAnimation();
 
             Debug.Log($"[ArrowController] Arrow {_id} hint highlight ON");
         }
@@ -364,8 +354,8 @@ namespace BalloonOut.Game.Arrow
             _hintTween?.Kill();
             _hintTween = null;
 
-            // 스케일 복원
-            transform.localScale = Vector3.one;
+            // 색상 펄스 애니메이션 중지
+            _visualRenderer?.StopPulseAnimation();
 
             // 시각적 하이라이트 해제
             _visualRenderer?.SetHighlight(false);

@@ -4,7 +4,6 @@ using DUG;
 
 namespace NGFE.Data
 {
-	[PreferBinarySerialization]
 	public partial class BoosterTable : KeyValueTable<ITEM_TYPE, BoosterTableRecord>
 	{
 		public BoosterTable() : base(nameof(BoosterTableRecord.ItemType))

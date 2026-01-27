@@ -23,6 +23,7 @@ namespace BalloonOut.Core
         [Header("경계 설정")]
         [SerializeField] private float _boundaryPadding = 2f;
         [SerializeField] private float _verticalExtraPadding = 3f;  // 상하 추가 여유 (풍선 UI 영역 고려)
+        [SerializeField] private float _bottomExtraPadding = 5f;  // 하단 추가 여유 (BottomUIBar 고려)
         [SerializeField] private float _minMoveRange = 2f;  // 경계가 카메라보다 작아도 허용되는 최소 이동 범위
 
         [Header("자동 크기 조절")]
@@ -409,9 +410,11 @@ namespace BalloonOut.Core
             float halfHeight = (gridHeight * cellSize) * 0.5f;
 
             // 경계에 패딩 추가
-            float verticalPadding = _boundaryPadding + _verticalExtraPadding;
-            _worldBoundsMin = new Vector2(-halfWidth - _boundaryPadding, -halfHeight - verticalPadding);
-            _worldBoundsMax = new Vector2(halfWidth + _boundaryPadding, halfHeight + verticalPadding);
+            // 상단 경계를 더 넓게: 카메라가 위로 이동하면 그리드가 아래로 내려가 BottomUIBar 뒤로 감
+            float topPadding = _boundaryPadding + _verticalExtraPadding + _bottomExtraPadding;
+            float bottomPadding = _boundaryPadding + _verticalExtraPadding;
+            _worldBoundsMin = new Vector2(-halfWidth - _boundaryPadding, -halfHeight - bottomPadding);
+            _worldBoundsMax = new Vector2(halfWidth + _boundaryPadding, halfHeight + topPadding);
             _hasBounds = true;
 
             Debug.Log($"[CameraController] World bounds set: min={_worldBoundsMin}, max={_worldBoundsMax}");

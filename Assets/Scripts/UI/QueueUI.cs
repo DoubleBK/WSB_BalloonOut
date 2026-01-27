@@ -369,7 +369,8 @@ namespace BalloonOut.UI
 
             if (_balloonPrefab != null)
             {
-                balloonObj = Instantiate(_balloonPrefab, parent);
+                balloonObj = Instantiate(_balloonPrefab);
+                balloonObj.transform.SetParent(parent, false);  // worldPositionStays = false
 
                 // 프리팹의 원본 크기 사용
                 var prefabRect = balloonObj.GetComponent<RectTransform>();
@@ -377,6 +378,13 @@ namespace BalloonOut.UI
                 {
                     targetWidth = prefabRect.sizeDelta.x;
                     targetHeight = prefabRect.sizeDelta.y;
+
+                    // 앵커를 부모 하단 중앙으로 명시적 설정
+                    // (LayoutGroup 제거 후 RestoreBalloon 시점에 올바른 위치 보장)
+                    prefabRect.anchorMin = new Vector2(0.5f, 0f);
+                    prefabRect.anchorMax = new Vector2(0.5f, 0f);
+                    prefabRect.pivot = new Vector2(0.5f, 0f);
+                    prefabRect.anchoredPosition = Vector2.zero;  // 앵커 변경 후 위치 리셋
                 }
                 else
                 {
@@ -655,6 +663,14 @@ namespace BalloonOut.UI
                 var balloonObj = CreateBalloon(laneContainer, color);
                 var image = balloonObj.GetComponent<Image>();
 
+                // 초기 위치를 활성 풍선 위치 아래로 설정 (등장 전 숨김)
+                var newRect = balloonObj.GetComponent<RectTransform>();
+                if (newRect != null)
+                {
+                    Vector2 targetPos = CalculateBalloonPosition(laneIndex, 0);
+                    newRect.anchoredPosition = targetPos - new Vector2(0, _balloonSize);
+                }
+
                 // 목록 맨 앞에 삽입
                 balloonList.Insert(0, image);
 
@@ -688,22 +704,13 @@ namespace BalloonOut.UI
                 var rect = balloon.GetComponent<RectTransform>();
                 if (rect == null) continue;
 
-                // 새로운 위치 계산
+                // 새로운 목표 위치 계산
                 Vector2 targetPos = CalculateBalloonPosition(laneIdx, i);
 
-                if (i == 0)
-                {
-                    // 새로 추가된 풍선: 아래에서 등장
-                    Vector2 startPos = targetPos - new Vector2(0, _balloonSize);
-                    rect.anchoredPosition = startPos;
-                    StartCoroutine(SlideBalloonCoroutine(rect, startPos, targetPos));
-                }
-                else
-                {
-                    // 기존 풍선들: 위로 이동
-                    Vector2 currentPos = rect.anchoredPosition;
-                    StartCoroutine(SlideBalloonCoroutine(rect, currentPos, targetPos));
-                }
+                // 현재 위치에서 목표 위치로 애니메이션
+                // (새 풍선은 RestoreBalloon에서 이미 아래쪽에 배치됨)
+                Vector2 currentPos = rect.anchoredPosition;
+                StartCoroutine(SlideBalloonCoroutine(rect, currentPos, targetPos));
             }
         }
 

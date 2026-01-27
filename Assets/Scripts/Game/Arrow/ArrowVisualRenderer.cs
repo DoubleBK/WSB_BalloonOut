@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.U2D;
+using DG.Tweening;
 using BalloonOut.Core;
 using BalloonOut.Game.Grid;
 
@@ -236,6 +237,7 @@ namespace BalloonOut.Game.Arrow
         // ========== 힌트 하이라이트 ==========
         private Color _originalColor;
         private bool _isHighlighted;
+        private Tween _pulseTween;
 
         /// <summary>
         /// 하이라이트 설정 (Hint용)
@@ -259,6 +261,46 @@ namespace BalloonOut.Game.Arrow
                 // 원본 색상 복원
                 ApplyHighlightColor(_originalColor);
             }
+        }
+
+        /// <summary>
+        /// 색상 펄스 애니메이션 시작
+        /// </summary>
+        public void StartPulseAnimation()
+        {
+            StopPulseAnimation();
+
+            // 밝기 0.3 ~ 1.0 사이로 펄스
+            float brightness = 0.5f;
+            _pulseTween = DOTween.To(
+                () => brightness,
+                x =>
+                {
+                    brightness = x;
+                    ApplyBrightness(x);
+                },
+                1f,
+                0.5f)
+                .SetLoops(-1, LoopType.Yoyo)
+                .SetEase(Ease.InOutSine);
+        }
+
+        /// <summary>
+        /// 색상 펄스 애니메이션 중지
+        /// </summary>
+        public void StopPulseAnimation()
+        {
+            _pulseTween?.Kill();
+            _pulseTween = null;
+        }
+
+        /// <summary>
+        /// 밝기 적용 (0.3 = 어둡게, 1.0 = 원본)
+        /// </summary>
+        private void ApplyBrightness(float brightness)
+        {
+            Color targetColor = Color.Lerp(_originalColor * 0.5f, Color.Lerp(_originalColor, Color.white, 0.5f), brightness);
+            ApplyHighlightColor(targetColor);
         }
 
         private void ApplyHighlightColor(Color color)

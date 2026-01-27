@@ -20,6 +20,7 @@ namespace BalloonOut.Core
         public event Action<ITEM_TYPE, int> OnBoosterQuantityChanged;
         public event Action<bool> OnUndoAvailabilityChanged;
         public event Action<ArrowController> OnHintArrowSelected;
+        public event Action OnHintCleared;
 
         // ========== 참조 ==========
         [Header("References")]
@@ -34,6 +35,7 @@ namespace BalloonOut.Core
         // ========== 프로퍼티 ==========
         public bool CanUndo => !_isUndoInProgress && _undoHistory != null && _undoHistory.HasHistory;
         public int UndoHistoryCount => _undoHistory?.HistoryCount ?? 0;
+        public bool IsHintActive => _currentHintArrow != null;
 
         // ========== 유니티 라이프사이클 ==========
         private void Awake()
@@ -98,6 +100,9 @@ namespace BalloonOut.Core
         {
             if (arrow == null) return;
 
+            // 힌트 화살표가 탈출했으면 하이라이트 해제
+            ClearHintHighlight();
+
             BalloonSnapshot balloonSnapshot = null;
             if (wasMatch && laneIndex >= 0)
             {
@@ -116,6 +121,9 @@ namespace BalloonOut.Core
         public void RecordArrowEscapeFromSnapshot(ArrowSnapshot arrowSnapshot, bool wasMatch, int laneIndex = -1)
         {
             if (arrowSnapshot == null) return;
+
+            // 힌트 화살표가 탈출했으면 하이라이트 해제
+            ClearHintHighlight();
 
             BalloonSnapshot balloonSnapshot = null;
             if (wasMatch && laneIndex >= 0)
@@ -175,14 +183,8 @@ namespace BalloonOut.Core
         {
             if (arrowSnapshot == null || GameManager.Instance == null) return;
 
-            // ArrowData로 변환
             var arrowData = arrowSnapshot.ToArrowData();
-
-            // GameManager를 통해 화살표 스폰
-            // Note: GameManager에 SpawnArrow 메서드를 공개해야 함
-            Debug.Log($"[BoosterManager] Restoring arrow: ID={arrowSnapshot.ArrowId}, Color={arrowSnapshot.Color}");
-
-            // TODO: GameManager.Instance.RestoreArrow(arrowSnapshot.ArrowId, arrowData);
+            GameManager.Instance.RestoreArrow(arrowSnapshot.ArrowId, arrowData);
         }
 
         private void RestoreBalloon(BalloonSnapshot balloonSnapshot)
@@ -242,6 +244,7 @@ namespace BalloonOut.Core
             {
                 _currentHintArrow.HideHintHighlight();
                 _currentHintArrow = null;
+                OnHintCleared?.Invoke();
             }
         }
 

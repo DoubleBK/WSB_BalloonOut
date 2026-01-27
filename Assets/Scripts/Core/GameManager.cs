@@ -277,6 +277,44 @@ namespace BalloonOut.Core
         }
 
         /// <summary>
+        /// 화살표 복원 (Undo용) - 기존 ID와 데이터로 화살표를 다시 생성
+        /// </summary>
+        public ArrowController RestoreArrow(int id, ArrowData data)
+        {
+            GameObject arrowObj;
+
+            if (_arrowPrefab != null)
+            {
+                arrowObj = Instantiate(_arrowPrefab, _arrowContainer);
+            }
+            else
+            {
+                arrowObj = new GameObject($"Arrow_{id}");
+                arrowObj.transform.SetParent(_arrowContainer);
+                arrowObj.AddComponent<ArrowController>();
+            }
+
+            var controller = arrowObj.GetComponent<ArrowController>();
+            if (controller == null)
+            {
+                controller = arrowObj.AddComponent<ArrowController>();
+            }
+
+            controller.Initialize(id, data);
+            controller.OnTapped += OnArrowTapped;
+
+            if (_useHomingArrow && _homingArrowSpawner != null)
+            {
+                controller.OnExtractionStarted += OnArrowExtractionStartedHandler;
+            }
+
+            _arrows.Add(controller);
+
+            Debug.Log($"[GameManager] Arrow restored: ID={id}, Color={data.Color}, Direction={data.Direction}");
+            return controller;
+        }
+
+        /// <summary>
         /// 화살표 탈출 시작 이벤트 핸들러 (HomingArrow 전환용)
         /// </summary>
         private void OnArrowExtractionStartedHandler(ArrowController arrow, Vector2 headPos, ArrowDirection exitDir)
@@ -404,24 +442,26 @@ namespace BalloonOut.Core
         /// </summary>
         private void OnHomingHitTargetHandler(HomingArrow homingArrow, GameColor color)
         {
-            // 풍선 팝 시도 (레인 인덱스 포함)
+            // 팝 전에 레인 인덱스 캡처 (Undo 복원용)
+            int prePoppedLaneIndex = _queueUI?.FindLaneWithActiveBalloon(color) ?? -1;
+
+            // 풍선 팝 시도
             bool wasMatch = false;
-            int poppedLaneIndex = -1;
             if (_queueUI != null)
             {
-                wasMatch = _queueUI.TryPopBalloon(color, out poppedLaneIndex);
+                wasMatch = _queueUI.TryPopBalloon(color, out _);
             }
 
-            // Undo 히스토리 기록 (스냅샷 버전 - 화살표가 이미 파괴됨)
+            // Undo 히스토리 기록 (팝 전 캡처한 레인 인덱스 사용)
             if (BoosterManager.Instance != null && homingArrow != null && homingArrow.SourceArrowSnapshot != null)
             {
-                BoosterManager.Instance.RecordArrowEscapeFromSnapshot(homingArrow.SourceArrowSnapshot, wasMatch, poppedLaneIndex);
+                BoosterManager.Instance.RecordArrowEscapeFromSnapshot(homingArrow.SourceArrowSnapshot, wasMatch, prePoppedLaneIndex);
             }
 
             OnArrowEscaped?.Invoke(color, wasMatch);
             CheckWinCondition();
 
-            Debug.Log(wasMatch ? $"HomingArrow POP! Color: {color}, Lane: {poppedLaneIndex}" : $"HomingArrow missed! Color: {color}");
+            Debug.Log(wasMatch ? $"HomingArrow POP! Color: {color}, Lane: {prePoppedLaneIndex}" : $"HomingArrow missed! Color: {color}");
             // _isProcessing은 OnArrowExtractedHandler에서 이미 false로 설정됨
             // 화살표 탈출 즉시 다음 입력 허용
         }

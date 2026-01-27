@@ -50,6 +50,7 @@ namespace BalloonOut.UI
         // ========== 유니티 라이프사이클 ==========
         private void Start()
         {
+            SetupSortingOrder();
             InitializeCanvasGroups();
             BindButtons();
             SubscribeEvents();
@@ -63,6 +64,24 @@ namespace BalloonOut.UI
         }
 
         // ========== 초기화 ==========
+        private void SetupSortingOrder()
+        {
+            // BottomUIBar가 화살표(sortingOrder 1-2) 위에 렌더링되도록 설정
+            var canvas = GetComponent<Canvas>();
+            if (canvas == null)
+            {
+                canvas = gameObject.AddComponent<Canvas>();
+            }
+            canvas.overrideSorting = true;
+            canvas.sortingOrder = 110;  // 화살표(1-2), HomingArrow(100)보다 높게
+
+            // 버튼 클릭이 유지되도록 GraphicRaycaster 추가
+            if (GetComponent<GraphicRaycaster>() == null)
+            {
+                gameObject.AddComponent<GraphicRaycaster>();
+            }
+        }
+
         private void InitializeCanvasGroups()
         {
             _undoCanvasGroup = GetOrAddCanvasGroup(_undoButton);
@@ -105,6 +124,8 @@ namespace BalloonOut.UI
             {
                 BoosterManager.Instance.OnBoosterQuantityChanged += OnQuantityChanged;
                 BoosterManager.Instance.OnUndoAvailabilityChanged += OnUndoAvailabilityChanged;
+                BoosterManager.Instance.OnHintArrowSelected += OnHintArrowSelected;
+                BoosterManager.Instance.OnHintCleared += OnHintCleared;
             }
 
             if (GameManager.Instance != null)
@@ -119,6 +140,8 @@ namespace BalloonOut.UI
             {
                 BoosterManager.Instance.OnBoosterQuantityChanged -= OnQuantityChanged;
                 BoosterManager.Instance.OnUndoAvailabilityChanged -= OnUndoAvailabilityChanged;
+                BoosterManager.Instance.OnHintArrowSelected -= OnHintArrowSelected;
+                BoosterManager.Instance.OnHintCleared -= OnHintCleared;
             }
 
             if (GameManager.Instance != null)
@@ -201,7 +224,8 @@ namespace BalloonOut.UI
 
         private void UpdateHintButtonState()
         {
-            bool canUseHint = GameManager.Instance?.State == GameState.Playing;
+            bool canUseHint = GameManager.Instance?.State == GameState.Playing
+                && !(BoosterManager.Instance?.IsHintActive ?? false);
             UpdateButtonState(
                 ITEM_TYPE.HINT,
                 _hintButton,
@@ -286,10 +310,12 @@ namespace BalloonOut.UI
                 return hasQuantity && isUnlocked && BoosterManager.Instance.CanUndo;
             }
 
-            // Hint 추가 조건: 게임 진행 중이어야 함
+            // Hint 추가 조건: 게임 진행 중 + 힌트 미활성 상태
             if (itemType == ITEM_TYPE.HINT)
             {
-                return hasQuantity && isUnlocked && GameManager.Instance?.State == GameState.Playing;
+                return hasQuantity && isUnlocked
+                    && GameManager.Instance?.State == GameState.Playing
+                    && !(BoosterManager.Instance?.IsHintActive ?? false);
             }
 
             return hasQuantity && isUnlocked;
@@ -318,6 +344,16 @@ namespace BalloonOut.UI
         private void OnUndoAvailabilityChanged(bool canUndo)
         {
             UpdateUndoButtonState();
+        }
+
+        private void OnHintArrowSelected(Game.Arrow.ArrowController arrow)
+        {
+            UpdateHintButtonState();
+        }
+
+        private void OnHintCleared()
+        {
+            UpdateHintButtonState();
         }
 
         private void OnGameStateChanged(GameState newState)

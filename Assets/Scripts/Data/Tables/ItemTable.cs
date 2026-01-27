@@ -4,7 +4,6 @@ using DUG;
 
 namespace NGFE.Data
 {
-	[PreferBinarySerialization]
 	public partial class ItemTable : KeyValueTable<ITEM_TYPE, ItemTableRecord>
 	{
 		public ItemTable() : base(nameof(ItemTableRecord.ItemType))

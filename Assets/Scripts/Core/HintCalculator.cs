@@ -101,7 +101,7 @@ namespace BalloonOut.Core
 
             var headPos = arrow.HeadPosition;
             var direction = DIR_VECTORS[arrow.HeadDirection];
-            int gridSize = GridSystem.Instance.GridSize;
+            int gridSize = GridSystem.Instance.GridWidth;
 
             // 다른 화살표들이 차지하는 셀들
             var occupiedCells = new HashSet<Vector2Int>();
@@ -146,17 +146,24 @@ namespace BalloonOut.Core
                 arrowContainer = GameObject.Find("Arrows");
             }
 
+            List<ArrowController> arrows;
             if (arrowContainer == null)
             {
                 // 모든 ArrowController 찾기
-                return Object.FindObjectsOfType<ArrowController>()
+                arrows = Object.FindObjectsOfType<ArrowController>()
+                    .Where(a => a.State == ArrowState.Idle)
+                    .ToList();
+            }
+            else
+            {
+                arrows = arrowContainer.GetComponentsInChildren<ArrowController>()
                     .Where(a => a.State == ArrowState.Idle)
                     .ToList();
             }
 
-            return arrowContainer.GetComponentsInChildren<ArrowController>()
-                .Where(a => a.State == ArrowState.Idle)
-                .ToList();
+            // ID 순으로 정렬하여 Undo 복원 후에도 동일한 탐색 순서 보장
+            arrows.Sort((a, b) => a.Id.CompareTo(b.Id));
+            return arrows;
         }
 
         /// <summary>
