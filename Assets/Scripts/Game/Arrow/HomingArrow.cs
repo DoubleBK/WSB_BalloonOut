@@ -48,12 +48,16 @@ namespace BalloonOut.Game.Arrow
         private Vector3 _targetPosition;
         private QueueUI _queueUI;
 
+        // 원본 화살표 스냅샷 (Undo용)
+        private ArrowSnapshot _sourceArrowSnapshot;
+
         // ========== 이벤트 ==========
         public event Action<HomingArrow, GameColor> OnHitTarget;
 
         // ========== 프로퍼티 ==========
         public GameColor Color => _color;
         public bool IsHoming => _isHoming;
+        public ArrowSnapshot SourceArrowSnapshot => _sourceArrowSnapshot;
 
         // ========== 유니티 라이프사이클 ==========
         private void Awake()
@@ -93,12 +97,14 @@ namespace BalloonOut.Game.Arrow
             Vector2 exitDirection,
             QueueUI queueUI,
             GameColor color,
-            int arrowLength)
+            int arrowLength,
+            ArrowSnapshot sourceArrowSnapshot = null)
         {
             _startPosition = arrowHeadPos;
             _queueUI = queueUI;
             _color = color;
             _originalArrowLength = arrowLength;
+            _sourceArrowSnapshot = sourceArrowSnapshot;
             _progress = 0f;
             _isHoming = true;
 

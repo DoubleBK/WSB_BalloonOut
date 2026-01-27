@@ -74,6 +74,19 @@ namespace BalloonOut.UI
         /// <returns>성공 여부</returns>
         public bool TryPopBalloon(GameColor color)
         {
+            return TryPopBalloon(color, out _);
+        }
+
+        /// <summary>
+        /// 풍선 팝 시도 (레인 인덱스 반환)
+        /// </summary>
+        /// <param name="color">터뜨릴 색상</param>
+        /// <param name="poppedLaneIndex">팝된 레인 인덱스 (-1 if not popped)</param>
+        /// <returns>성공 여부</returns>
+        public bool TryPopBalloon(GameColor color, out int poppedLaneIndex)
+        {
+            poppedLaneIndex = -1;
+
             for (int laneIdx = 0; laneIdx < _lanes.Count; laneIdx++)
             {
                 var lane = _lanes[laneIdx];
@@ -82,6 +95,7 @@ namespace BalloonOut.UI
                 {
                     // 첫 번째 풍선 팝
                     lane.RemoveAt(0);
+                    poppedLaneIndex = laneIdx;
 
                     // UI 업데이트
                     if (_balloonImages.Count > laneIdx && _balloonImages[laneIdx].Count > 0)
@@ -577,6 +591,136 @@ namespace BalloonOut.UI
             Destroy(balloon);
             // 슬라이드 애니메이션이 위치 이동을 처리하므로
             // LayoutRebuilder 즉시 갱신은 제거됨
+        }
+
+        // ========== 부스터 지원 메서드 ==========
+
+        /// <summary>
+        /// 활성 풍선 색상 목록 반환 (Hint용)
+        /// 각 레인의 첫 번째 풍선(활성) 색상들
+        /// </summary>
+        public List<GameColor> GetActiveBalloonColors()
+        {
+            var colors = new List<GameColor>();
+
+            foreach (var lane in _lanes)
+            {
+                if (lane.Count > 0)
+                {
+                    colors.Add(lane[0]);
+                }
+            }
+
+            return colors;
+        }
+
+        /// <summary>
+        /// 풍선 복원 (Undo용)
+        /// 지정된 레인의 맨 앞에 풍선 추가
+        /// </summary>
+        public void RestoreBalloon(GameColor color, int laneIndex)
+        {
+            if (laneIndex < 0 || laneIndex >= _lanes.Count)
+            {
+                Debug.LogWarning($"[QueueUI] Invalid lane index for restore: {laneIndex}");
+                return;
+            }
+
+            // 데이터 복원 - 맨 앞에 삽입
+            _lanes[laneIndex].Insert(0, color);
+
+            // UI 복원
+            if (_balloonImages.Count > laneIndex)
+            {
+                var balloonList = _balloonImages[laneIndex];
+
+                // 레인 컨테이너 찾기
+                Transform laneContainer = null;
+                if (balloonList.Count > 0 && balloonList[0] != null)
+                {
+                    laneContainer = balloonList[0].transform.parent;
+                }
+                else if (_lanesContainer != null && _lanesContainer.childCount > laneIndex)
+                {
+                    laneContainer = _lanesContainer.GetChild(laneIndex);
+                }
+
+                if (laneContainer == null)
+                {
+                    Debug.LogWarning("[QueueUI] Could not find lane container for restore");
+                    return;
+                }
+
+                // 새 풍선 생성
+                var balloonObj = CreateBalloon(laneContainer, color);
+                var image = balloonObj.GetComponent<Image>();
+
+                // 목록 맨 앞에 삽입
+                balloonList.Insert(0, image);
+
+                // 렌더링 순서 조정 (앞 풍선이 위에 표시)
+                if (_enableOverlap)
+                {
+                    image.transform.SetAsLastSibling();
+                }
+
+                // 기존 풍선들 위치 조정 (위로 이동)
+                AnimateBalloonsAfterRestore(balloonList, laneIndex);
+
+                Debug.Log($"[QueueUI] Balloon restored: Color={color}, Lane={laneIndex}");
+            }
+
+            UpdateHeadHighlights();
+        }
+
+        /// <summary>
+        /// 복원 후 풍선들 위치 애니메이션
+        /// </summary>
+        private void AnimateBalloonsAfterRestore(List<Image> balloons, int laneIdx)
+        {
+            if (balloons == null || balloons.Count == 0) return;
+
+            for (int i = 0; i < balloons.Count; i++)
+            {
+                var balloon = balloons[i];
+                if (balloon == null) continue;
+
+                var rect = balloon.GetComponent<RectTransform>();
+                if (rect == null) continue;
+
+                // 새로운 위치 계산
+                Vector2 targetPos = CalculateBalloonPosition(laneIdx, i);
+
+                if (i == 0)
+                {
+                    // 새로 추가된 풍선: 아래에서 등장
+                    Vector2 startPos = targetPos - new Vector2(0, _balloonSize);
+                    rect.anchoredPosition = startPos;
+                    StartCoroutine(SlideBalloonCoroutine(rect, startPos, targetPos));
+                }
+                else
+                {
+                    // 기존 풍선들: 위로 이동
+                    Vector2 currentPos = rect.anchoredPosition;
+                    StartCoroutine(SlideBalloonCoroutine(rect, currentPos, targetPos));
+                }
+            }
+        }
+
+        /// <summary>
+        /// 특정 색상의 활성 풍선이 있는 레인 인덱스 반환
+        /// </summary>
+        public int FindLaneWithActiveBalloon(GameColor color)
+        {
+            for (int laneIdx = 0; laneIdx < _lanes.Count; laneIdx++)
+            {
+                var lane = _lanes[laneIdx];
+                if (lane.Count > 0 && lane[0] == color)
+                {
+                    return laneIdx;
+                }
+            }
+            return -1;
         }
 
         /// <summary>

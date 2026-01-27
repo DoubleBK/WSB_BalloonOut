@@ -199,6 +199,12 @@ namespace BalloonOut.Core
             // 게임 상태 변경
             SetState(GameState.Playing);
 
+            // BoosterManager 초기화 (Undo 히스토리 클리어)
+            if (BoosterManager.Instance != null)
+            {
+                BoosterManager.Instance.OnLevelStart();
+            }
+
             Debug.Log($"Level initialized: {levelData.name}");
         }
 
@@ -320,6 +326,12 @@ namespace BalloonOut.Core
 
             _isProcessing = true;
 
+            // 힌트 하이라이트 해제
+            if (BoosterManager.Instance != null)
+            {
+                BoosterManager.Instance.ClearHintHighlight();
+            }
+
             // 이벤트 구독
             arrow.OnExtracted += OnArrowExtractedHandler;
             arrow.OnStopped += OnArrowStoppedHandler;
@@ -392,17 +404,24 @@ namespace BalloonOut.Core
         /// </summary>
         private void OnHomingHitTargetHandler(HomingArrow homingArrow, GameColor color)
         {
-            // 풍선 팝 시도
+            // 풍선 팝 시도 (레인 인덱스 포함)
             bool wasMatch = false;
+            int poppedLaneIndex = -1;
             if (_queueUI != null)
             {
-                wasMatch = _queueUI.TryPopBalloon(color);
+                wasMatch = _queueUI.TryPopBalloon(color, out poppedLaneIndex);
+            }
+
+            // Undo 히스토리 기록 (스냅샷 버전 - 화살표가 이미 파괴됨)
+            if (BoosterManager.Instance != null && homingArrow != null && homingArrow.SourceArrowSnapshot != null)
+            {
+                BoosterManager.Instance.RecordArrowEscapeFromSnapshot(homingArrow.SourceArrowSnapshot, wasMatch, poppedLaneIndex);
             }
 
             OnArrowEscaped?.Invoke(color, wasMatch);
             CheckWinCondition();
 
-            Debug.Log(wasMatch ? $"HomingArrow POP! Color: {color}" : $"HomingArrow missed! Color: {color}");
+            Debug.Log(wasMatch ? $"HomingArrow POP! Color: {color}, Lane: {poppedLaneIndex}" : $"HomingArrow missed! Color: {color}");
             // _isProcessing은 OnArrowExtractedHandler에서 이미 false로 설정됨
             // 화살표 탈출 즉시 다음 입력 허용
         }

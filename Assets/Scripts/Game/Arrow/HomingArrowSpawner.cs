@@ -5,6 +5,7 @@ using DG.Tweening;
 using BalloonOut.Core;
 using BalloonOut.Game.Grid;
 using BalloonOut.UI;
+using BalloonOut.Data;
 
 namespace BalloonOut.Game.Arrow
 {
@@ -74,6 +75,9 @@ namespace BalloonOut.Game.Arrow
             Vector2 exitDirection = GetDirectionVector(exitDir);
             Vector2 initialHeadPos = arrow.GetHeadWorldPosition();
 
+            // Undo용 스냅샷 생성 (Arrow 파괴 전에!)
+            ArrowSnapshot arrowSnapshot = ArrowSnapshot.CreateFromController(arrow);
+
             Debug.Log($"[HomingArrowSpawner] DelayedArrowTransition started: color={color}, initialPos={initialHeadPos}");
 
             // 딜레이 대기
@@ -106,7 +110,7 @@ namespace BalloonOut.Game.Arrow
             // HomingArrow 생성 (Arrow 존재 여부와 무관하게 항상 생성)
             if (_queueUI != null && _homingArrowPrefab != null)
             {
-                StartCoroutine(SpawnHomingArrowAtPosition(spawnPosition, exitDirection, color, arrowLength));
+                StartCoroutine(SpawnHomingArrowAtPosition(spawnPosition, exitDirection, color, arrowLength, arrowSnapshot));
             }
             else
             {
@@ -121,7 +125,8 @@ namespace BalloonOut.Game.Arrow
             Vector2 position,
             Vector2 exitDirection,
             GameColor color,
-            int arrowLength)
+            int arrowLength,
+            ArrowSnapshot arrowSnapshot)
         {
             yield return new WaitForSeconds(_spawnDelay);
 
@@ -141,13 +146,14 @@ namespace BalloonOut.Game.Arrow
                 homingArrow.transform.localScale = Vector3.zero;
                 homingArrow.transform.DOScale(1f, _scaleUpDuration).SetEase(Ease.OutBack);
 
-                // Arrow 위치에서 호밍 시작
+                // Arrow 위치에서 호밍 시작 (스냅샷 포함)
                 homingArrow.StartHomingFromArrowPosition(
                     position,
                     exitDirection,
                     _queueUI,
                     color,
-                    arrowLength
+                    arrowLength,
+                    arrowSnapshot
                 );
                 homingArrow.OnHitTarget += HandleHomingHitTarget;
 

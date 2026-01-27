@@ -233,6 +233,52 @@ namespace BalloonOut.Game.Arrow
             }
         }
 
+        // ========== 힌트 하이라이트 ==========
+        private Color _originalColor;
+        private bool _isHighlighted;
+
+        /// <summary>
+        /// 하이라이트 설정 (Hint용)
+        /// </summary>
+        public void SetHighlight(bool highlight)
+        {
+            if (_isHighlighted == highlight) return;
+            _isHighlighted = highlight;
+
+            if (highlight)
+            {
+                // 원본 색상 저장
+                _originalColor = _currentColor;
+
+                // 밝은 흰색으로 하이라이트
+                Color highlightColor = Color.Lerp(_currentColor, Color.white, 0.5f);
+                ApplyHighlightColor(highlightColor);
+            }
+            else
+            {
+                // 원본 색상 복원
+                ApplyHighlightColor(_originalColor);
+            }
+        }
+
+        private void ApplyHighlightColor(Color color)
+        {
+            if (_useSpriteShape && _shapeRenderer != null)
+            {
+                _shapeRenderer.color = color;
+            }
+            else if (_lineRenderer != null)
+            {
+                _lineRenderer.startColor = color;
+                _lineRenderer.endColor = color;
+            }
+
+            if (_headRenderer != null)
+            {
+                _headRenderer.color = color;
+            }
+        }
+
         /// <summary>
         /// 현재 Spline 포인트 목록 반환
         /// </summary>

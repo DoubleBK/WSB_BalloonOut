@@ -318,6 +318,61 @@ namespace BalloonOut.Game.Arrow
             _occupiedCells?.Clear();
         }
 
+        // ========== 힌트 하이라이트 ==========
+        private Tween _hintTween;
+        private bool _isHintHighlighted;
+
+        /// <summary>
+        /// 힌트 하이라이트 표시
+        /// </summary>
+        public void ShowHintHighlight()
+        {
+            if (_isHintHighlighted) return;
+            _isHintHighlighted = true;
+
+            // 기존 애니메이션 중지
+            _hintTween?.Kill();
+
+            // 진동 애니메이션 시작
+            _hintTween = transform.DOShakeScale(0.5f, 0.15f, 10, 90f)
+                .SetLoops(-1, LoopType.Restart);
+
+            // 시각적 하이라이트 (VisualRenderer에 위임)
+            _visualRenderer?.SetHighlight(true);
+
+            // 3초 후 자동 해제
+            DOVirtual.DelayedCall(3f, () =>
+            {
+                if (_isHintHighlighted)
+                {
+                    HideHintHighlight();
+                }
+            });
+
+            Debug.Log($"[ArrowController] Arrow {_id} hint highlight ON");
+        }
+
+        /// <summary>
+        /// 힌트 하이라이트 해제
+        /// </summary>
+        public void HideHintHighlight()
+        {
+            if (!_isHintHighlighted) return;
+            _isHintHighlighted = false;
+
+            // 애니메이션 중지
+            _hintTween?.Kill();
+            _hintTween = null;
+
+            // 스케일 복원
+            transform.localScale = Vector3.one;
+
+            // 시각적 하이라이트 해제
+            _visualRenderer?.SetHighlight(false);
+
+            Debug.Log($"[ArrowController] Arrow {_id} hint highlight OFF");
+        }
+
         // ========== 내부 유틸리티 ==========
         private void CacheWorldPositions()
         {
