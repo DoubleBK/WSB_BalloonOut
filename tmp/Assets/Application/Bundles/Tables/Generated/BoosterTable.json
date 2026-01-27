@@ -1,0 +1,34 @@
+[
+	{
+		"ItemType": 201,
+		"ItemCategory": 2,
+		"ViewOrder": 1,
+		"InitAmount": 10,
+		"UnlockStage": 1,
+		"BuyGivenQty": 1
+	},
+	{
+		"ItemType": 202,
+		"ItemCategory": 2,
+		"ViewOrder": 2,
+		"InitAmount": 10,
+		"UnlockStage": 1,
+		"BuyGivenQty": 1
+	},
+	{
+		"ItemType": 203,
+		"ItemCategory": 2,
+		"ViewOrder": 3,
+		"InitAmount": 10,
+		"UnlockStage": 1,
+		"BuyGivenQty": 1
+	},
+	{
+		"ItemType": 204,
+		"ItemCategory": 2,
+		"ViewOrder": 4,
+		"InitAmount": 10,
+		"UnlockStage": 1,
+		"BuyGivenQty": 1
+	}
+]

@@ -1,0 +1,32 @@
+[
+	{
+		"ItemType": 101,
+		"Category": 1,
+		"PRICE": 500
+	},
+	{
+		"ItemType": 102,
+		"Category": 1,
+		"PRICE": 500
+	},
+	{
+		"ItemType": 201,
+		"Category": 2,
+		"PRICE": 500
+	},
+	{
+		"ItemType": 202,
+		"Category": 2,
+		"PRICE": 500
+	},
+	{
+		"ItemType": 203,
+		"Category": 2,
+		"PRICE": 500
+	},
+	{
+		"ItemType": 204,
+		"Category": 2,
+		"PRICE": 500
+	}
+]
