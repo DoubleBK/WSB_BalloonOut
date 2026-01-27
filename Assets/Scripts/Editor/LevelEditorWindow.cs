@@ -49,7 +49,7 @@ namespace BalloonOut.Editor
         private float _genBranchingChance = 0.4f;
 
         // Validation 캐시
-        private LevelGenerator.ValidationResult _cachedValidation;
+        private LevelValidator.ValidationResult _cachedValidation;
         private bool _validationDirty = true;
 
         // 레벨 목록
