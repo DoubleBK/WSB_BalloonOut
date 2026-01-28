@@ -10,86 +10,87 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 95a8d77c43572b24994755a6f515373f, type: 3}
-  m_Name: stage_000008
+  m_Name: stage_000012
   m_EditorClassIdentifier: 
-  stageName: 000008
-  gridSize: 6
+  stageName: 000012
+  gridSize: 7
   lanes:
   - balloons:
-    - O
+    - G
+    - G
     - Y
-    - R
+  - balloons:
+    - O
+    - B
   - balloons:
     - G
-    - O
-    - Y
-    - Y
+    - P
   arrows:
   - x: 2
-    y: 2
+    y: 6
     color: G
-    direction: L
-    length: 3
-    path: []
-    order: 7
-    isFiller: 0
-    isDecoy: 0
-  - x: 3
-    y: 0
-    color: R
-    direction: R
+    direction: U
     length: 4
     path: []
-    order: 3
+    order: 1
     isFiller: 0
     isDecoy: 0
-  - x: 0
+  - x: 5
     y: 5
     color: O
-    direction: U
+    direction: L
     length: 2
     path: []
     order: 2
     isFiller: 0
     isDecoy: 0
-  - x: 1
-    y: 3
-    color: O
-    direction: L
-    length: 5
+  - x: 6
+    y: 4
+    color: G
+    direction: U
+    length: 3
     path: []
-    order: 5
+    order: 3
     isFiller: 0
     isDecoy: 0
   - x: 5
-    y: 0
-    color: Y
-    direction: D
-    length: 3
-    path: []
-    order: 1
-    isFiller: 0
-    isDecoy: 0
-  - x: 4
-    y: 1
+    y: 2
     color: Y
     direction: R
-    length: 5
+    length: 6
     path: []
     order: 4
     isFiller: 0
     isDecoy: 0
-  - x: 1
-    y: 4
-    color: Y
-    direction: L
-    length: 5
+  - x: 4
+    y: 3
+    color: B
+    direction: D
+    length: 2
     path: []
     order: 6
     isFiller: 0
     isDecoy: 0
+  - x: 5
+    y: 1
+    color: G
+    direction: U
+    length: 2
+    path: []
+    order: 5
+    isFiller: 0
+    isDecoy: 0
+  - x: 1
+    y: 1
+    color: P
+    direction: R
+    length: 2
+    path: []
+    order: 7
+    isFiller: 0
+    isDecoy: 0
   stats:
-    density: 0.75
+    density: 0.42857143
     mainArrows: 7
     fillers: 0
     totalArrows: 7

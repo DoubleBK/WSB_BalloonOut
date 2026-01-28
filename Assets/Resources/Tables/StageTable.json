@@ -18,5 +18,12 @@
 	{"LevelIdx":17,"StageIdx":17,"Difficulty":"Hard"},
 	{"LevelIdx":18,"StageIdx":18,"Difficulty":"Hard"},
 	{"LevelIdx":19,"StageIdx":19,"Difficulty":"Hard"},
-	{"LevelIdx":20,"StageIdx":20,"Difficulty":"Hard"}
+	{"LevelIdx":20,"StageIdx":20,"Difficulty":"Hard"},
+	{"LevelIdx":21,"StageIdx":21,"Difficulty":"Hard"},
+	{"LevelIdx":22,"StageIdx":22,"Difficulty":"Hard"},
+	{"LevelIdx":23,"StageIdx":23,"Difficulty":"Hard"},
+	{"LevelIdx":24,"StageIdx":24,"Difficulty":"Hard"},
+	{"LevelIdx":25,"StageIdx":25,"Difficulty":"Hard"},
+	{"LevelIdx":26,"StageIdx":26,"Difficulty":"Hard"},
+	{"LevelIdx":27,"StageIdx":27,"Difficulty":"Hard"}
 ]

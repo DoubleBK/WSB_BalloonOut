@@ -12,99 +12,44 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 95a8d77c43572b24994755a6f515373f, type: 3}
   m_Name: stage_000002
   m_EditorClassIdentifier: 
-  stageName: stage_000002
-  gridSize: 5
+  stageName: 000002
+  gridSize: 4
   lanes:
   - balloons:
-    - R
+    - Y
+  - balloons:
     - O
     - R
-  - balloons:
-    - R
-    - P
   arrows:
-  - x: 4
-    y: 0
-    color: R
-    direction: R
-    length: 4
-    path:
-    - x: 1
-      y: 0
-    - x: 2
-      y: 0
-    - x: 3
-      y: 0
-    - x: 4
-      y: 0
-    order: 1
-    isFiller: 0
-  - x: 4
+  - x: 3
     y: 1
-    color: O
-    direction: D
-    length: 5
-    path:
-    - x: 3
-      y: 4
-    - x: 4
-      y: 4
-    - x: 4
-      y: 3
-    - x: 4
-      y: 2
-    - x: 4
-      y: 1
+    color: Y
+    direction: R
+    length: 3
+    path: []
     order: 2
     isFiller: 0
-  - x: 2
-    y: 4
+    isDecoy: 0
+  - x: 0
+    y: 0
+    color: O
+    direction: L
+    length: 3
+    path: []
+    order: 1
+    isFiller: 0
+    isDecoy: 0
+  - x: 0
+    y: 2
     color: R
-    direction: U
-    length: 4
-    path:
-    - x: 2
-      y: 1
-    - x: 2
-      y: 2
-    - x: 2
-      y: 3
-    - x: 2
-      y: 4
+    direction: D
+    length: 2
+    path: []
     order: 3
     isFiller: 0
-  - x: 0
-    y: 4
-    color: R
-    direction: U
-    length: 4
-    path:
-    - x: 0
-      y: 1
-    - x: 0
-      y: 2
-    - x: 0
-      y: 3
-    - x: 0
-      y: 4
-    order: 4
-    isFiller: 0
-  - x: 1
-    y: 2
-    color: P
-    direction: D
-    length: 3
-    path:
-    - x: 1
-      y: 4
-    - x: 1
-      y: 3
-    - x: 1
-      y: 2
-    order: 5
-    isFiller: 0
+    isDecoy: 0
   stats:
-    density: 0.8
-    mainArrows: 5
+    density: 0.5
+    mainArrows: 3
     fillers: 0
-    totalArrows: 5
+    totalArrows: 3

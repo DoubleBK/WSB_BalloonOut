@@ -16,97 +16,50 @@ MonoBehaviour:
   gridSize: 5
   lanes:
   - balloons:
-    - P
-    - O
+    - B
+    - G
   - balloons:
-    - R
-    - R
-    - P
+    - G
+    - O
   arrows:
-  - x: 4
-    y: 3
-    color: R
-    direction: R
-    length: 5
-    path:
-    - x: 0
-      y: 3
-    - x: 1
-      y: 3
-    - x: 2
-      y: 3
-    - x: 3
-      y: 3
-    - x: 4
-      y: 3
-    order: 2
-    isFiller: 0
-  - x: 2
-    y: 0
-    color: P
-    direction: R
-    length: 6
-    path:
-    - x: 1
-      y: 2
-    - x: 0
-      y: 2
-    - x: 0
-      y: 1
-    - x: 0
-      y: 0
-    - x: 1
-      y: 0
-    - x: 2
-      y: 0
-    order: 5
-    isFiller: 0
-  - x: 0
-    y: 4
-    color: R
-    direction: L
-    length: 5
-    path:
-    - x: 4
-      y: 4
-    - x: 3
-      y: 4
-    - x: 2
-      y: 4
-    - x: 1
-      y: 4
-    - x: 0
-      y: 4
-    order: 3
-    isFiller: 0
-  - x: 4
+  - x: 1
     y: 1
-    color: P
-    direction: R
+    color: B
+    direction: L
     length: 3
-    path:
-    - x: 2
-      y: 1
-    - x: 3
-      y: 1
-    - x: 4
-      y: 1
+    path: []
     order: 1
     isFiller: 0
-  - x: 3
+    isDecoy: 0
+  - x: 2
     y: 2
-    color: O
+    color: G
+    direction: D
+    length: 3
+    path: []
+    order: 2
+    isFiller: 0
+    isDecoy: 0
+  - x: 1
+    y: 2
+    color: G
     direction: R
     length: 2
-    path:
-    - x: 2
-      y: 2
-    - x: 3
-      y: 2
+    path: []
+    order: 3
+    isFiller: 0
+    isDecoy: 0
+  - x: 0
+    y: 3
+    color: O
+    direction: D
+    length: 2
+    path: []
     order: 4
     isFiller: 0
+    isDecoy: 0
   stats:
-    density: 0.84
-    mainArrows: 5
+    density: 0.4
+    mainArrows: 4
     fillers: 0
-    totalArrows: 5
+    totalArrows: 4

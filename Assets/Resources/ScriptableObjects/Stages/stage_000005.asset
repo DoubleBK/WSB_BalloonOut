@@ -13,153 +13,63 @@ MonoBehaviour:
   m_Name: stage_000005
   m_EditorClassIdentifier: 
   stageName: 000005
-  gridSize: 6
+  gridSize: 5
   lanes:
   - balloons:
+    - O
+    - G
     - B
-    - P
-    - G
   - balloons:
-    - O
-    - Y
+    - B
     - G
-    - P
-    - O
   arrows:
-  - x: 5
-    y: 5
-    color: O
-    direction: U
-    length: 4
-    path:
-    - x: 5
-      y: 2
-    - x: 5
-      y: 3
-    - x: 5
-      y: 4
-    - x: 5
-      y: 5
-    order: 1
-    isFiller: 0
-  - x: 0
-    y: 5
-    color: O
-    direction: U
-    length: 5
-    path:
-    - x: 0
-      y: 1
-    - x: 0
-      y: 2
-    - x: 0
-      y: 3
-    - x: 0
-      y: 4
-    - x: 0
-      y: 5
-    order: 7
-    isFiller: 0
-  - x: 5
-    y: 1
-    color: Y
-    direction: R
-    length: 6
-    path:
-    - x: 1
-      y: 0
-    - x: 1
-      y: 1
-    - x: 2
-      y: 1
-    - x: 3
-      y: 1
-    - x: 4
-      y: 1
-    - x: 5
-      y: 1
-    order: 6
-    isFiller: 0
-  - x: 3
+  - x: 2
     y: 0
-    color: P
-    direction: L
-    length: 3
-    path:
-    - x: 5
-      y: 0
-    - x: 4
-      y: 0
-    - x: 3
-      y: 0
-    order: 8
-    isFiller: 0
-  - x: 1
-    y: 5
-    color: B
-    direction: U
-    length: 3
-    path:
-    - x: 1
-      y: 3
-    - x: 1
-      y: 4
-    - x: 1
-      y: 5
-    order: 4
-    isFiller: 0
-  - x: 1
-    y: 2
-    color: G
-    direction: L
-    length: 5
-    path:
-    - x: 4
-      y: 3
-    - x: 4
-      y: 2
-    - x: 3
-      y: 2
-    - x: 2
-      y: 2
-    - x: 1
-      y: 2
-    order: 5
-    isFiller: 0
-  - x: 3
-    y: 5
-    color: P
-    direction: U
-    length: 6
-    path:
-    - x: 2
-      y: 5
-    - x: 2
-      y: 4
-    - x: 2
-      y: 3
-    - x: 3
-      y: 3
-    - x: 3
-      y: 4
-    - x: 3
-      y: 5
+    color: O
+    direction: D
+    length: 4
+    path: []
     order: 2
     isFiller: 0
-  - x: 4
-    y: 5
+    isDecoy: 0
+  - x: 1
+    y: 3
+    color: B
+    direction: R
+    length: 2
+    path: []
+    order: 3
+    isFiller: 0
+    isDecoy: 0
+  - x: 0
+    y: 1
+    color: B
+    direction: U
+    length: 2
+    path: []
+    order: 4
+    isFiller: 0
+    isDecoy: 0
+  - x: 3
+    y: 3
     color: G
     direction: U
     length: 2
-    path:
-    - x: 4
-      y: 4
-    - x: 4
-      y: 5
-    order: 3
+    path: []
+    order: 1
     isFiller: 0
+    isDecoy: 0
+  - x: 3
+    y: 1
+    color: G
+    direction: U
+    length: 2
+    path: []
+    order: 5
+    isFiller: 0
+    isDecoy: 0
   stats:
-    density: 0.9444444
-    mainArrows: 8
+    density: 0.48
+    mainArrows: 5
     fillers: 0
-    totalArrows: 8
+    totalArrows: 5
