@@ -409,12 +409,10 @@ namespace BalloonOut.Core
             float halfWidth = (gridWidth * cellSize) * 0.5f;
             float halfHeight = (gridHeight * cellSize) * 0.5f;
 
-            // 경계에 패딩 추가
-            // 상단 경계를 더 넓게: 카메라가 위로 이동하면 그리드가 아래로 내려가 BottomUIBar 뒤로 감
-            float topPadding = _boundaryPadding + _verticalExtraPadding + _bottomExtraPadding;
-            float bottomPadding = _boundaryPadding + _verticalExtraPadding;
-            _worldBoundsMin = new Vector2(-halfWidth - _boundaryPadding, -halfHeight - bottomPadding);
-            _worldBoundsMax = new Vector2(halfWidth + _boundaryPadding, halfHeight + topPadding);
+            // 경계에 패딩 추가 (상하 대칭 + 추가 여유)
+            float verticalPadding = _boundaryPadding + _verticalExtraPadding + _bottomExtraPadding;
+            _worldBoundsMin = new Vector2(-halfWidth - _boundaryPadding, -halfHeight - verticalPadding);
+            _worldBoundsMax = new Vector2(halfWidth + _boundaryPadding, halfHeight + verticalPadding);
             _hasBounds = true;
 
             Debug.Log($"[CameraController] World bounds set: min={_worldBoundsMin}, max={_worldBoundsMax}");

@@ -736,8 +736,8 @@ namespace BalloonOut.UI
                 StartCoroutine(SlideBalloonCoroutine(rect, currentPos, targetPos));
             }
 
-            // 컨베이어 벨트 애니메이션 재생
-            PlayConveyorAnimation(laneIdx);
+            // 컨베이어 벨트 애니메이션 역재생 (Undo)
+            PlayConveyorAnimation(laneIdx, reverse: true);
         }
 
         /// <summary>
@@ -949,7 +949,9 @@ namespace BalloonOut.UI
         /// 특정 레인의 컨베이어 벨트 애니메이션 재생.
         /// _slideAnimDuration 후 자동 정지.
         /// </summary>
-        private void PlayConveyorAnimation(int laneIdx)
+        /// <param name="laneIdx">레인 인덱스</param>
+        /// <param name="reverse">true면 역재생 (Undo 시)</param>
+        private void PlayConveyorAnimation(int laneIdx, bool reverse = false)
         {
             if (laneIdx < 0 || laneIdx >= _conveyorBelts.Count) return;
 
@@ -957,12 +959,66 @@ namespace BalloonOut.UI
             if (beltRoot == null) return;
 
             var animators = beltRoot.GetComponentsInChildren<Animator>();
-            foreach (var anim in animators)
+            if (animators.Length == 0) return;
+
+            if (reverse)
             {
-                anim.speed = _conveyorAnimSpeed;
+                // PPtrCurve(스프라이트 교체) 애니메이션은 음수 speed로 역재생이 안 됨
+                // normalizedTime을 직접 감소시켜 역재생 구현
+                StartCoroutine(PlayConveyorReverseCoroutine(animators, _slideAnimDuration));
+            }
+            else
+            {
+                foreach (var anim in animators)
+                {
+                    anim.speed = _conveyorAnimSpeed;
+                }
+                StartCoroutine(StopConveyorAfterDelay(animators, _slideAnimDuration));
+            }
+        }
+
+        private System.Collections.IEnumerator PlayConveyorReverseCoroutine(Animator[] animators, float duration)
+        {
+            // 현재 normalizedTime과 클립 길이 캡처
+            float[] startNormTimes = new float[animators.Length];
+            int[] stateHashes = new int[animators.Length];
+            float clipLength = 0f;
+
+            for (int i = 0; i < animators.Length; i++)
+            {
+                var info = animators[i].GetCurrentAnimatorStateInfo(0);
+                startNormTimes[i] = info.normalizedTime % 1f;
+                stateHashes[i] = info.fullPathHash;
+                if (clipLength <= 0f) clipLength = info.length;
             }
 
-            StartCoroutine(StopConveyorAfterDelay(animators, _slideAnimDuration));
+            if (clipLength <= 0f) clipLength = 1f;
+
+            // duration 동안 역방향으로 이동할 normalizedTime 양
+            float reverseNormAmount = (_conveyorAnimSpeed * duration) / clipLength;
+
+            float elapsed = 0f;
+            while (elapsed < duration)
+            {
+                elapsed += Time.deltaTime;
+                float t = Mathf.Clamp01(elapsed / duration);
+                // Ease Out Cubic (풍선 슬라이드와 동일)
+                float easedT = 1f - Mathf.Pow(1f - t, 3f);
+
+                for (int i = 0; i < animators.Length; i++)
+                {
+                    if (animators[i] == null) continue;
+
+                    float newNormTime = startNormTimes[i] - reverseNormAmount * easedT;
+                    // 루프 애니메이션이므로 음수면 래핑
+                    while (newNormTime < 0f) newNormTime += 1f;
+
+                    animators[i].Play(stateHashes[i], 0, newNormTime);
+                    animators[i].speed = 0f;  // 수동 제어 유지
+                }
+
+                yield return null;
+            }
         }
 
         private System.Collections.IEnumerator StopConveyorAfterDelay(Animator[] animators, float delay)
