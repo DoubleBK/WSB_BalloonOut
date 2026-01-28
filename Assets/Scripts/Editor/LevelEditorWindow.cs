@@ -502,7 +502,7 @@ namespace BalloonOut.Editor
         {
             EditorGUILayout.BeginVertical("box");
             EditorGUILayout.LabelField("Level Generator", EditorStyles.boldLabel);
-            EditorGUILayout.HelpBox("ReverseGrowth 알고리즘으로 자동 레벨 생성", MessageType.Info);
+            EditorGUILayout.HelpBox("화살표 자동 생성 알고리즘으로 레벨 생성 하..", MessageType.Info);
             EditorGUILayout.EndVertical();
 
             EditorGUILayout.Space(5);

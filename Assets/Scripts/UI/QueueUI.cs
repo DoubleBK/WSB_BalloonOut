@@ -29,12 +29,22 @@ namespace BalloonOut.UI
         [Header("Animation")]
         [SerializeField] private float _slideAnimDuration = 0.25f;
 
+        [Header("Conveyor Belt")]
+        [SerializeField] private GameObject _conveyorTilePrefab;  // Animator 포함 타일 프리팹
+        [SerializeField] private int _conveyorTileCount = 8;       // 벨트당 타일 수
+        [SerializeField] private float _conveyorTileScale = 2.4f;  // 타일 스케일 배율
+        [SerializeField] private float _conveyorAnimSpeed = 1f;    // 벨트 애니메이션 재생 속도
+
         // ========== 내부 상태 변수 ==========
         private List<List<Image>> _balloonImages = new List<List<Image>>();
         private List<List<GameColor>> _lanes = new List<List<GameColor>>();
 
         // 각 레인의 풍선 기준 위치 (balloons[0]의 anchoredPosition)
         private List<Vector2> _laneBasePositions = new List<Vector2>();
+
+        // 컨베이어 벨트 루트 오브젝트 (레인별)
+        private List<GameObject> _conveyorBelts = new List<GameObject>();
+
 
         // ========== 싱글톤 ==========
         public static QueueUI Instance { get; private set; }
@@ -356,6 +366,9 @@ namespace BalloonOut.UI
             }
 
             UpdateHeadHighlights();
+
+            // 컨베이어 벨트 생성
+            CreateConveyorBelts();
         }
 
         /// <summary>
@@ -378,13 +391,7 @@ namespace BalloonOut.UI
                 {
                     targetWidth = prefabRect.sizeDelta.x;
                     targetHeight = prefabRect.sizeDelta.y;
-
-                    // 앵커를 부모 하단 중앙으로 명시적 설정
-                    // (LayoutGroup 제거 후 RestoreBalloon 시점에 올바른 위치 보장)
-                    prefabRect.anchorMin = new Vector2(0.5f, 0f);
-                    prefabRect.anchorMax = new Vector2(0.5f, 0f);
-                    prefabRect.pivot = new Vector2(0.5f, 0f);
-                    prefabRect.anchoredPosition = Vector2.zero;  // 앵커 변경 후 위치 리셋
+                    // 앵커/피벗은 변경하지 않음 - LayoutGroup(CreateUI)이나 RestoreBalloon에서 관리
                 }
                 else
                 {
@@ -528,6 +535,9 @@ namespace BalloonOut.UI
                 // 슬라이드 코루틴 시작
                 StartCoroutine(SlideBalloonCoroutine(rect, startPos, endPos));
             }
+
+            // 컨베이어 벨트 애니메이션 재생
+            PlayConveyorAnimation(laneIdx);
         }
 
         /// <summary>
@@ -663,8 +673,21 @@ namespace BalloonOut.UI
                 var balloonObj = CreateBalloon(laneContainer, color);
                 var image = balloonObj.GetComponent<Image>();
 
-                // 초기 위치를 활성 풍선 위치 아래로 설정 (등장 전 숨김)
+                // 기존 풍선의 RectTransform 속성(앵커/피벗) 복사
+                // LayoutGroup이 설정한 앵커를 유지해야 _laneBasePositions 기반 위치 계산이 정확함
                 var newRect = balloonObj.GetComponent<RectTransform>();
+                if (newRect != null && balloonList.Count > 0 && balloonList[0] != null)
+                {
+                    var existingRect = balloonList[0].GetComponent<RectTransform>();
+                    if (existingRect != null)
+                    {
+                        newRect.anchorMin = existingRect.anchorMin;
+                        newRect.anchorMax = existingRect.anchorMax;
+                        newRect.pivot = existingRect.pivot;
+                    }
+                }
+
+                // 초기 위치를 활성 풍선 위치 아래로 설정 (등장 전 숨김)
                 if (newRect != null)
                 {
                     Vector2 targetPos = CalculateBalloonPosition(laneIndex, 0);
@@ -712,6 +735,9 @@ namespace BalloonOut.UI
                 Vector2 currentPos = rect.anchoredPosition;
                 StartCoroutine(SlideBalloonCoroutine(rect, currentPos, targetPos));
             }
+
+            // 컨베이어 벨트 애니메이션 재생
+            PlayConveyorAnimation(laneIdx);
         }
 
         /// <summary>
@@ -728,6 +754,228 @@ namespace BalloonOut.UI
                 }
             }
             return -1;
+        }
+
+        // ========== 컨베이어 벨트 ==========
+
+        /// <summary>
+        /// 각 레인 뒤에 컨베이어 벨트 타일을 생성.
+        /// 프리팹이 SpriteRenderer 기반이면 UI Image + 브릿지 스크립트로 변환.
+        /// </summary>
+        private void CreateConveyorBelts()
+        {
+            if (_conveyorTilePrefab == null) return;
+
+            _conveyorBelts.Clear();
+
+            // 프리팹이 SpriteRenderer 기반인지 확인
+            bool isSpriteRendererBased = _conveyorTilePrefab.GetComponent<SpriteRenderer>() != null
+                && _conveyorTilePrefab.GetComponent<RectTransform>() == null;
+
+            // 타일 크기 결정 (스케일 적용 전 원본 크기)
+            float rawTileWidth, rawTileHeight;
+            if (isSpriteRendererBased)
+            {
+                var sr = _conveyorTilePrefab.GetComponent<SpriteRenderer>();
+                if (sr != null && sr.sprite != null)
+                {
+                    rawTileWidth = sr.sprite.rect.width;
+                    rawTileHeight = sr.sprite.rect.height;
+                }
+                else
+                {
+                    rawTileWidth = GetBalloonWidth();
+                    rawTileHeight = _balloonSize;
+                }
+            }
+            else
+            {
+                var tilePrefabRect = _conveyorTilePrefab.GetComponent<RectTransform>();
+                rawTileWidth = tilePrefabRect != null ? tilePrefabRect.sizeDelta.x : GetBalloonWidth();
+                rawTileHeight = tilePrefabRect != null ? tilePrefabRect.sizeDelta.y : _balloonSize;
+            }
+
+            // 스케일 적용된 실제 크기
+            float tileWidth = rawTileWidth * _conveyorTileScale;
+            float tileHeight = rawTileHeight * _conveyorTileScale;
+
+            // Animator Controller 참조 (SpriteRenderer 기반 프리팹용)
+            RuntimeAnimatorController animController = null;
+            if (isSpriteRendererBased)
+            {
+                var prefabAnimator = _conveyorTilePrefab.GetComponent<Animator>();
+                if (prefabAnimator != null)
+                {
+                    animController = prefabAnimator.runtimeAnimatorController;
+                }
+            }
+
+            for (int laneIdx = 0; laneIdx < _balloonImages.Count; laneIdx++)
+            {
+                if (_balloonImages[laneIdx].Count == 0) continue;
+
+                Transform laneTransform = _balloonImages[laneIdx][0]?.transform.parent;
+                if (laneTransform == null) continue;
+
+                // 벨트 루트 컨테이너 생성
+                var beltRoot = new GameObject($"ConveyorBelt_{laneIdx}");
+                beltRoot.transform.SetParent(laneTransform, false);
+                beltRoot.transform.SetAsFirstSibling();  // 풍선 뒤에 렌더링
+
+                var beltRect = beltRoot.AddComponent<RectTransform>();
+                beltRect.anchorMin = new Vector2(0.5f, 0f);
+                beltRect.anchorMax = new Vector2(0.5f, 0f);
+                beltRect.pivot = new Vector2(0.5f, 0f);
+                beltRect.anchoredPosition = Vector2.zero;
+                beltRect.sizeDelta = new Vector2(tileWidth, tileHeight * _conveyorTileCount);
+
+                // N개 타일 세로로 쌓기
+                for (int t = 0; t < _conveyorTileCount; t++)
+                {
+                    GameObject tile;
+
+                    if (isSpriteRendererBased)
+                    {
+                        // SpriteRenderer 프리팹 → UI 타일로 변환 (원본 크기 전달, 스케일은 localScale로)
+                        tile = CreateUIConveyorTile(beltRoot.transform, animController, rawTileWidth, rawTileHeight);
+                    }
+                    else
+                    {
+                        // UI 기반 프리팹 → 그대로 사용
+                        tile = Instantiate(_conveyorTilePrefab);
+                        tile.transform.SetParent(beltRoot.transform, false);
+                    }
+
+                    tile.transform.localScale = Vector3.one * _conveyorTileScale;
+
+                    var tileRect = tile.GetComponent<RectTransform>();
+                    if (tileRect != null)
+                    {
+                        tileRect.anchorMin = new Vector2(0.5f, 0f);
+                        tileRect.anchorMax = new Vector2(0.5f, 0f);
+                        tileRect.pivot = new Vector2(0.5f, 0.5f);  // 중앙 피벗 (회전 기준점)
+                        // 중앙 피벗이므로 tileHeight/2 만큼 위로 오프셋
+                        tileRect.anchoredPosition = new Vector2(0, t * tileHeight + tileHeight * 0.5f);
+                    }
+
+                    // raycast 차단 방지
+                    var uiImages = tile.GetComponentsInChildren<Image>();
+                    foreach (var img in uiImages) img.raycastTarget = false;
+                }
+
+                _conveyorBelts.Add(beltRoot);
+            }
+        }
+
+        /// <summary>
+        /// SpriteRenderer 프리팹을 기반으로 UI 컨베이어 타일 생성.
+        /// Animator → SpriteRenderer.sprite → Image.sprite 브릿지 방식.
+        /// </summary>
+        private GameObject CreateUIConveyorTile(Transform parent, RuntimeAnimatorController animController, float width, float height)
+        {
+            var tile = new GameObject("ConveyorTile");
+            tile.transform.SetParent(parent, false);
+
+            // RectTransform 설정
+            var rect = tile.AddComponent<RectTransform>();
+            rect.sizeDelta = new Vector2(width, height);
+            rect.pivot = new Vector2(0.5f, 0.5f);  // 중앙 피벗 (회전 기준점)
+
+            // Z축 -90도 회전 (화살표가 아래 방향을 바라보도록)
+            rect.localEulerAngles = new Vector3(0, 0, -90);
+
+            // Image 컴포넌트 (Canvas에서 렌더링)
+            var image = tile.AddComponent<Image>();
+            image.raycastTarget = false;
+
+            // 초기 스프라이트 설정
+            var prefabSR = _conveyorTilePrefab.GetComponent<SpriteRenderer>();
+            if (prefabSR != null && prefabSR.sprite != null)
+            {
+                image.sprite = prefabSR.sprite;
+            }
+
+            // SpriteRenderer 추가 (Animator가 이 컴포넌트의 sprite를 애니메이션)
+            var sr = tile.AddComponent<SpriteRenderer>();
+            sr.enabled = false;  // Canvas에서는 렌더링 불필요
+            if (prefabSR != null)
+            {
+                sr.sprite = prefabSR.sprite;
+            }
+
+            // Animator 추가 (초기 정지 상태)
+            if (animController != null)
+            {
+                var animator = tile.AddComponent<Animator>();
+                animator.runtimeAnimatorController = animController;
+                animator.speed = 0f;  // 풍선 POP/Undo 시에만 재생
+            }
+
+            // 브릿지: SpriteRenderer.sprite → Image.sprite 매 프레임 동기화
+            tile.AddComponent<SpriteRendererToImage>();
+
+            return tile;
+        }
+
+        /// <summary>
+        /// 풍선 프리팹의 가로 크기
+        /// </summary>
+        private float GetBalloonWidth()
+        {
+            if (_balloonPrefab != null)
+            {
+                var prefabRect = _balloonPrefab.GetComponent<RectTransform>();
+                if (prefabRect != null) return prefabRect.sizeDelta.x;
+            }
+            return _balloonSize;
+        }
+
+        /// <summary>
+        /// 풍선 프리팹의 세로 크기
+        /// </summary>
+        private float GetBalloonHeight()
+        {
+            if (_balloonPrefab != null)
+            {
+                var prefabRect = _balloonPrefab.GetComponent<RectTransform>();
+                if (prefabRect != null) return prefabRect.sizeDelta.y;
+            }
+            return _balloonSize;
+        }
+
+
+
+        /// <summary>
+        /// 특정 레인의 컨베이어 벨트 애니메이션 재생.
+        /// _slideAnimDuration 후 자동 정지.
+        /// </summary>
+        private void PlayConveyorAnimation(int laneIdx)
+        {
+            if (laneIdx < 0 || laneIdx >= _conveyorBelts.Count) return;
+
+            var beltRoot = _conveyorBelts[laneIdx];
+            if (beltRoot == null) return;
+
+            var animators = beltRoot.GetComponentsInChildren<Animator>();
+            foreach (var anim in animators)
+            {
+                anim.speed = _conveyorAnimSpeed;
+            }
+
+            StartCoroutine(StopConveyorAfterDelay(animators, _slideAnimDuration));
+        }
+
+        private System.Collections.IEnumerator StopConveyorAfterDelay(Animator[] animators, float delay)
+        {
+            yield return new WaitForSeconds(delay);
+
+            foreach (var anim in animators)
+            {
+                if (anim != null)
+                {
+                    anim.speed = 0f;
+                }
+            }
         }
 
         /// <summary>
@@ -747,13 +995,15 @@ namespace BalloonOut.UI
             }
             _balloonImages.Clear();
             _lanes.Clear();
-
-            // 컨테이너 하위 오브젝트 정리
+            _conveyorBelts.Clear();
+            // 컨테이너 하위 오브젝트 즉시 정리
+            // DestroyImmediate 사용: Destroy()는 프레임 끝까지 지연되어
+            // CreateUI()에서 LayoutGroup이 old+new 자식을 모두 계산하는 문제 방지
             if (_lanesContainer != null)
             {
-                foreach (Transform child in _lanesContainer)
+                for (int i = _lanesContainer.childCount - 1; i >= 0; i--)
                 {
-                    Destroy(child.gameObject);
+                    DestroyImmediate(_lanesContainer.GetChild(i).gameObject);
                 }
             }
         }

@@ -4,7 +4,11 @@
       "Bash(dir:*)",
       "Bash(if exist \"d:\\\\WSB_BalloonOut\\\\Assets\\\\Scripts\\\\UI\\\\LobbyLevelDisplay.cs.meta\" del \"d:\\\\WSB_BalloonOut\\\\Assets\\\\Scripts\\\\UI\\\\LobbyLevelDisplay.cs.meta\")",
       "Bash(git checkout:*)",
-      "Bash(cd:*)"
+      "Bash(cd:*)",
+      "Bash(powershell -Command \"[System.IO.File]::ReadAllBytes\\(''D:\\\\WSB_BalloonOut\\\\Assets\\\\Scripts\\\\UI\\\\QueueUI.cs''\\)[0..2] -join '',''\")",
+      "Bash(powershell -Command:*)",
+      "Bash(python:*)",
+      "Bash(pip install:*)"
     ]
   }
 }
