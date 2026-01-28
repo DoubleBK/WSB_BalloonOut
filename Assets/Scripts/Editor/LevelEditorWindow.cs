@@ -69,14 +69,35 @@ namespace BalloonOut.Editor
         // Preview 설정
         private const float LEFT_PANEL_WIDTH = 350f;
         private const float PREVIEW_CELL_SIZE = 28f;
+        private const float LEVEL_LIST_PANEL_WIDTH = 200f;
         private Vector2 _previewScrollPosition;
+
+        // 드래그 상태
+        private bool _isDragging = false;
+        private Vector2Int _dragStartPos;
+        private List<Vector2Int> _dragPath = new List<Vector2Int>();
+        private Rect _dragGridRect;
+        private int _dragGridSize;
+
+        // LevelList 패널
+        private Vector2 _levelListScrollPosition;
+        private int _selectedLevelListIndex = -1;
+        private List<LevelListEntry> _levelListEntries = new List<LevelListEntry>();
+
+        private class LevelListEntry
+        {
+            public string assetName;
+            public bool isSolvable;
+            public bool isQueueCleared;
+            public bool isValidated;
+        }
 
         // ========== 메뉴 ==========
         [MenuItem("BalloonOut/Level Editor %#l")]
         public static void ShowWindow()
         {
             var window = GetWindow<LevelEditorWindow>("Level Editor");
-            window.minSize = new Vector2(750, 550);
+            window.minSize = new Vector2(950, 550);
             window.Show();
         }
 
@@ -84,6 +105,20 @@ namespace BalloonOut.Editor
         private void OnEnable()
         {
             RefreshLevelList();
+            RefreshLevelListEntries();
+
+            // 윈도우 열릴 때 자동 검증 (delayCall로 에디터 초기화 완료 후 실행)
+            EditorApplication.delayCall += AutoValidateOnOpen;
+        }
+
+        private void AutoValidateOnOpen()
+        {
+            // 검증할 항목이 없거나 이미 모두 검증 완료면 스킵
+            if (_levelListEntries.Count == 0) return;
+            bool anyUnvalidated = _levelListEntries.Any(e => !e.isValidated);
+            if (!anyUnvalidated) return;
+
+            ValidateAllLevels();
         }
 
         private void OnDisable()
@@ -131,9 +166,14 @@ namespace BalloonOut.Editor
             EditorGUILayout.EndScrollView();
             EditorGUILayout.EndVertical();
 
-            // ========== 오른쪽 패널 (Preview) ==========
+            // ========== 중앙 패널 (Preview) ==========
             EditorGUILayout.BeginVertical("box");
             DrawPreviewPanel();
+            EditorGUILayout.EndVertical();
+
+            // ========== 오른쪽 패널 (Level List) ==========
+            EditorGUILayout.BeginVertical("box", GUILayout.Width(LEVEL_LIST_PANEL_WIDTH));
+            DrawLevelListPanel();
             EditorGUILayout.EndVertical();
 
             EditorGUILayout.EndHorizontal();
@@ -1099,6 +1139,154 @@ namespace BalloonOut.Editor
             EditorUtility.DisplayDialog("Batch Generation Complete", summary, "OK");
         }
 
+        // ========== Level List 패널 ==========
+        private void DrawLevelListPanel()
+        {
+            EditorGUILayout.LabelField("Level List", EditorStyles.boldLabel);
+            EditorGUILayout.Space(3);
+
+            // 버튼 영역
+            EditorGUILayout.BeginHorizontal();
+            if (GUILayout.Button("Refresh", GUILayout.Height(22)))
+            {
+                RefreshLevelListEntries();
+            }
+            if (GUILayout.Button("Validate All", GUILayout.Height(22)))
+            {
+                ValidateAllLevels();
+            }
+            EditorGUILayout.EndHorizontal();
+
+            EditorGUILayout.Space(3);
+
+            // 스크롤 목록
+            _levelListScrollPosition = EditorGUILayout.BeginScrollView(_levelListScrollPosition);
+
+            for (int i = 0; i < _levelListEntries.Count; i++)
+            {
+                var entry = _levelListEntries[i];
+                bool isSelected = (i == _selectedLevelListIndex);
+
+                // 선택 하이라이트
+                if (isSelected)
+                {
+                    EditorGUILayout.BeginVertical(EditorStyles.selectionRect);
+                }
+                else
+                {
+                    EditorGUILayout.BeginVertical("box");
+                }
+
+                // 클릭 가능한 레벨 이름
+                if (GUILayout.Button(entry.assetName, EditorStyles.miniLabel))
+                {
+                    _selectedLevelListIndex = i;
+                    LoadLevel(entry.assetName);
+                }
+
+                // 검증 상태 표시
+                if (entry.isValidated)
+                {
+                    EditorGUILayout.BeginHorizontal();
+
+                    // Solvable 상태
+                    var prevColor = GUI.contentColor;
+                    GUI.contentColor = entry.isSolvable ? Color.green : Color.red;
+                    EditorGUILayout.LabelField(
+                        entry.isSolvable ? "  S" : "  S",
+                        entry.isSolvable ? EditorStyles.boldLabel : EditorStyles.miniLabel,
+                        GUILayout.Width(30));
+
+                    // Queue 상태
+                    GUI.contentColor = entry.isQueueCleared ? Color.green : Color.red;
+                    EditorGUILayout.LabelField(
+                        entry.isQueueCleared ? "  Q" : "  Q",
+                        entry.isQueueCleared ? EditorStyles.boldLabel : EditorStyles.miniLabel,
+                        GUILayout.Width(30));
+
+                    GUI.contentColor = prevColor;
+                    EditorGUILayout.EndHorizontal();
+                }
+                else
+                {
+                    var prevColor = GUI.contentColor;
+                    GUI.contentColor = Color.gray;
+                    EditorGUILayout.LabelField("  ? Not validated", EditorStyles.miniLabel);
+                    GUI.contentColor = prevColor;
+                }
+
+                EditorGUILayout.EndVertical();
+            }
+
+            EditorGUILayout.EndScrollView();
+
+            // 요약 통계
+            EditorGUILayout.Space(5);
+            int totalCount = _levelListEntries.Count;
+            int validatedCount = _levelListEntries.Count(e => e.isValidated);
+            int solvableCount = _levelListEntries.Count(e => e.isValidated && e.isSolvable);
+            int queueClearCount = _levelListEntries.Count(e => e.isValidated && e.isQueueCleared);
+
+            EditorGUILayout.LabelField($"Total: {totalCount} levels", EditorStyles.miniLabel);
+            if (validatedCount > 0)
+            {
+                EditorGUILayout.LabelField($"Solvable: {solvableCount}/{validatedCount}", EditorStyles.miniLabel);
+                EditorGUILayout.LabelField($"Queue Clear: {queueClearCount}/{validatedCount}", EditorStyles.miniLabel);
+            }
+        }
+
+        private void RefreshLevelListEntries()
+        {
+            RefreshLevelList();
+            _levelListEntries.Clear();
+
+            foreach (var levelName in _levelList)
+            {
+                _levelListEntries.Add(new LevelListEntry
+                {
+                    assetName = levelName,
+                    isSolvable = false,
+                    isQueueCleared = false,
+                    isValidated = false
+                });
+            }
+
+            _selectedLevelListIndex = -1;
+        }
+
+        private void ValidateAllLevels()
+        {
+            if (_levelListEntries.Count == 0)
+            {
+                RefreshLevelListEntries();
+            }
+
+            string stagesPath = "Assets/Resources/ScriptableObjects/Stages";
+
+            for (int i = 0; i < _levelListEntries.Count; i++)
+            {
+                EditorUtility.DisplayProgressBar("Validating Levels...",
+                    $"{_levelListEntries[i].assetName} ({i + 1}/{_levelListEntries.Count})",
+                    (float)i / _levelListEntries.Count);
+
+                string assetPath = $"{stagesPath}/{_levelListEntries[i].assetName}.asset";
+                var stageData = AssetDatabase.LoadAssetAtPath<StageData>(assetPath);
+
+                if (stageData != null)
+                {
+                    var levelData = stageData.ToLevelData();
+                    var result = LevelValidator.ValidateLevel(levelData);
+
+                    _levelListEntries[i].isSolvable = result.valid;
+                    _levelListEntries[i].isQueueCleared = result.queueCleared;
+                    _levelListEntries[i].isValidated = true;
+                }
+            }
+
+            EditorUtility.ClearProgressBar();
+            Repaint();
+        }
+
         // ========== Preview 패널 ==========
         private void DrawPreviewPanel()
         {
@@ -1133,7 +1321,7 @@ namespace BalloonOut.Editor
             int gridSize = _currentLevel.gridSize;
             float totalSize = gridSize * PREVIEW_CELL_SIZE;
 
-            EditorGUILayout.LabelField($"Grid ({gridSize}x{gridSize}) - Click to place, Right-click to delete", EditorStyles.boldLabel);
+            EditorGUILayout.LabelField($"Grid ({gridSize}x{gridSize}) - Drag to draw, Ctrl+Click direction, Right-click delete", EditorStyles.boldLabel);
 
             // 그리드 영역 확보
             Rect gridRect = GUILayoutUtility.GetRect(totalSize + 20, totalSize + 20);
@@ -1237,6 +1425,62 @@ namespace BalloonOut.Editor
                     DrawArrowInPreview(gridRect, arrow, arrowColor, gridSize);
                 }
             }
+
+            // 드래그 중인 경로 미리보기
+            if (_isDragging && _dragPath.Count > 0)
+            {
+                DrawDragPreview(gridRect, gridSize);
+            }
+        }
+
+        /// <summary>
+        /// 드래그 중인 화살표 경로 미리보기 렌더링
+        /// </summary>
+        private void DrawDragPreview(Rect gridRect, int gridSize)
+        {
+            Color previewColor = GetPreviewColor(ColorHelper.ToString(_selectedColor));
+            previewColor.a = 0.5f;
+
+            // 경로 셀 하이라이트
+            foreach (var cell in _dragPath)
+            {
+                int flippedY = gridSize - 1 - cell.y;
+                Rect cellRect = new Rect(
+                    gridRect.x + cell.x * PREVIEW_CELL_SIZE + 1,
+                    gridRect.y + flippedY * PREVIEW_CELL_SIZE + 1,
+                    PREVIEW_CELL_SIZE - 2,
+                    PREVIEW_CELL_SIZE - 2);
+                EditorGUI.DrawRect(cellRect, previewColor);
+            }
+
+            // 경로 라인 연결
+            Handles.color = previewColor;
+            List<Vector3> positions = new List<Vector3>();
+            foreach (var cell in _dragPath)
+            {
+                int flippedY = gridSize - 1 - cell.y;
+                float cx = gridRect.x + cell.x * PREVIEW_CELL_SIZE + PREVIEW_CELL_SIZE * 0.5f;
+                float cy = gridRect.y + flippedY * PREVIEW_CELL_SIZE + PREVIEW_CELL_SIZE * 0.5f;
+                positions.Add(new Vector3(cx, cy, 0));
+            }
+
+            for (int i = 0; i < positions.Count - 1; i++)
+            {
+                Handles.DrawAAPolyLine(3f, positions[i], positions[i + 1]);
+            }
+
+            // Tail 표시 (동그라미)
+            if (positions.Count > 0)
+                Handles.DrawSolidDisc(positions[0], Vector3.forward, 5f);
+
+            // Head 방향 표시 (삼각형) - 2셀 이상일 때
+            if (positions.Count >= 2)
+            {
+                var lastCell = _dragPath[_dragPath.Count - 1];
+                var prevCell = _dragPath[_dragPath.Count - 2];
+                string headDir = GetDirectionFromCells(prevCell, lastCell);
+                DrawArrowHeadTriangle(positions[positions.Count - 1], headDir, previewColor);
+            }
         }
 
         private void DrawArrowInPreview(Rect gridRect, ArrowData arrow, Color arrowColor, int gridSize)
@@ -1296,33 +1540,111 @@ namespace BalloonOut.Editor
         }
 
         /// <summary>
-        /// Preview 그리드에서 클릭 이벤트 처리
+        /// Preview 그리드에서 클릭/드래그 이벤트 처리
         /// </summary>
         private void HandlePreviewGridInput(Rect gridRect, int gridSize)
         {
             Event e = Event.current;
 
-            // 그리드 영역 내에서만 처리
+            // 그리드 영역
             Rect clickableArea = new Rect(gridRect.x, gridRect.y, gridSize * PREVIEW_CELL_SIZE, gridSize * PREVIEW_CELL_SIZE);
 
-            if (!clickableArea.Contains(e.mousePosition))
-                return;
-
-            // 좌클릭: 배치 또는 선택
+            // 좌클릭 Down: 드래그 시작 또는 Ctrl+클릭
             if (e.type == EventType.MouseDown && e.button == 0)
             {
-                Vector2Int gridPos = ScreenToGridPosition(e.mousePosition, gridRect, gridSize);
+                if (!clickableArea.Contains(e.mousePosition))
+                    return;
 
-                if (IsValidGridPosition(gridPos, gridSize))
+                Vector2Int gridPos = ScreenToGridPosition(e.mousePosition, gridRect, gridSize);
+                if (!IsValidGridPosition(gridPos, gridSize))
+                    return;
+
+                // Ctrl+클릭: 기존 화살표 Head 방향 변경
+                if (e.control)
                 {
-                    HandleGridLeftClick(gridPos);
+                    HandleCtrlClick(gridPos);
                     e.Use();
                     Repaint();
+                    return;
                 }
+
+                // 기존 화살표가 있는 셀: 선택
+                var existingArrow = FindArrowAt(gridPos);
+                if (existingArrow != null)
+                {
+                    _selectedArrowIndex = _currentLevel.arrows.IndexOf(existingArrow);
+                    Debug.Log($"[LevelEditor] Arrow selected at ({gridPos.x}, {gridPos.y})");
+                }
+                else
+                {
+                    // 빈 셀: 드래그 시작
+                    _isDragging = true;
+                    _dragStartPos = gridPos;
+                    _dragPath.Clear();
+                    _dragPath.Add(gridPos);
+                    _dragGridRect = gridRect;
+                    _dragGridSize = gridSize;
+                    _selectedArrowIndex = -1;
+                }
+
+                e.Use();
+                Repaint();
             }
-            // 우클릭: 삭제
+            // 드래그 중: 경로 추가
+            else if (e.type == EventType.MouseDrag && e.button == 0 && _isDragging)
+            {
+                Vector2Int gridPos = ScreenToGridPosition(e.mousePosition, _dragGridRect, _dragGridSize);
+                if (!IsValidGridPosition(gridPos, _dragGridSize))
+                    return;
+
+                Vector2Int lastPos = _dragPath[_dragPath.Count - 1];
+                if (gridPos == lastPos)
+                    return; // 같은 셀이면 무시
+
+                if (!IsAdjacentCell(lastPos, gridPos))
+                    return; // 인접하지 않으면 무시
+
+                // 되돌아가기: 이미 경로에 있는 셀이면 그 위치까지 자르기
+                int existingIndex = _dragPath.IndexOf(gridPos);
+                if (existingIndex >= 0)
+                {
+                    // 해당 위치 다음의 모든 셀 제거 (backtrack)
+                    _dragPath.RemoveRange(existingIndex + 1, _dragPath.Count - existingIndex - 1);
+                }
+                else
+                {
+                    // 다른 화살표와 겹치는지 확인
+                    var occupied = FindArrowAt(gridPos);
+                    if (occupied != null)
+                        return; // 다른 화살표 셀에는 진입 불가
+
+                    _dragPath.Add(gridPos);
+                }
+
+                e.Use();
+                Repaint();
+            }
+            // 마우스 Up: 화살표 생성
+            else if (e.type == EventType.MouseUp && e.button == 0 && _isDragging)
+            {
+                _isDragging = false;
+
+                if (_dragPath.Count > 0)
+                {
+                    CreateArrowFromDragPath();
+                }
+
+                _dragPath.Clear();
+                e.Use();
+                Repaint();
+                SceneView.RepaintAll();
+            }
+            // 우클릭: 삭제 (기존 유지)
             else if (e.type == EventType.MouseDown && e.button == 1)
             {
+                if (!clickableArea.Contains(e.mousePosition))
+                    return;
+
                 Vector2Int gridPos = ScreenToGridPosition(e.mousePosition, gridRect, gridSize);
 
                 if (IsValidGridPosition(gridPos, gridSize))
@@ -1332,6 +1654,108 @@ namespace BalloonOut.Editor
                     Repaint();
                 }
             }
+        }
+
+        /// <summary>
+        /// Ctrl+클릭: 화살표 Head 방향 순환 변경 (R→D→L→U)
+        /// </summary>
+        private void HandleCtrlClick(Vector2Int gridPos)
+        {
+            var arrow = FindArrowAt(gridPos);
+            if (arrow == null) return;
+
+            _selectedArrowIndex = _currentLevel.arrows.IndexOf(arrow);
+
+            // 방향 순환: R → D → L → U → R
+            arrow.direction = arrow.direction switch
+            {
+                "R" => "D",
+                "D" => "L",
+                "L" => "U",
+                "U" => "R",
+                _ => "R"
+            };
+
+            _validationDirty = true;
+            Debug.Log($"[LevelEditor] Arrow direction changed to {arrow.direction} at ({gridPos.x}, {gridPos.y})");
+            SceneView.RepaintAll();
+        }
+
+        /// <summary>
+        /// 두 셀이 상하좌우 인접한지 확인
+        /// </summary>
+        private bool IsAdjacentCell(Vector2Int a, Vector2Int b)
+        {
+            int dx = Mathf.Abs(a.x - b.x);
+            int dy = Mathf.Abs(a.y - b.y);
+            return (dx + dy) == 1;
+        }
+
+        /// <summary>
+        /// 두 셀 간의 방향 문자열 반환
+        /// </summary>
+        private string GetDirectionFromCells(Vector2Int from, Vector2Int to)
+        {
+            Vector2Int diff = to - from;
+            if (diff.x > 0) return "R";
+            if (diff.x < 0) return "L";
+            if (diff.y > 0) return "U";
+            if (diff.y < 0) return "D";
+            return "R";
+        }
+
+        /// <summary>
+        /// 드래그 경로로부터 화살표 생성
+        /// </summary>
+        private void CreateArrowFromDragPath()
+        {
+            if (_dragPath.Count == 0) return;
+            if (_currentLevel == null) return;
+
+            if (_currentLevel.arrows == null)
+                _currentLevel.arrows = new List<ArrowData>();
+
+            Vector2Int headPos = _dragPath[_dragPath.Count - 1];
+
+            // Head 방향 결정
+            string headDirection;
+            if (_dragPath.Count >= 2)
+            {
+                var prevCell = _dragPath[_dragPath.Count - 2];
+                headDirection = GetDirectionFromCells(prevCell, headPos);
+            }
+            else
+            {
+                // 단일 클릭: 현재 선택된 방향 사용
+                headDirection = DirectionHelper.ToString(_selectedDirection);
+            }
+
+            var newArrow = new ArrowData
+            {
+                x = headPos.x,
+                y = headPos.y,
+                color = ColorHelper.ToString(_selectedColor),
+                direction = headDirection,
+                length = _dragPath.Count,
+                order = _currentLevel.arrows.Count + 1,
+                isFiller = false
+            };
+
+            // path 설정 (2셀 이상이면 path 저장)
+            if (_dragPath.Count >= 2)
+            {
+                newArrow.path = new List<Vector2IntSerializable>();
+                foreach (var cell in _dragPath)
+                {
+                    newArrow.path.Add(new Vector2IntSerializable(cell));
+                }
+            }
+
+            _currentLevel.arrows.Add(newArrow);
+            _selectedArrowIndex = _currentLevel.arrows.Count - 1;
+            _validationDirty = true;
+
+            Debug.Log($"[LevelEditor] Arrow drawn: {_dragPath.Count} cells, head=({headPos.x},{headPos.y}), dir={headDirection}");
         }
 
         /// <summary>
@@ -1355,27 +1779,6 @@ namespace BalloonOut.Editor
             return pos.x >= 0 && pos.x < gridSize && pos.y >= 0 && pos.y < gridSize;
         }
 
-        /// <summary>
-        /// 좌클릭 처리: 기존 화살표 선택 또는 새 화살표 배치
-        /// </summary>
-        private void HandleGridLeftClick(Vector2Int gridPos)
-        {
-            var existingArrow = FindArrowAt(gridPos);
-
-            if (existingArrow != null)
-            {
-                // 기존 화살표 선택
-                _selectedArrowIndex = _currentLevel.arrows.IndexOf(existingArrow);
-                Debug.Log($"[LevelEditor] Arrow selected at ({gridPos.x}, {gridPos.y})");
-            }
-            else
-            {
-                // 새 화살표 배치
-                PlaceArrow(gridPos);
-            }
-
-            SceneView.RepaintAll();
-        }
 
         private void DrawQueuePreview()
         {
@@ -1722,6 +2125,10 @@ namespace BalloonOut.Editor
                 _gridSize = _currentLevel.gridSize;
                 _selectedArrowIndex = -1;
                 _validationDirty = true;
+
+                // LevelConfigTable에서 Params 복원
+                ApplyConfigFromTable(levelName);
+
                 Debug.Log($"[LevelEditor] Loaded stage: {levelName}");
                 SceneView.RepaintAll();
             }
@@ -1729,6 +2136,53 @@ namespace BalloonOut.Editor
             {
                 Debug.LogError($"[LevelEditor] Failed to load stage: {assetPath}");
             }
+        }
+
+        /// <summary>
+        /// 레벨 번호를 기반으로 LevelConfigTable에서 파라미터를 가져와 Generate 탭에 반영
+        /// </summary>
+        private void ApplyConfigFromTable(string assetName)
+        {
+            int levelNumber = ExtractLevelNumber(assetName);
+            if (levelNumber < 0) return;
+
+            // LevelConfigTable.json 로드
+            var configTableAsset = AssetDatabase.LoadAssetAtPath<TextAsset>(
+                "Assets/Resources/Tables/LevelConfigTable.json");
+            if (configTableAsset == null) return;
+
+            var records = LevelConfigTableLoader.Load(configTableAsset.text);
+            var record = records.Find(r => r.level == levelNumber);
+
+            if (record != null)
+            {
+                _genGridSize = record.gridSize;
+                _genLaneCount = record.laneCount;
+                _genBalloonsPerLane = record.balloonsPerLane;
+                _genMissArrowCount = record.missArrowCount;
+                _genDecoyArrowCount = record.decoyArrowCount;
+                _genMinLength = record.minBlockLength;
+                _genMaxLength = record.maxBlockLength;
+                _genBendingEnabled = record.bendingEnabled;
+                _genTargetDensity = record.targetDensity;
+                _genAutoCalculate = false; // 수동 모드로 전환
+
+                Debug.Log($"[LevelEditor] Applied config from table for level {levelNumber}");
+            }
+        }
+
+        /// <summary>
+        /// asset 이름에서 레벨 번호 추출: "stage_000047" → 47
+        /// </summary>
+        private int ExtractLevelNumber(string assetName)
+        {
+            if (assetName.StartsWith("stage_"))
+            {
+                string numPart = assetName.Substring(6);
+                if (int.TryParse(numPart, out int level))
+                    return level;
+            }
+            return -1;
         }
 
         /// <summary>
@@ -1846,43 +2300,6 @@ namespace BalloonOut.Editor
         }
 
         // ========== 화살표 편집 ==========
-        private void PlaceArrow(Vector2Int gridPos)
-        {
-            if (_currentLevel == null)
-                return;
-
-            if (_currentLevel.arrows == null)
-                _currentLevel.arrows = new List<ArrowData>();
-
-            // 해당 위치에 이미 화살표가 있는지 확인
-            var existingArrow = FindArrowAt(gridPos);
-            if (existingArrow != null)
-            {
-                // 이미 있으면 선택
-                _selectedArrowIndex = _currentLevel.arrows.IndexOf(existingArrow);
-                return;
-            }
-
-            // 새 화살표 생성
-            var newArrow = new ArrowData
-            {
-                x = gridPos.x,
-                y = gridPos.y,
-                color = ColorHelper.ToString(_selectedColor),
-                direction = DirectionHelper.ToString(_selectedDirection),
-                length = _selectedLength,
-                order = _currentLevel.arrows.Count + 1,
-                isFiller = false
-            };
-
-            _currentLevel.arrows.Add(newArrow);
-            _selectedArrowIndex = _currentLevel.arrows.Count - 1;
-            _validationDirty = true; // 검증 갱신 필요
-
-            Debug.Log($"[LevelEditor] Arrow placed at ({gridPos.x}, {gridPos.y})");
-            SceneView.RepaintAll();
-        }
-
         private void RemoveArrowAt(Vector2Int gridPos)
         {
             if (_currentLevel?.arrows == null)
