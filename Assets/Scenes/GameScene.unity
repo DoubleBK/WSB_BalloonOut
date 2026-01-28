@@ -411,6 +411,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   _gridSystem: {fileID: 1053988352}
   _queueUI: {fileID: 908375345}
+  _topBarUI: {fileID: 1365776416}
+  _bottomBarUI: {fileID: 716875232}
   _arrowContainer: {fileID: 1822850321}
   _homingArrowSpawner: {fileID: 66680955}
   _arrowPrefab: {fileID: 3427126534941519750, guid: 83dc7a5bbf7cff54d9f74a1ac32650e1, type: 3}
@@ -1712,11 +1714,11 @@ MonoBehaviour:
   _lanesContainer: {fileID: 1304018443}
   _lanePrefab: {fileID: 0}
   _balloonPrefab: {fileID: 3230050119194978347, guid: cb7a04dd7be24f440b928cbd1c09e6d6, type: 3}
-  _balloonSize: 60
+  _balloonSize: 45
   _balloonSpacing: 0
   _laneSpacing: 1
   _enableOverlap: 1
-  _overlapAmount: 20
+  _overlapAmount: 15
   _slideAnimDuration: 0.25
   _conveyorTilePrefab: {fileID: 3783582881639314130, guid: e03809f030ee07a4b83f7ca70a0a409c, type: 3}
   _conveyorTileCount: 8
@@ -2011,7 +2013,7 @@ MonoBehaviour:
   _zoomSpeed: 0.5
   _dragSpeed: 1
   _dragThreshold: 10
-  _boundaryPadding: 2
+  _boundaryPadding: 1.5
   _verticalExtraPadding: 3
   _bottomExtraPadding: 5
   _minMoveRange: 2
@@ -2328,7 +2330,7 @@ MonoBehaviour:
   _cellSize: 1
   _dotPrefab: {fileID: 5715922905060668493, guid: bc26fc464ae410448b8321b82b6082e7, type: 3}
   _dotColor: {r: 0.8, g: 0.8, b: 0.8, a: 0.5}
-  _boundingBoxPadding: 1
+  _boundingBoxPadding: 2
 --- !u!1 &1060220171
 GameObject:
   m_ObjectHideFlags: 0

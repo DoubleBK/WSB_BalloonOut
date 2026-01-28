@@ -27,6 +27,8 @@ namespace BalloonOut.Core
         [Header("References")]
         [SerializeField] private GridSystem _gridSystem;
         [SerializeField] private QueueUI _queueUI;
+        [SerializeField] private GameObject _topBarUI;
+        [SerializeField] private GameObject _bottomBarUI;
         [SerializeField] private Transform _arrowContainer;
         [SerializeField] private HomingArrowSpawner _homingArrowSpawner;
 
@@ -267,6 +269,16 @@ namespace BalloonOut.Core
             controller.Initialize(id, data);
             controller.OnTapped += OnArrowTapped;
 
+            // 화살표 위치에 Dot 표시
+            if (_gridSystem != null)
+            {
+                var cells = data.GetCells();
+                foreach (var cell in cells)
+                {
+                    _gridSystem.ShowDotAt(cell);
+                }
+            }
+
             // HomingArrow 사용 시 탈출 시작 이벤트 구독
             if (_useHomingArrow && _homingArrowSpawner != null)
             {
@@ -302,6 +314,16 @@ namespace BalloonOut.Core
 
             controller.Initialize(id, data);
             controller.OnTapped += OnArrowTapped;
+
+            // 화살표 위치에 Dot 표시
+            if (_gridSystem != null)
+            {
+                var cells = data.GetCells();
+                foreach (var cell in cells)
+                {
+                    _gridSystem.ShowDotAt(cell);
+                }
+            }
 
             if (_useHomingArrow && _homingArrowSpawner != null)
             {
@@ -494,6 +516,9 @@ namespace BalloonOut.Core
             // 레벨 클리어 저장 (다음 레벨로 진행)
             GameProgressManager.OnLevelCleared(_currentLevelIdx);
 
+            // Confetti 연출을 위해 UI 숨기기
+            HideUIForConfetti();
+
             if (_confettiEffect != null)
             {
                 _confettiEffect.Play();
@@ -510,6 +535,23 @@ namespace BalloonOut.Core
                 Debug.LogWarning("[GameManager] ConfettiEffect not assigned. Going to lobby immediately.");
                 GoToLobby();
             }
+        }
+
+        /// <summary>
+        /// Confetti 연출을 위해 UI 숨기기
+        /// </summary>
+        private void HideUIForConfetti()
+        {
+            if (_topBarUI != null)
+                _topBarUI.SetActive(false);
+
+            if (_bottomBarUI != null)
+                _bottomBarUI.SetActive(false);
+
+            if (_queueUI != null)
+                _queueUI.gameObject.SetActive(false);
+
+            Debug.Log("[GameManager] UI hidden for Confetti effect");
         }
 
         /// <summary>
