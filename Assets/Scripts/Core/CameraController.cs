@@ -31,6 +31,7 @@ namespace BalloonOut.Core
         [SerializeField] private float _topMargin = 2f;  // 상단 풍선 영역 여유
         [SerializeField] private bool _useSmoothTransition = true;
         [SerializeField] private float _smoothSpeed = 5f;
+        [SerializeField] private float _zoomOutStartPadding = 3f;  // 줌아웃 시작 시 추가 여유
 
         [Header("카메라 크기 제한")]
         [SerializeField, Tooltip("자동 조절 시 최소 카메라 크기")]
@@ -121,10 +122,10 @@ namespace BalloonOut.Core
         private void HandleMouseInput()
         {
             // 마우스 휠 줌
-            float scroll = Input.GetAxis("Mouse ScrollWheel");
-            if (Mathf.Abs(scroll) > 0.01f)
+            float scroll = Input.mouseScrollDelta.y;
+            if (scroll != 0f)
             {
-                Zoom(-scroll * _zoomSpeed * 10f);
+                Zoom(-scroll * _zoomSpeed);
             }
 
             // 좌클릭(0), 우클릭(1), 중클릭(2) 모두 드래그 지원
@@ -376,6 +377,10 @@ namespace BalloonOut.Core
 
             if (_useSmoothTransition)
             {
+                // 줌아웃 상태에서 시작 → 적절한 크기로 줌인
+                // 그리드 전체가 보이는 넉넉한 크기로 카메라를 먼저 설정
+                float startSize = _targetSize + _zoomOutStartPadding;
+                _camera.orthographicSize = startSize;
                 _isAutoTransitioning = true;
             }
             else

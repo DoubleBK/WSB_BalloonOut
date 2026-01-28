@@ -42,6 +42,15 @@ namespace BalloonOut.UI
         // 각 레인의 풍선 기준 위치 (balloons[0]의 anchoredPosition)
         private List<Vector2> _laneBasePositions = new List<Vector2>();
 
+        // 각 레인의 앵커/피벗 정보 (LayoutGroup이 설정한 값 보존)
+        private struct LaneAnchorInfo
+        {
+            public Vector2 anchorMin;
+            public Vector2 anchorMax;
+            public Vector2 pivot;
+        }
+        private List<LaneAnchorInfo> _laneAnchorInfos = new List<LaneAnchorInfo>();
+
         // 컨베이어 벨트 루트 오브젝트 (레인별)
         private List<GameObject> _conveyorBelts = new List<GameObject>();
 
@@ -301,13 +310,15 @@ namespace BalloonOut.UI
             // 레이아웃 강제 업데이트 (LayoutGroup이 위치를 계산하도록)
             Canvas.ForceUpdateCanvases();
 
-            // 각 레인의 기준 위치 저장 및 LayoutGroup 제거
+            // 각 레인의 기준 위치 및 앵커 정보 저장, LayoutGroup 제거
             _laneBasePositions.Clear();
+            _laneAnchorInfos.Clear();
             for (int laneIdx = 0; laneIdx < _balloonImages.Count; laneIdx++)
             {
                 if (_balloonImages[laneIdx].Count == 0)
                 {
                     _laneBasePositions.Add(Vector2.zero);
+                    _laneAnchorInfos.Add(default);
                     continue;
                 }
 
@@ -315,19 +326,27 @@ namespace BalloonOut.UI
                 if (laneObj == null)
                 {
                     _laneBasePositions.Add(Vector2.zero);
+                    _laneAnchorInfos.Add(default);
                     continue;
                 }
 
-                // 첫 번째 풍선(balloons[0])의 anchoredPosition을 기준으로 저장
+                // 첫 번째 풍선(balloons[0])의 anchoredPosition과 앵커 정보를 기준으로 저장
                 var firstBalloon = _balloonImages[laneIdx][0];
                 var rect = firstBalloon.GetComponent<RectTransform>();
                 if (rect != null)
                 {
                     _laneBasePositions.Add(rect.anchoredPosition);
+                    _laneAnchorInfos.Add(new LaneAnchorInfo
+                    {
+                        anchorMin = rect.anchorMin,
+                        anchorMax = rect.anchorMax,
+                        pivot = rect.pivot
+                    });
                 }
                 else
                 {
                     _laneBasePositions.Add(Vector2.zero);
+                    _laneAnchorInfos.Add(default);
                 }
 
                 // VerticalLayoutGroup 제거 (이제 수동 관리)
@@ -391,7 +410,7 @@ namespace BalloonOut.UI
                 {
                     targetWidth = prefabRect.sizeDelta.x;
                     targetHeight = prefabRect.sizeDelta.y;
-                    // 앵커/피벗은 변경하지 않음 - LayoutGroup(CreateUI)이나 RestoreBalloon에서 관리
+                    // 앵커/피벗은 변경하지 않음 - LayoutGroup(CreateUI) 또는 RestoreBalloon에서 관리
                 }
                 else
                 {
@@ -673,23 +692,30 @@ namespace BalloonOut.UI
                 var balloonObj = CreateBalloon(laneContainer, color);
                 var image = balloonObj.GetComponent<Image>();
 
-                // 기존 풍선의 RectTransform 속성(앵커/피벗) 복사
-                // LayoutGroup이 설정한 앵커를 유지해야 _laneBasePositions 기반 위치 계산이 정확함
+                // LayoutGroup이 설정한 앵커/피벗을 복원 (_laneBasePositions와 좌표계 일치 필요)
                 var newRect = balloonObj.GetComponent<RectTransform>();
-                if (newRect != null && balloonList.Count > 0 && balloonList[0] != null)
-                {
-                    var existingRect = balloonList[0].GetComponent<RectTransform>();
-                    if (existingRect != null)
-                    {
-                        newRect.anchorMin = existingRect.anchorMin;
-                        newRect.anchorMax = existingRect.anchorMax;
-                        newRect.pivot = existingRect.pivot;
-                    }
-                }
-
-                // 초기 위치를 활성 풍선 위치 아래로 설정 (등장 전 숨김)
                 if (newRect != null)
                 {
+                    if (laneIndex < _laneAnchorInfos.Count)
+                    {
+                        var anchorInfo = _laneAnchorInfos[laneIndex];
+                        newRect.anchorMin = anchorInfo.anchorMin;
+                        newRect.anchorMax = anchorInfo.anchorMax;
+                        newRect.pivot = anchorInfo.pivot;
+                    }
+                    else if (balloonList.Count > 0 && balloonList[0] != null)
+                    {
+                        // 폴백: 기존 풍선에서 복사
+                        var existingRect = balloonList[0].GetComponent<RectTransform>();
+                        if (existingRect != null)
+                        {
+                            newRect.anchorMin = existingRect.anchorMin;
+                            newRect.anchorMax = existingRect.anchorMax;
+                            newRect.pivot = existingRect.pivot;
+                        }
+                    }
+
+                    // 초기 위치를 활성 풍선 위치 아래로 설정 (등장 전 숨김)
                     Vector2 targetPos = CalculateBalloonPosition(laneIndex, 0);
                     newRect.anchoredPosition = targetPos - new Vector2(0, _balloonSize);
                 }

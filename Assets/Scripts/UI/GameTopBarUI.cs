@@ -1,15 +1,19 @@
 using UnityEngine;
 using UnityEngine.UI;
+using TMPro;
 using BalloonOut.Core;
 using DG.Tweening;
 
 namespace BalloonOut.UI
 {
     /// <summary>
-    /// 게임 화면 상단 UI - Exit/Retry 버튼 관리
+    /// 게임 화면 상단 UI - 레벨 표시, Exit/Retry 버튼 관리
     /// </summary>
     public class GameTopBarUI : MonoBehaviour
     {
+        [Header("Level Text")]
+        [SerializeField] private TextMeshProUGUI _levelText;
+
         [Header("Buttons")]
         [SerializeField] private Button _exitButton;
         [SerializeField] private Button _retryButton;
@@ -22,6 +26,7 @@ namespace BalloonOut.UI
         {
             _exitButton?.onClick.AddListener(OnExitClicked);
             _retryButton?.onClick.AddListener(OnRetryClicked);
+            UpdateLevelText();
         }
 
         private void OnDestroy()
@@ -44,6 +49,14 @@ namespace BalloonOut.UI
             {
                 GameManager.Instance.RestartLevel();
             });
+        }
+
+        private void UpdateLevelText()
+        {
+            if (_levelText == null) return;
+
+            int level = GameManager.Instance != null ? GameManager.Instance.CurrentLevelIdx : 1;
+            _levelText.text = $"Level {level}";
         }
 
         private void PlayClickAnimation(Transform target, TweenCallback onComplete)

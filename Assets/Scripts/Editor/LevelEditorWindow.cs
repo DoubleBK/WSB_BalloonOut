@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using UnityEngine;
 using UnityEditor;
 using BalloonOut.Core;
@@ -51,6 +52,12 @@ namespace BalloonOut.Editor
         // Validation 캐시
         private LevelValidator.ValidationResult _cachedValidation;
         private bool _validationDirty = true;
+
+        // Batch Generation 설정
+        private TextAsset _batchConfigTable;
+        private int _batchFromLevel = 1;
+        private int _batchToLevel = 100;
+        private bool _batchOverwrite = false;
 
         // 레벨 목록
         private List<string> _levelList = new List<string>();
@@ -555,34 +562,34 @@ namespace BalloonOut.Editor
 
             EditorGUILayout.BeginHorizontal();
             EditorGUILayout.LabelField("Lanes", GUILayout.Width(100));
-            _genLaneCount = EditorGUILayout.IntSlider(_genLaneCount, 1, 6);
+            _genLaneCount = EditorGUILayout.IntSlider(_genLaneCount, 1, 8);
             EditorGUILayout.EndHorizontal();
 
             EditorGUILayout.BeginHorizontal();
             EditorGUILayout.LabelField("Balloons/Lane", GUILayout.Width(100));
-            _genBalloonsPerLane = EditorGUILayout.IntSlider(_genBalloonsPerLane, 1, 8);
+            _genBalloonsPerLane = EditorGUILayout.IntSlider(_genBalloonsPerLane, 1, 15);
             EditorGUILayout.EndHorizontal();
 
             EditorGUILayout.BeginHorizontal();
             EditorGUILayout.LabelField("Miss Arrows", GUILayout.Width(100));
-            _genMissArrowCount = EditorGUILayout.IntSlider(_genMissArrowCount, 0, 10);
+            _genMissArrowCount = EditorGUILayout.IntSlider(_genMissArrowCount, 0, 20);
             EditorGUILayout.EndHorizontal();
 
             EditorGUILayout.BeginHorizontal();
             EditorGUILayout.LabelField("Decoy Arrows", GUILayout.Width(100));
-            _genDecoyArrowCount = EditorGUILayout.IntSlider(_genDecoyArrowCount, 0, 5);
+            _genDecoyArrowCount = EditorGUILayout.IntSlider(_genDecoyArrowCount, 0, 10);
             EditorGUILayout.EndHorizontal();
 
             EditorGUILayout.Space(5);
 
             EditorGUILayout.BeginHorizontal();
             EditorGUILayout.LabelField("Min Length", GUILayout.Width(100));
-            _genMinLength = EditorGUILayout.IntSlider(_genMinLength, 1, 8);
+            _genMinLength = EditorGUILayout.IntSlider(_genMinLength, 1, 15);
             EditorGUILayout.EndHorizontal();
 
             EditorGUILayout.BeginHorizontal();
             EditorGUILayout.LabelField("Max Length", GUILayout.Width(100));
-            _genMaxLength = EditorGUILayout.IntSlider(_genMaxLength, 2, 20);
+            _genMaxLength = EditorGUILayout.IntSlider(_genMaxLength, 2, 40);
             EditorGUILayout.EndHorizontal();
 
             // minLength <= maxLength 보장
@@ -618,6 +625,70 @@ namespace BalloonOut.Editor
             EditorGUILayout.LabelField($"  Grid: {_genGridSize}x{_genGridSize} = {totalCells} cells");
             EditorGUILayout.LabelField($"  Main Arrows: {mainArrows}, Decoy: {_genDecoyArrowCount}, Total: {totalArrows}");
             EditorGUILayout.LabelField($"  Target Cells: {targetOccupied} ({_genTargetDensity * 100:F0}%)");
+
+            EditorGUILayout.EndVertical();
+
+            // ========== Batch Generation 섹션 ==========
+            EditorGUILayout.Space(15);
+            DrawBatchGenerateSection();
+        }
+
+        private void DrawBatchGenerateSection()
+        {
+            EditorGUILayout.BeginVertical("box");
+            EditorGUILayout.LabelField("Batch Generation", EditorStyles.boldLabel);
+            EditorGUILayout.HelpBox("LevelConfigTable.json 기반으로 여러 레벨을 일괄 생성합니다.", MessageType.Info);
+
+            EditorGUILayout.Space(5);
+
+            // Config Table 선택
+            _batchConfigTable = (TextAsset)EditorGUILayout.ObjectField(
+                "Config Table", _batchConfigTable, typeof(TextAsset), false);
+
+            if (_batchConfigTable == null)
+            {
+                // 기본 테이블 자동 로드 시도
+                var defaultTable = Resources.Load<TextAsset>("Tables/LevelConfigTable");
+                if (defaultTable != null)
+                {
+                    _batchConfigTable = defaultTable;
+                }
+            }
+
+            EditorGUILayout.Space(3);
+
+            // 범위 설정
+            EditorGUILayout.BeginHorizontal();
+            EditorGUILayout.LabelField("From Level", GUILayout.Width(80));
+            _batchFromLevel = EditorGUILayout.IntField(_batchFromLevel, GUILayout.Width(60));
+            EditorGUILayout.LabelField("To Level", GUILayout.Width(60));
+            _batchToLevel = EditorGUILayout.IntField(_batchToLevel, GUILayout.Width(60));
+            EditorGUILayout.EndHorizontal();
+
+            // 범위 유효성
+            _batchFromLevel = Mathf.Max(1, _batchFromLevel);
+            _batchToLevel = Mathf.Max(_batchFromLevel, _batchToLevel);
+
+            // 덮어쓰기 토글
+            _batchOverwrite = EditorGUILayout.Toggle("Overwrite Existing", _batchOverwrite);
+
+            EditorGUILayout.Space(5);
+
+            // Batch Generate 버튼
+            GUI.enabled = _batchConfigTable != null;
+            GUI.backgroundColor = new Color(0.3f, 0.6f, 1.0f);
+            if (GUILayout.Button($"Batch Generate (Level {_batchFromLevel}~{_batchToLevel})", GUILayout.Height(35)))
+            {
+                if (EditorUtility.DisplayDialog("Batch Generate",
+                    $"Level {_batchFromLevel}~{_batchToLevel}을 일괄 생성합니다.\n" +
+                    (_batchOverwrite ? "기존 파일을 덮어씁니다." : "기존 파일은 건너뜁니다.") +
+                    "\n\n진행하시겠습니까?", "생성", "취소"))
+                {
+                    BatchGenerate(_batchFromLevel, _batchToLevel);
+                }
+            }
+            GUI.backgroundColor = Color.white;
+            GUI.enabled = true;
 
             EditorGUILayout.EndVertical();
         }
@@ -703,6 +774,329 @@ namespace BalloonOut.Editor
                 EditorUtility.DisplayDialog("Error", $"Generation error: {e.Message}", "OK");
                 Debug.LogError($"[LevelEditor] Generation error: {e}");
             }
+        }
+
+        // ========== Batch Generation ==========
+        private void BatchGenerate(int fromLevel, int toLevel)
+        {
+            if (_batchConfigTable == null)
+            {
+                EditorUtility.DisplayDialog("Error", "Config Table이 설정되지 않았습니다.", "OK");
+                return;
+            }
+
+            // JSON 로드
+            List<LevelConfigRecord> allConfigs;
+            try
+            {
+                allConfigs = LevelConfigTableLoader.Load(_batchConfigTable.text);
+            }
+            catch (System.Exception e)
+            {
+                EditorUtility.DisplayDialog("Error", $"Config Table 파싱 실패: {e.Message}", "OK");
+                return;
+            }
+
+            if (allConfigs == null || allConfigs.Count == 0)
+            {
+                EditorUtility.DisplayDialog("Error", "Config Table이 비어있습니다.", "OK");
+                return;
+            }
+
+            // 범위 내 레벨 필터링
+            var targetConfigs = allConfigs
+                .Where(c => c.level >= fromLevel && c.level <= toLevel)
+                .OrderBy(c => c.level)
+                .ToList();
+
+            if (targetConfigs.Count == 0)
+            {
+                EditorUtility.DisplayDialog("Error", $"Level {fromLevel}~{toLevel} 범위에 해당하는 Config가 없습니다.", "OK");
+                return;
+            }
+
+            string stagesPath = "Assets/Resources/ScriptableObjects/Stages";
+            if (!System.IO.Directory.Exists(stagesPath))
+            {
+                System.IO.Directory.CreateDirectory(stagesPath);
+            }
+
+            // 결과 추적
+            int successCount = 0;
+            int skipCount = 0;
+            var relaxedLevels = new List<string>();
+            var failedLevels = new List<string>();
+
+            for (int i = 0; i < targetConfigs.Count; i++)
+            {
+                var configRecord = targetConfigs[i];
+                int level = configRecord.level;
+                string levelName = level.ToString("D6");
+                string fileName = $"stage_{levelName}.asset";
+                string assetPath = $"{stagesPath}/{fileName}";
+
+                // Progress Bar
+                float progress = (float)i / targetConfigs.Count;
+                bool cancel = EditorUtility.DisplayCancelableProgressBar(
+                    "Batch Generate",
+                    $"Level {level} 생성 중... ({i + 1}/{targetConfigs.Count})",
+                    progress);
+
+                if (cancel)
+                {
+                    Debug.Log("[BatchGenerate] 사용자에 의해 중단됨");
+                    break;
+                }
+
+                // 기존 파일 존재 확인
+                if (!_batchOverwrite && System.IO.File.Exists(assetPath))
+                {
+                    skipCount++;
+                    Debug.Log($"[BatchGenerate] Level {level}: 이미 존재 (건너뜀)");
+                    continue;
+                }
+
+                // 생성 시도 (완화 포함)
+                var result = TryGenerateWithRelaxation(configRecord);
+
+                if (result.levelData != null)
+                {
+                    // 이름 설정
+                    result.levelData.name = levelName;
+
+                    // ScriptableObject 저장
+                    var stageData = ScriptableObject.CreateInstance<StageData>();
+                    stageData.CopyFrom(result.levelData);
+
+                    if (System.IO.File.Exists(assetPath))
+                    {
+                        AssetDatabase.DeleteAsset(assetPath);
+                    }
+                    AssetDatabase.CreateAsset(stageData, assetPath);
+
+                    successCount++;
+
+                    if (result.relaxationStep > 0)
+                    {
+                        relaxedLevels.Add($"  Level {level}: {result.relaxationDesc}");
+                    }
+
+                    Debug.Log($"[BatchGenerate] Level {level}: 성공 (density={result.levelData.stats?.density ?? 0:P0}{(result.relaxationStep > 0 ? $", {result.relaxationDesc}" : "")})");
+                }
+                else
+                {
+                    failedLevels.Add($"  Level {level}: 800회 시도 후 실패");
+                    Debug.LogWarning($"[BatchGenerate] Level {level}: 실패 (800회 시도)");
+                }
+            }
+
+            EditorUtility.ClearProgressBar();
+            AssetDatabase.SaveAssets();
+            AssetDatabase.Refresh();
+
+            // StageTable.json 업데이트
+            UpdateStageTable(targetConfigs, failedLevels);
+
+            // 리포트
+            RefreshLevelList();
+            ShowBatchReport(targetConfigs.Count, successCount, skipCount, relaxedLevels, failedLevels);
+        }
+
+        private struct GenerationResult
+        {
+            public LevelData levelData;
+            public int relaxationStep;
+            public string relaxationDesc;
+        }
+
+        private GenerationResult TryGenerateWithRelaxation(LevelConfigRecord configRecord)
+        {
+            const int attemptsPerStep = 200;
+
+            // Step 0: 원본 Config
+            var config = configRecord.ToGeneratorConfig();
+            var level = LevelGenerator.GenerateLevel(config, attemptsPerStep);
+            if (level != null)
+            {
+                return new GenerationResult { levelData = level, relaxationStep = 0, relaxationDesc = "" };
+            }
+
+            // Step 1: gridSize +1
+            var relaxed1 = configRecord.ToGeneratorConfig();
+            relaxed1.gridSize += 1;
+            level = LevelGenerator.GenerateLevel(relaxed1, attemptsPerStep);
+            if (level != null)
+            {
+                return new GenerationResult
+                {
+                    levelData = level,
+                    relaxationStep = 1,
+                    relaxationDesc = $"gridSize {configRecord.gridSize}\u2192{relaxed1.gridSize}"
+                };
+            }
+
+            // Step 2: missArrowCount -1
+            var relaxed2 = configRecord.ToGeneratorConfig();
+            relaxed2.missArrowCount = Mathf.Max(0, relaxed2.missArrowCount - 1);
+            level = LevelGenerator.GenerateLevel(relaxed2, attemptsPerStep);
+            if (level != null)
+            {
+                return new GenerationResult
+                {
+                    levelData = level,
+                    relaxationStep = 2,
+                    relaxationDesc = $"missArrow {configRecord.missArrowCount}\u2192{relaxed2.missArrowCount}"
+                };
+            }
+
+            // Step 3: targetDensity -0.05
+            var relaxed3 = configRecord.ToGeneratorConfig();
+            relaxed3.targetDensity -= 0.05f;
+            level = LevelGenerator.GenerateLevel(relaxed3, attemptsPerStep);
+            if (level != null)
+            {
+                return new GenerationResult
+                {
+                    levelData = level,
+                    relaxationStep = 3,
+                    relaxationDesc = $"density {configRecord.targetDensity:F2}\u2192{relaxed3.targetDensity:F2}"
+                };
+            }
+
+            // 모두 실패
+            return new GenerationResult { levelData = null, relaxationStep = -1, relaxationDesc = "all failed" };
+        }
+
+        private void UpdateStageTable(List<LevelConfigRecord> configs, List<string> failedLevels)
+        {
+            string tablePath = "Assets/Resources/Tables/StageTable.json";
+
+            // 기존 StageTable 로드
+            List<StageTableEntry> entries = new List<StageTableEntry>();
+            if (System.IO.File.Exists(tablePath))
+            {
+                string existingJson = System.IO.File.ReadAllText(tablePath);
+                try
+                {
+                    string wrapped = "{\"entries\":" + existingJson + "}";
+                    var wrapper = JsonUtility.FromJson<StageTableWrapper>(wrapped);
+                    if (wrapper?.entries != null)
+                    {
+                        entries = wrapper.entries;
+                    }
+                }
+                catch
+                {
+                    Debug.LogWarning("[BatchGenerate] 기존 StageTable.json 파싱 실패. 새로 생성합니다.");
+                }
+            }
+
+            // 실패한 레벨 번호 수집
+            var failedLevelNums = new HashSet<int>();
+            foreach (var f in failedLevels)
+            {
+                var parts = f.Trim().Split(':');
+                if (parts.Length > 0)
+                {
+                    string numStr = parts[0].Replace("Level", "").Trim();
+                    if (int.TryParse(numStr, out int num))
+                    {
+                        failedLevelNums.Add(num);
+                    }
+                }
+            }
+
+            // Config 항목 업데이트/추가
+            foreach (var config in configs)
+            {
+                if (failedLevelNums.Contains(config.level)) continue;
+
+                string difficulty = config.difficultyScore <= 33 ? "Normal" :
+                                    config.difficultyScore <= 66 ? "Hard" : "Nightmare";
+
+                var existing = entries.Find(e => e.LevelIdx == config.level);
+                if (existing != null)
+                {
+                    existing.StageIdx = config.level;
+                    existing.Difficulty = difficulty;
+                }
+                else
+                {
+                    entries.Add(new StageTableEntry
+                    {
+                        LevelIdx = config.level,
+                        StageIdx = config.level,
+                        Difficulty = difficulty
+                    });
+                }
+            }
+
+            // 정렬 후 저장
+            entries.Sort((a, b) => a.LevelIdx.CompareTo(b.LevelIdx));
+
+            var sb = new System.Text.StringBuilder();
+            sb.AppendLine("[");
+            for (int i = 0; i < entries.Count; i++)
+            {
+                var e = entries[i];
+                sb.Append($"\t{{\"LevelIdx\":{e.LevelIdx},\"StageIdx\":{e.StageIdx},\"Difficulty\":\"{e.Difficulty}\"}}");
+                if (i < entries.Count - 1) sb.Append(",");
+                sb.AppendLine();
+            }
+            sb.Append("]");
+
+            System.IO.File.WriteAllText(tablePath, sb.ToString());
+            Debug.Log($"[BatchGenerate] StageTable.json 업데이트 완료 ({entries.Count}개 항목)");
+        }
+
+        [System.Serializable]
+        private class StageTableEntry
+        {
+            public int LevelIdx;
+            public int StageIdx;
+            public string Difficulty;
+        }
+
+        [System.Serializable]
+        private class StageTableWrapper
+        {
+            public List<StageTableEntry> entries;
+        }
+
+        private void ShowBatchReport(int total, int success, int skipped,
+            List<string> relaxed, List<string> failed)
+        {
+            var sb = new System.Text.StringBuilder();
+            sb.AppendLine("=== Batch Generation Report ===");
+            sb.AppendLine($"Total: {total} levels");
+            sb.AppendLine($"Success: {success}" + (relaxed.Count > 0 ? $" ({relaxed.Count} relaxed)" : ""));
+            if (skipped > 0) sb.AppendLine($"Skipped: {skipped} (already exist)");
+            sb.AppendLine($"Failed: {failed.Count}");
+
+            if (failed.Count > 0)
+            {
+                sb.AppendLine();
+                sb.AppendLine("--- Failed ---");
+                foreach (var f in failed) sb.AppendLine(f);
+            }
+
+            if (relaxed.Count > 0)
+            {
+                sb.AppendLine();
+                sb.AppendLine("--- Relaxed ---");
+                foreach (var r in relaxed) sb.AppendLine(r);
+            }
+
+            string report = sb.ToString();
+            Debug.Log(report);
+
+            string summary = $"성공: {success}개" +
+                             (relaxed.Count > 0 ? $" (완화: {relaxed.Count})" : "") +
+                             (skipped > 0 ? $"\n건너뜀: {skipped}개" : "") +
+                             (failed.Count > 0 ? $"\n실패: {failed.Count}개" : "") +
+                             "\n\n상세 내용은 Console 로그를 확인하세요.";
+
+            EditorUtility.DisplayDialog("Batch Generation Complete", summary, "OK");
         }
 
         // ========== Preview 패널 ==========
