@@ -27,6 +27,12 @@ namespace BalloonOut.UI
         [Header("데이터 리셋")]
         [SerializeField] private Button _resetButton;
 
+        [Header("디버그/치트 버튼")]
+        [SerializeField] private Button _dataResetCheatButton;
+        [SerializeField] private TMP_InputField _levelInputField;
+        [SerializeField] private Button _levelJumpButton;
+        [SerializeField] private Button _giveItemsButton;
+
         [Header("하이라이트 애니메이션")]
         [SerializeField] private float _highlightMoveDuration = 0.2f;
 
@@ -116,6 +122,16 @@ namespace BalloonOut.UI
             // 리셋 버튼
             if (_resetButton != null)
                 _resetButton.onClick.AddListener(OnResetButtonClicked);
+
+            // 치트 버튼
+            if (_dataResetCheatButton != null)
+                _dataResetCheatButton.onClick.AddListener(OnCheatDataReset);
+
+            if (_levelJumpButton != null)
+                _levelJumpButton.onClick.AddListener(OnCheatLevelJump);
+
+            if (_giveItemsButton != null)
+                _giveItemsButton.onClick.AddListener(OnCheatGiveItems);
         }
 
         /// <summary>
@@ -414,6 +430,78 @@ namespace BalloonOut.UI
 
             // 4. 펀치 스케일로 강조
             seq.Append(_levelText.transform.DOPunchScale(Vector3.one * 0.2f, _levelUpAnimDuration * 0.2f, 1, 0.5f));
+        }
+
+        // ========== 치트/디버그 기능 ==========
+
+        /// <summary>
+        /// 치트: 모든 데이터 초기화 (PlayerPrefs Clear)
+        /// </summary>
+        private void OnCheatDataReset()
+        {
+            Debug.Log("[LobbyUI] CHEAT: Data Reset");
+
+            // PlayerPrefs 전체 삭제
+            PlayerPrefs.DeleteAll();
+            PlayerPrefs.Save();
+
+            // 게임 진행 상황 초기화
+            GameProgressManager.ResetProgress();
+
+            // 부스터 인벤토리 초기화
+            BoosterInventory.Instance.ResetAll();
+
+            // UI 업데이트
+            _currentLevel = 1;
+            UpdateLevelText();
+
+            Debug.Log("[LobbyUI] All data reset - Level 1, Items reset");
+        }
+
+        /// <summary>
+        /// 치트: 특정 레벨로 이동
+        /// </summary>
+        private void OnCheatLevelJump()
+        {
+            if (_levelInputField == null)
+            {
+                Debug.LogWarning("[LobbyUI] Level InputField not assigned");
+                return;
+            }
+
+            if (int.TryParse(_levelInputField.text, out int targetLevel))
+            {
+                if (targetLevel < 1)
+                {
+                    Debug.LogWarning($"[LobbyUI] Invalid level: {targetLevel}. Must be >= 1");
+                    return;
+                }
+
+                _currentLevel = targetLevel;
+                GameProgressManager.SaveCurrentLevel(targetLevel);
+                UpdateLevelText();
+
+                Debug.Log($"[LobbyUI] CHEAT: Jumped to Level {targetLevel}");
+            }
+            else
+            {
+                Debug.LogWarning($"[LobbyUI] Invalid input: {_levelInputField.text}");
+            }
+        }
+
+        /// <summary>
+        /// 치트: 모든 아이템 10개씩 지급
+        /// </summary>
+        private void OnCheatGiveItems()
+        {
+            Debug.Log("[LobbyUI] CHEAT: Giving all items x10");
+
+            BoosterInventory.Instance.SetQuantity(NGFE.Data.ITEM_TYPE.UNDO, 10);
+            BoosterInventory.Instance.SetQuantity(NGFE.Data.ITEM_TYPE.HINT, 10);
+            BoosterInventory.Instance.SetQuantity(NGFE.Data.ITEM_TYPE.TRIPLEARROW, 10);
+            BoosterInventory.Instance.SetQuantity(NGFE.Data.ITEM_TYPE.DARTARROW, 10);
+
+            Debug.Log("[LobbyUI] All items set to 10");
         }
 
         // ========== 공개 인터페이스 ==========
