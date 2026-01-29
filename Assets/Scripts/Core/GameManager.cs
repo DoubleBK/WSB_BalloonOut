@@ -43,7 +43,11 @@ namespace BalloonOut.Core
 
         [Header("Clear Sequence")]
         [SerializeField] private ConfettiEffect _confettiEffect;
+        [SerializeField] private DotMatrixPulseEffect _dotMatrixEffect;
+        [SerializeField] private PraiseTextEffect _praiseTextEffect;
         [SerializeField] private string _lobbySceneName = "LobbyScene";
+        [SerializeField] private float _confettiDelayAfterPulse = 0.5f;
+        [SerializeField] private float _returnToLobbyDelay = 1.5f;
 
         [Header("Camera")]
         [SerializeField] private CameraController _cameraController;
@@ -516,25 +520,46 @@ namespace BalloonOut.Core
             // 레벨 클리어 저장 (다음 레벨로 진행)
             GameProgressManager.OnLevelCleared(_currentLevelIdx);
 
-            // Confetti 연출을 위해 UI 숨기기
+            // 연출을 위해 UI 숨기기
             HideUIForConfetti();
 
-            if (_confettiEffect != null)
+            // DotMatrix Pulse 먼저 시작
+            float pulseDuration = 0f;
+            if (_dotMatrixEffect != null)
             {
-                _confettiEffect.Play();
+                _dotMatrixEffect.Play();
+                pulseDuration = _dotMatrixEffect.GetTotalDuration();
+            }
 
-                // Confetti 연출 종료 후 로비로 이동
-                float confettiDuration = _confettiEffect.Duration;
-                Invoke(nameof(GoToLobby), confettiDuration);
+            // Confetti + Praise는 약간의 딜레이 후
+            Invoke(nameof(PlayConfettiAndPraise), _confettiDelayAfterPulse);
 
-                Debug.Log($"[GameManager] Clear sequence started. Going to lobby in {confettiDuration}s");
+            // 총 시간 계산: max(pulseDuration, confettiDuration + delay) + returnDelay
+            float confettiDuration = _confettiEffect != null ? _confettiEffect.Duration : 0f;
+            float totalWait = Mathf.Max(pulseDuration, confettiDuration + _confettiDelayAfterPulse) + _returnToLobbyDelay;
+
+            if (totalWait > 0f)
+            {
+                Invoke(nameof(GoToLobby), totalWait);
+                Debug.Log($"[GameManager] Clear sequence started. Going to lobby in {totalWait:F1}s");
             }
             else
             {
-                // ConfettiEffect가 없으면 바로 로비로 이동
-                Debug.LogWarning("[GameManager] ConfettiEffect not assigned. Going to lobby immediately.");
+                Debug.LogWarning("[GameManager] No clear effects assigned. Going to lobby immediately.");
                 GoToLobby();
             }
+        }
+
+        /// <summary>
+        /// Confetti + Praise 연출 재생 (DotMatrix 후 딜레이)
+        /// </summary>
+        private void PlayConfettiAndPraise()
+        {
+            if (_confettiEffect != null)
+                _confettiEffect.Play();
+
+            if (_praiseTextEffect != null)
+                _praiseTextEffect.Show();
         }
 
         /// <summary>

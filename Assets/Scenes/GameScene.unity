@@ -375,6 +375,8 @@ GameObject:
   m_Component:
   - component: {fileID: 420712651}
   - component: {fileID: 420712652}
+  - component: {fileID: 420712654}
+  - component: {fileID: 420712653}
   m_Layer: 0
   m_Name: GameManager
   m_TagString: Untagged
@@ -419,8 +421,78 @@ MonoBehaviour:
   _useHomingArrow: 1
   _startLevelIdx: 1
   _confettiEffect: {fileID: 1732222311}
+  _dotMatrixEffect: {fileID: 420712654}
+  _praiseTextEffect: {fileID: 420712653}
   _lobbySceneName: LobbyScene
+  _confettiDelayAfterPulse: 0.5
+  _returnToLobbyDelay: 1.5
   _cameraController: {fileID: 961739754}
+--- !u!114 &420712653
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 420712650}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c71d04845fd008d428a7c7540869d38f, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  _praiseText: {fileID: 0}
+  _canvasGroup: {fileID: 0}
+  _appearDuration: 0.3
+  _punchScale: 1.2
+  _appearEase: 27
+  _fadeOutDuration: 0.5
+  _autoHide: 0
+  _autoHideDelay: 1.5
+  _praiseWords:
+  - Amazing!
+  - Perfect!
+  - Excellent!
+  - Awesome!
+  - Great!
+  - Wonderful!
+  - Fantastic!
+  - Brilliant!
+  - Super!
+  - Nice!
+  _textColor: {r: 1, g: 0.84, b: 0, a: 1}
+  _useGradient: 1
+  _gradientTopColor: {r: 1, g: 0.92, b: 0.23, a: 1}
+  _gradientBottomColor: {r: 1, g: 0.65, b: 0, a: 1}
+--- !u!114 &420712654
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 420712650}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 38cc22c9c2579b94faa95e9d84cc605d, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  _gridSystem: {fileID: 1053988352}
+  _scaleUpTime: 0.2
+  _scaleDownTime: 0.1
+  _maxScale: 2
+  _scaleUpEase: 27
+  _scaleDownEase: 5
+  _colorTransitionTime: 0.1
+  _colorEase: 6
+  _delayPerDistance: 0.1
+  _useEuclideanDistance: 0
+  _pulseColors:
+  - {r: 1, g: 0.84, b: 0, a: 1}
+  - {r: 1, g: 0.42, b: 0.42, a: 1}
+  - {r: 0.31, g: 0.8, b: 0.77, a: 1}
+  - {r: 0.66, g: 0.33, b: 0.97, a: 1}
+  - {r: 0.52, g: 0.8, b: 0.09, a: 1}
+  - {r: 0.93, g: 0.29, b: 0.6, a: 1}
+  - {r: 0.98, g: 0.45, b: 0.09, a: 1}
+  - {r: 0.22, g: 0.74, b: 0.97, a: 1}
 --- !u!1 &443753241
 GameObject:
   m_ObjectHideFlags: 0
@@ -1714,11 +1786,11 @@ MonoBehaviour:
   _lanesContainer: {fileID: 1304018443}
   _lanePrefab: {fileID: 0}
   _balloonPrefab: {fileID: 3230050119194978347, guid: cb7a04dd7be24f440b928cbd1c09e6d6, type: 3}
-  _balloonSize: 45
+  _balloonSize: 80
   _balloonSpacing: 0
-  _laneSpacing: 1
+  _laneSpacing: 35
   _enableOverlap: 1
-  _overlapAmount: 15
+  _overlapAmount: 5
   _slideAnimDuration: 0.25
   _conveyorTilePrefab: {fileID: 3783582881639314130, guid: e03809f030ee07a4b83f7ca70a0a409c, type: 3}
   _conveyorTileCount: 8
@@ -1965,7 +2037,7 @@ Camera:
   far clip plane: 1000
   field of view: 60
   orthographic: 1
-  orthographic size: 10
+  orthographic size: 13
   m_Depth: -1
   m_CullingMask:
     serializedVersion: 2
@@ -2008,7 +2080,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 35d51dfafc51e7e4b834b65b714f27b6, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  _minZoom: 10
+  _minZoom: 15
   _maxZoom: 25
   _zoomSpeed: 0.5
   _dragSpeed: 1
@@ -2022,7 +2094,7 @@ MonoBehaviour:
   _useSmoothTransition: 1
   _smoothSpeed: 5
   _zoomOutStartPadding: 3
-  _minCameraSize: 10
+  _minCameraSize: 15
 --- !u!1 &978759372
 GameObject:
   m_ObjectHideFlags: 0

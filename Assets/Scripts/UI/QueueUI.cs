@@ -404,13 +404,28 @@ namespace BalloonOut.UI
                 balloonObj = Instantiate(_balloonPrefab);
                 balloonObj.transform.SetParent(parent, false);  // worldPositionStays = false
 
-                // 프리팹의 원본 크기 사용
+                // _balloonSize 기준으로 크기 적용 (프리팹 비율 유지)
                 var prefabRect = balloonObj.GetComponent<RectTransform>();
                 if (prefabRect != null)
                 {
-                    targetWidth = prefabRect.sizeDelta.x;
-                    targetHeight = prefabRect.sizeDelta.y;
-                    // 앵커/피벗은 변경하지 않음 - LayoutGroup(CreateUI) 또는 RestoreBalloon에서 관리
+                    float originalWidth = prefabRect.sizeDelta.x;
+                    float originalHeight = prefabRect.sizeDelta.y;
+
+                    if (originalWidth > 0 && originalHeight > 0)
+                    {
+                        // 비율 유지: _balloonSize를 높이 기준으로 적용
+                        float ratio = originalWidth / originalHeight;
+                        targetHeight = _balloonSize;
+                        targetWidth = _balloonSize * ratio;
+                    }
+                    else
+                    {
+                        targetWidth = _balloonSize;
+                        targetHeight = _balloonSize;
+                    }
+
+                    // RectTransform에 크기 반영
+                    prefabRect.sizeDelta = new Vector2(targetWidth, targetHeight);
                 }
                 else
                 {

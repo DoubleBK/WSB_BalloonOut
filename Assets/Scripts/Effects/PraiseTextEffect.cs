@@ -2,7 +2,7 @@ using UnityEngine;
 using TMPro;
 using DG.Tweening;
 
-namespace Game.Effects
+namespace BalloonOut.Effects
 {
     /// <summary>
     /// 칭찬 텍스트 이펙트
