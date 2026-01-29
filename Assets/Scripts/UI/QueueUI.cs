@@ -35,6 +35,11 @@ namespace BalloonOut.UI
         [SerializeField] private float _conveyorTileScale = 2.4f;  // 타일 스케일 배율
         [SerializeField] private float _conveyorAnimSpeed = 1f;    // 벨트 애니메이션 재생 속도
 
+        [Header("Pop Effect")]
+        [SerializeField] private ParticleSystem _popEffectPrefab;  // 풍선 팝 파티클 프리팹
+        [SerializeField] private float _popEffectDuration = 0.5f;  // 파티클 지속 시간
+        [SerializeField] private bool _autoCreatePopEffect = true; // 프리팹 없을 시 자동 생성
+
         // ========== 내부 상태 변수 ==========
         private List<List<Image>> _balloonImages = new List<List<Image>>();
         private List<List<GameColor>> _lanes = new List<List<GameColor>>();
@@ -619,6 +624,17 @@ namespace BalloonOut.UI
             float elapsed = 0f;
             var startScale = balloon.transform.localScale;
 
+            // 파티클용 색상 미리 저장 (페이드 전)
+            Color balloonColor = Color.white;
+            var image = balloon.GetComponent<Image>();
+            if (image != null)
+            {
+                balloonColor = image.color;
+            }
+
+            // 파티클 생성 위치 저장
+            Vector3 popPosition = balloon.transform.position;
+
             while (elapsed < duration)
             {
                 elapsed += Time.deltaTime;
@@ -629,10 +645,9 @@ namespace BalloonOut.UI
                 balloon.transform.localScale = startScale * scale;
 
                 // 페이드 아웃
-                var image = balloon.GetComponent<Image>();
                 if (image != null)
                 {
-                    var color = image.color;
+                    var color = balloonColor;
                     color.a = 1f - t;
                     image.color = color;
                 }
@@ -640,9 +655,116 @@ namespace BalloonOut.UI
                 yield return null;
             }
 
+            // 파티클 이펙트 생성
+            SpawnPopEffect(popPosition, balloonColor);
+
             Destroy(balloon);
             // 슬라이드 애니메이션이 위치 이동을 처리하므로
             // LayoutRebuilder 즉시 갱신은 제거됨
+        }
+
+        /// <summary>
+        /// 풍선 팝 파티클 이펙트 생성
+        /// </summary>
+        private void SpawnPopEffect(Vector3 position, Color color)
+        {
+            ParticleSystem effect;
+
+            if (_popEffectPrefab != null)
+            {
+                effect = Instantiate(_popEffectPrefab, position, Quaternion.identity);
+            }
+            else if (_autoCreatePopEffect)
+            {
+                effect = CreatePopParticle(position);
+            }
+            else
+            {
+                return;
+            }
+
+            // 풍선 색상에 맞춰 파티클 색상 설정 (알파값 보장 + 색상 변화 추가)
+            var main = effect.main;
+
+            // 원본 색상 (알파 1.0 보장)
+            Color baseColor = new Color(color.r, color.g, color.b, 1f);
+
+            // 밝은 버전 (하이라이트)
+            Color brightColor = Color.Lerp(baseColor, Color.white, 0.3f);
+            brightColor.a = 1f;
+
+            // 두 색상 사이에서 랜덤하게 선택되도록 그라디언트 설정
+            var colorGradient = new ParticleSystem.MinMaxGradient(baseColor, brightColor);
+            main.startColor = colorGradient;
+
+            effect.Play();
+
+            // 재생 완료 후 자동 삭제
+            Destroy(effect.gameObject, _popEffectDuration);
+        }
+
+        /// <summary>
+        /// 풍선 팝 파티클 시스템 동적 생성
+        /// </summary>
+        private ParticleSystem CreatePopParticle(Vector3 position)
+        {
+            GameObject particleGO = new GameObject("BalloonPopEffect");
+            particleGO.transform.position = position;
+
+            ParticleSystem ps = particleGO.AddComponent<ParticleSystem>();
+
+            // Main Module
+            var main = ps.main;
+            main.duration = 0.5f;
+            main.loop = false;
+            main.startLifetime = new ParticleSystem.MinMaxCurve(0.3f, 0.5f);
+            main.startSpeed = new ParticleSystem.MinMaxCurve(3f, 6f);
+            main.startSize = new ParticleSystem.MinMaxCurve(0.1f, 0.3f);
+            main.gravityModifier = 0.5f;
+            main.maxParticles = 30;
+            main.simulationSpace = ParticleSystemSimulationSpace.World;
+
+            // Emission (Burst)
+            var emission = ps.emission;
+            emission.enabled = true;
+            emission.rateOverTime = 0;
+            emission.SetBursts(new ParticleSystem.Burst[]
+            {
+                new ParticleSystem.Burst(0f, 15, 20)
+            });
+
+            // Shape (Sphere - 풍선 터지듯 사방으로)
+            var shape = ps.shape;
+            shape.enabled = true;
+            shape.shapeType = ParticleSystemShapeType.Sphere;
+            shape.radius = 0.3f;
+
+            // Color over Lifetime (페이드 아웃)
+            var colorOverLifetime = ps.colorOverLifetime;
+            colorOverLifetime.enabled = true;
+            Gradient fadeGradient = new Gradient();
+            fadeGradient.SetKeys(
+                new GradientColorKey[] { new GradientColorKey(Color.white, 0f), new GradientColorKey(Color.white, 1f) },
+                new GradientAlphaKey[] { new GradientAlphaKey(1f, 0f), new GradientAlphaKey(1f, 0.5f), new GradientAlphaKey(0f, 1f) }
+            );
+            colorOverLifetime.color = fadeGradient;
+
+            // Size over Lifetime (점점 작아짐)
+            var sizeOverLifetime = ps.sizeOverLifetime;
+            sizeOverLifetime.enabled = true;
+            AnimationCurve sizeCurve = new AnimationCurve();
+            sizeCurve.AddKey(0f, 1f);
+            sizeCurve.AddKey(1f, 0.3f);
+            sizeOverLifetime.size = new ParticleSystem.MinMaxCurve(1f, sizeCurve);
+
+            // Renderer
+            var renderer = particleGO.GetComponent<ParticleSystemRenderer>();
+            if (renderer != null)
+            {
+                renderer.renderMode = ParticleSystemRenderMode.Billboard;
+            }
+
+            return ps;
         }
 
         // ========== 부스터 지원 메서드 ==========
