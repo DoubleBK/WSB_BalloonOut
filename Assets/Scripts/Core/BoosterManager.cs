@@ -120,15 +120,20 @@ namespace BalloonOut.Core
         /// </summary>
         public void RecordArrowEscapeFromSnapshot(ArrowSnapshot arrowSnapshot, bool wasMatch, int laneIndex = -1)
         {
-            if (arrowSnapshot == null) return;
-
             // 힌트 화살표가 탈출했으면 하이라이트 해제
             ClearHintHighlight();
 
             BalloonSnapshot balloonSnapshot = null;
-            if (wasMatch && laneIndex >= 0)
+            if (wasMatch && laneIndex >= 0 && arrowSnapshot != null)
             {
                 balloonSnapshot = new BalloonSnapshot(arrowSnapshot.Color, laneIndex, 0);
+            }
+
+            // arrowSnapshot이 null이면 빈 스냅샷 생성 (히스토리 연속성 유지)
+            if (arrowSnapshot == null)
+            {
+                Debug.LogWarning("[BoosterManager] Recording escape with null arrow snapshot");
+                arrowSnapshot = new ArrowSnapshot();
             }
 
             _undoHistory?.RecordArrowEscapeFromSnapshot(arrowSnapshot, balloonSnapshot);
@@ -182,6 +187,13 @@ namespace BalloonOut.Core
         private void RestoreArrow(ArrowSnapshot arrowSnapshot)
         {
             if (arrowSnapshot == null || GameManager.Instance == null) return;
+
+            // 빈 스냅샷 (OccupiedCells가 null이거나 비어있음)은 복원 스킵
+            if (arrowSnapshot.OccupiedCells == null || arrowSnapshot.OccupiedCells.Count == 0)
+            {
+                Debug.LogWarning("[BoosterManager] Skipping arrow restore - empty snapshot");
+                return;
+            }
 
             var arrowData = arrowSnapshot.ToArrowData();
             GameManager.Instance.RestoreArrow(arrowSnapshot.ArrowId, arrowData);

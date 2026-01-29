@@ -58,6 +58,9 @@ namespace BalloonOut.Core
         private List<ArrowController> _arrows = new List<ArrowController>();
         private bool _isProcessing = false;
 
+        // Undo용 이동 전 스냅샷 저장
+        private Dictionary<int, ArrowSnapshot> _preMoveSnapshots = new Dictionary<int, ArrowSnapshot>();
+
         // ========== 레벨 진행 ==========
         private int _currentLevelIdx = 1;
         private StageTableEntry _currentStageEntry;
@@ -352,7 +355,15 @@ namespace BalloonOut.Core
 
             if (_homingArrowSpawner != null)
             {
-                _homingArrowSpawner.HandleArrowExtractionStarted(arrow, headPos, exitDir);
+                // 저장해둔 이동 전 스냅샷 전달
+                ArrowSnapshot preMoveSnapshot = null;
+                if (_preMoveSnapshots.TryGetValue(arrow.Id, out var snapshot))
+                {
+                    preMoveSnapshot = snapshot;
+                    _preMoveSnapshots.Remove(arrow.Id);
+                }
+
+                _homingArrowSpawner.HandleArrowExtractionStarted(arrow, headPos, exitDir, preMoveSnapshot);
             }
         }
 
@@ -389,6 +400,9 @@ namespace BalloonOut.Core
             if (!arrow.CanLaunch) return;
 
             _isProcessing = true;
+
+            // 이동 전 스냅샷 캡처 (Undo용)
+            _preMoveSnapshots[arrow.Id] = ArrowSnapshot.CreateFromController(arrow);
 
             // 힌트 하이라이트 해제
             if (BoosterManager.Instance != null)
@@ -430,6 +444,9 @@ namespace BalloonOut.Core
             // 이벤트 구독 해제
             arrow.OnExtracted -= OnArrowExtractedHandler;
             arrow.OnStopped -= OnArrowStoppedHandler;
+
+            // 화살표가 막힌 경우 저장된 스냅샷 정리
+            _preMoveSnapshots.Remove(arrow.Id);
 
             Debug.Log("[GameManager] Arrow BLOCKED! _isProcessing reset to false");
             _isProcessing = false;
@@ -478,9 +495,16 @@ namespace BalloonOut.Core
                 wasMatch = _queueUI.TryPopBalloon(color, out _);
             }
 
-            // Undo 히스토리 기록 (팝 전 캡처한 레인 인덱스 사용)
-            if (BoosterManager.Instance != null && homingArrow != null && homingArrow.SourceArrowSnapshot != null)
+            // Undo 히스토리 기록 - SourceArrowSnapshot null 체크 제거
+            // 스냅샷이 null이어도 기록하여 히스토리 연속성 유지
+            if (BoosterManager.Instance != null && homingArrow != null)
             {
+                // SourceArrowSnapshot이 null이면 경고 로그 출력
+                if (homingArrow.SourceArrowSnapshot == null)
+                {
+                    Debug.LogWarning($"[GameManager] SourceArrowSnapshot is null for color {color}");
+                }
+
                 BoosterManager.Instance.RecordArrowEscapeFromSnapshot(homingArrow.SourceArrowSnapshot, wasMatch, prePoppedLaneIndex);
             }
 
@@ -490,6 +514,23 @@ namespace BalloonOut.Core
             Debug.Log(wasMatch ? $"HomingArrow POP! Color: {color}, Lane: {prePoppedLaneIndex}" : $"HomingArrow missed! Color: {color}");
             // _isProcessing은 OnArrowExtractedHandler에서 이미 false로 설정됨
             // 화살표 탈출 즉시 다음 입력 허용
+        }
+
+        /// <summary>
+        /// 풍선과 매칭되지 않은 화살표 탈출 기록 (Undo용)
+        /// HomingArrow가 생성되지 않은 경우 호출됨
+        /// </summary>
+        public void RecordMissedArrowEscape(ArrowSnapshot arrowSnapshot, GameColor color)
+        {
+            if (BoosterManager.Instance != null)
+            {
+                BoosterManager.Instance.RecordArrowEscapeFromSnapshot(arrowSnapshot, false, -1);
+            }
+
+            OnArrowEscaped?.Invoke(color, false);
+            CheckWinCondition();
+
+            Debug.Log($"[GameManager] Missed arrow escape recorded: Color={color}");
         }
 
         /// <summary>

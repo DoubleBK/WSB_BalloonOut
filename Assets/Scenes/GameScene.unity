@@ -1973,7 +1973,7 @@ MonoBehaviour:
   _balloonSpacing: 0
   _laneSpacing: 35
   _enableOverlap: 1
-  _overlapAmount: 5
+  _overlapAmount: 25
   _slideAnimDuration: 0.25
   _conveyorTilePrefab: {fileID: 3783582881639314130, guid: e03809f030ee07a4b83f7ca70a0a409c, type: 3}
   _conveyorTileCount: 8

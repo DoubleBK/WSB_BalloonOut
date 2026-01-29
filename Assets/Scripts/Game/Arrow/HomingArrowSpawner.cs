@@ -56,10 +56,11 @@ namespace BalloonOut.Game.Arrow
         /// <summary>
         /// Arrow 탈출 시작 시 호출 - 딜레이 후 HomingArrow로 전환
         /// </summary>
-        public void HandleArrowExtractionStarted(ArrowController arrow, Vector2 headPosition, ArrowDirection exitDir)
+        /// <param name="preMoveSnapshot">이동 전 캡처한 스냅샷 (Undo용)</param>
+        public void HandleArrowExtractionStarted(ArrowController arrow, Vector2 headPosition, ArrowDirection exitDir, ArrowSnapshot preMoveSnapshot = null)
         {
             Debug.Log($"[HomingArrowSpawner] HandleArrowExtractionStarted: color={arrow.Color}, headPos={headPosition}, dir={exitDir}");
-            StartCoroutine(DelayedArrowTransition(arrow, exitDir));
+            StartCoroutine(DelayedArrowTransition(arrow, exitDir, preMoveSnapshot));
         }
 
         // ========== 내부 유틸리티 ==========
@@ -67,7 +68,8 @@ namespace BalloonOut.Game.Arrow
         /// <summary>
         /// 딜레이 후 Arrow → HomingArrow 전환
         /// </summary>
-        private IEnumerator DelayedArrowTransition(ArrowController arrow, ArrowDirection exitDir)
+        /// <param name="preMoveSnapshot">이동 전 캡처한 스냅샷 (Undo용)</param>
+        private IEnumerator DelayedArrowTransition(ArrowController arrow, ArrowDirection exitDir, ArrowSnapshot preMoveSnapshot = null)
         {
             // Arrow 정보 미리 저장 (Arrow가 파괴되기 전에!)
             GameColor color = arrow.Color;
@@ -75,10 +77,10 @@ namespace BalloonOut.Game.Arrow
             Vector2 exitDirection = GetDirectionVector(exitDir);
             Vector2 initialHeadPos = arrow.GetHeadWorldPosition();
 
-            // Undo용 스냅샷 생성 (Arrow 파괴 전에!)
-            ArrowSnapshot arrowSnapshot = ArrowSnapshot.CreateFromController(arrow);
+            // 외부에서 전달받은 이동 전 스냅샷 사용 (없으면 fallback으로 현재 상태 캡처)
+            ArrowSnapshot arrowSnapshot = preMoveSnapshot ?? ArrowSnapshot.CreateFromController(arrow);
 
-            Debug.Log($"[HomingArrowSpawner] DelayedArrowTransition started: color={color}, initialPos={initialHeadPos}");
+            Debug.Log($"[HomingArrowSpawner] DelayedArrowTransition started: color={color}, initialPos={initialHeadPos}, usingPreMoveSnapshot={preMoveSnapshot != null}");
 
             // 딜레이 대기
             yield return new WaitForSeconds(_transitionDelay);
@@ -134,6 +136,9 @@ namespace BalloonOut.Game.Arrow
             if (targetPos == Vector3.zero)
             {
                 Debug.LogWarning($"[HomingArrowSpawner] No balloon found for color: {color}");
+
+                // 풍선이 없어도 Undo 히스토리를 위해 기록
+                RecordMissedEscape(arrowSnapshot, color);
                 yield break;
             }
 
@@ -168,6 +173,17 @@ namespace BalloonOut.Game.Arrow
         private void HandleHomingHitTarget(HomingArrow homing, GameColor color)
         {
             OnHomingHitTarget?.Invoke(homing, color);
+        }
+
+        /// <summary>
+        /// 풍선 미매칭 시 Undo 히스토리 기록
+        /// </summary>
+        private void RecordMissedEscape(ArrowSnapshot arrowSnapshot, GameColor color)
+        {
+            if (GameManager.Instance != null)
+            {
+                GameManager.Instance.RecordMissedArrowEscape(arrowSnapshot, color);
+            }
         }
 
         private Vector2 GetDirectionVector(ArrowDirection dir)
