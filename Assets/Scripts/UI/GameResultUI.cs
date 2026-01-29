@@ -1,5 +1,6 @@
 using UnityEngine;
 using UnityEngine.UI;
+using TMPro;
 using BalloonOut.Core;
 
 namespace BalloonOut.UI
@@ -19,17 +20,18 @@ namespace BalloonOut.UI
         [SerializeField] private Button _restartButton;
         [SerializeField] private Button _nextLevelButton;
         [SerializeField] private Button _menuButton;
+        [SerializeField] private Button _playOnButton;
 
         [Header("Texts (Optional)")]
-        [SerializeField] private Text _titleText;
-        [SerializeField] private Text _messageText;
-        [SerializeField] private Text _levelInfoText;
+        [SerializeField] private TMP_Text _titleText;
+        [SerializeField] private TMP_Text _messageText;
+        [SerializeField] private TMP_Text _levelInfoText;
 
         [Header("Settings")]
         [SerializeField] private string _clearTitle = "CLEAR!";
         [SerializeField] private string _clearMessage = "레벨을 클리어했습니다!";
         [SerializeField] private string _failedTitle = "FAILED";
-        [SerializeField] private string _failedMessage = "화살표를 모두 사용했습니다.";
+        [SerializeField] private string _failedMessage = "Out of Arrows!";
 
         // ========== 유니티 라이프사이클 ==========
         private void Start()
@@ -48,6 +50,11 @@ namespace BalloonOut.UI
             if (_menuButton != null)
             {
                 _menuButton.onClick.AddListener(OnMenuClicked);
+            }
+
+            if (_playOnButton != null)
+            {
+                _playOnButton.onClick.AddListener(OnPlayOnClicked);
             }
 
             // GameManager 이벤트 구독
@@ -86,6 +93,11 @@ namespace BalloonOut.UI
             if (_menuButton != null)
             {
                 _menuButton.onClick.RemoveListener(OnMenuClicked);
+            }
+
+            if (_playOnButton != null)
+            {
+                _playOnButton.onClick.RemoveListener(OnPlayOnClicked);
             }
         }
 
@@ -160,6 +172,12 @@ namespace BalloonOut.UI
             {
                 bool hasNextLevel = isClear && HasNextLevel();
                 _nextLevelButton.gameObject.SetActive(hasNextLevel);
+            }
+
+            // PlayOn 버튼 표시 (실패 시에만)
+            if (_playOnButton != null)
+            {
+                _playOnButton.gameObject.SetActive(!isClear);
             }
         }
 
@@ -241,6 +259,12 @@ namespace BalloonOut.UI
             {
                 GameManager.Instance.GoToLobby();
             }
+        }
+
+        private void OnPlayOnClicked()
+        {
+            // TODO: PlayOn 기능 구현 시 추가
+            Debug.Log("[GameResultUI] PlayOn clicked - Not implemented yet");
         }
     }
 }

@@ -713,6 +713,9 @@ namespace BalloonOut.UI
 
             ParticleSystem ps = particleGO.AddComponent<ParticleSystem>();
 
+            // ParticleSystem은 추가 시 자동 재생됨 - 설정 전에 먼저 정지
+            ps.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+
             // Main Module
             var main = ps.main;
             main.duration = 0.5f;
@@ -762,6 +765,33 @@ namespace BalloonOut.UI
             if (renderer != null)
             {
                 renderer.renderMode = ParticleSystemRenderMode.Billboard;
+
+                // 파티클 Material 설정 (URP/Built-in 호환)
+                Material particleMaterial = null;
+
+                // URP용 셰이더 우선 시도
+                string[] shaderNames = new string[]
+                {
+                    "Universal Render Pipeline/Particles/Unlit",
+                    "Universal Render Pipeline/Particles/Simple Lit",
+                    "Particles/Standard Unlit",
+                    "Legacy Shaders/Particles/Alpha Blended"
+                };
+
+                foreach (var shaderName in shaderNames)
+                {
+                    var shader = Shader.Find(shaderName);
+                    if (shader != null)
+                    {
+                        particleMaterial = new Material(shader);
+                        break;
+                    }
+                }
+
+                if (particleMaterial != null)
+                {
+                    renderer.material = particleMaterial;
+                }
             }
 
             return ps;
