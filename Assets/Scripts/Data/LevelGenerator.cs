@@ -491,7 +491,16 @@ namespace BalloonOut.Data
         }
 
         // ========== Main Generation Function ==========
-        public static LevelData GenerateLevel(GeneratorConfig config = null, int maxAttempts = 50)
+        /// <summary>
+        /// 레벨 생성
+        /// </summary>
+        /// <param name="config">생성 설정</param>
+        /// <param name="maxAttempts">최대 시도 횟수</param>
+        /// <param name="onProgress">진행 상황 콜백 (currentAttempt, maxAttempts) -> 취소 시 true 반환</param>
+        public static LevelData GenerateLevel(
+            GeneratorConfig config = null,
+            int maxAttempts = 50,
+            System.Func<int, int, bool> onProgress = null)
         {
             config ??= new GeneratorConfig();
 
@@ -501,6 +510,13 @@ namespace BalloonOut.Data
 
             for (int attempt = 0; attempt < maxAttempts; attempt++)
             {
+                // Progress callback 호출 - 취소 시 null 반환
+                if (onProgress != null && onProgress(attempt + 1, maxAttempts))
+                {
+                    Debug.Log($"Generation cancelled at attempt {attempt + 1}");
+                    return null;
+                }
+
                 Debug.Log($"Attempt {attempt + 1}/{maxAttempts}");
 
                 // Step 1: Queue 생성
@@ -674,7 +690,9 @@ namespace BalloonOut.Data
                             x = b.x,
                             y = config.gridSize - 1 - b.y,  // Generator → Game 좌표계 변환 (Y 플립)
                             color = b.color,
-                            direction = b.dir,  // 방향은 유지 (U/D/L/R은 시각적 의미가 동일)
+                            // 직선 화살표: Y축 반전에 따라 U↔D 플립
+                            // Bending 화살표: path에서 방향 재계산되므로 원본 유지 (나중에 덮어씌워짐)
+                            direction = (b.path != null && b.path.Count > 0) ? b.dir : FlipYDirection(b.dir),
                             length = b.length,
                             order = orderMap.ContainsKey(idx) ? orderMap[idx] : 0,
                             isFiller = b.isFiller,

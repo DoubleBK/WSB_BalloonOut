@@ -775,8 +775,31 @@ namespace BalloonOut.Editor
 
             try
             {
-                // 레벨 생성
-                var generatedLevel = LevelGenerator.GenerateLevel(config);
+                // 레벨 생성 (Progress Bar 표시)
+                int maxAttempts = 800;
+                bool wasCancelled = false;
+
+                var generatedLevel = LevelGenerator.GenerateLevel(config, maxAttempts, (current, max) =>
+                {
+                    bool cancel = EditorUtility.DisplayCancelableProgressBar(
+                        "Level Generate",
+                        $"시도 중... ({current}/{max})",
+                        (float)current / max);
+
+                    if (cancel)
+                    {
+                        wasCancelled = true;
+                    }
+                    return cancel;
+                });
+
+                EditorUtility.ClearProgressBar();
+
+                if (wasCancelled)
+                {
+                    Debug.Log("[LevelEditor] Generation cancelled by user");
+                    return;
+                }
 
                 if (generatedLevel != null)
                 {
@@ -811,6 +834,7 @@ namespace BalloonOut.Editor
             }
             catch (System.Exception e)
             {
+                EditorUtility.ClearProgressBar();
                 EditorUtility.DisplayDialog("Error", $"Generation error: {e.Message}", "OK");
                 Debug.LogError($"[LevelEditor] Generation error: {e}");
             }
@@ -875,20 +899,7 @@ namespace BalloonOut.Editor
                 string fileName = $"stage_{levelName}.asset";
                 string assetPath = $"{stagesPath}/{fileName}";
 
-                // Progress Bar
-                float progress = (float)i / targetConfigs.Count;
-                bool cancel = EditorUtility.DisplayCancelableProgressBar(
-                    "Batch Generate",
-                    $"Level {level} 생성 중... ({i + 1}/{targetConfigs.Count})",
-                    progress);
-
-                if (cancel)
-                {
-                    Debug.Log("[BatchGenerate] 사용자에 의해 중단됨");
-                    break;
-                }
-
-                // 기존 파일 존재 확인
+                // 기존 파일 존재 확인 (Progress Bar 표시 전에 체크)
                 if (!_batchOverwrite && System.IO.File.Exists(assetPath))
                 {
                     skipCount++;
@@ -896,8 +907,33 @@ namespace BalloonOut.Editor
                     continue;
                 }
 
-                // 생성 시도 (완화 포함)
-                var result = TryGenerateWithRelaxation(configRecord);
+                // 생성 시도 (완화 포함) - Progress Bar 콜백 전달
+                const int attemptsPerStep = 200;
+                const int totalSteps = 4;
+                bool wasCancelled = false;
+
+                var result = TryGenerateWithRelaxation(configRecord, (attempt, maxAttempt, step, stepDesc) =>
+                {
+                    // 전체 진행률 계산
+                    int attemptInStep = step * attemptsPerStep + attempt;
+                    int totalAttempts = totalSteps * attemptsPerStep;
+                    float levelProgress = (float)attemptInStep / totalAttempts;
+                    float overallProgress = ((float)i + levelProgress) / targetConfigs.Count;
+
+                    bool cancel = EditorUtility.DisplayCancelableProgressBar(
+                        "Batch Generate",
+                        $"Level {level} ({i + 1}/{targetConfigs.Count}) - ({attempt}/{attemptsPerStep}) Step {step}: {stepDesc}",
+                        overallProgress);
+
+                    if (cancel) wasCancelled = true;
+                    return cancel;
+                });
+
+                if (wasCancelled)
+                {
+                    Debug.Log("[BatchGenerate] 사용자에 의해 중단됨");
+                    break;
+                }
 
                 if (result.levelData != null)
                 {
@@ -949,13 +985,28 @@ namespace BalloonOut.Editor
             public string relaxationDesc;
         }
 
-        private GenerationResult TryGenerateWithRelaxation(LevelConfigRecord configRecord)
+        /// <summary>
+        /// Progress callback: (currentAttempt, maxAttempts, step, stepDesc) -> cancel
+        /// </summary>
+        private GenerationResult TryGenerateWithRelaxation(
+            LevelConfigRecord configRecord,
+            System.Func<int, int, int, string, bool> onProgress = null)
         {
             const int attemptsPerStep = 200;
+            bool cancelled = false;
 
             // Step 0: 원본 Config
             var config = configRecord.ToGeneratorConfig();
-            var level = LevelGenerator.GenerateLevel(config, attemptsPerStep);
+            var level = LevelGenerator.GenerateLevel(config, attemptsPerStep, (current, max) =>
+            {
+                if (onProgress != null && onProgress(current, max, 0, "원본"))
+                {
+                    cancelled = true;
+                    return true;
+                }
+                return false;
+            });
+            if (cancelled) return new GenerationResult { levelData = null, relaxationStep = -1, relaxationDesc = "cancelled" };
             if (level != null)
             {
                 return new GenerationResult { levelData = level, relaxationStep = 0, relaxationDesc = "" };
@@ -964,42 +1015,69 @@ namespace BalloonOut.Editor
             // Step 1: gridSize +1
             var relaxed1 = configRecord.ToGeneratorConfig();
             relaxed1.gridSize += 1;
-            level = LevelGenerator.GenerateLevel(relaxed1, attemptsPerStep);
+            level = LevelGenerator.GenerateLevel(relaxed1, attemptsPerStep, (current, max) =>
+            {
+                if (onProgress != null && onProgress(current, max, 1, "gridSize+1"))
+                {
+                    cancelled = true;
+                    return true;
+                }
+                return false;
+            });
+            if (cancelled) return new GenerationResult { levelData = null, relaxationStep = -1, relaxationDesc = "cancelled" };
             if (level != null)
             {
                 return new GenerationResult
                 {
                     levelData = level,
                     relaxationStep = 1,
-                    relaxationDesc = $"gridSize {configRecord.gridSize}\u2192{relaxed1.gridSize}"
+                    relaxationDesc = $"gridSize {configRecord.gridSize}→{relaxed1.gridSize}"
                 };
             }
 
             // Step 2: missArrowCount -1
             var relaxed2 = configRecord.ToGeneratorConfig();
             relaxed2.missArrowCount = Mathf.Max(0, relaxed2.missArrowCount - 1);
-            level = LevelGenerator.GenerateLevel(relaxed2, attemptsPerStep);
+            level = LevelGenerator.GenerateLevel(relaxed2, attemptsPerStep, (current, max) =>
+            {
+                if (onProgress != null && onProgress(current, max, 2, "missArrow-1"))
+                {
+                    cancelled = true;
+                    return true;
+                }
+                return false;
+            });
+            if (cancelled) return new GenerationResult { levelData = null, relaxationStep = -1, relaxationDesc = "cancelled" };
             if (level != null)
             {
                 return new GenerationResult
                 {
                     levelData = level,
                     relaxationStep = 2,
-                    relaxationDesc = $"missArrow {configRecord.missArrowCount}\u2192{relaxed2.missArrowCount}"
+                    relaxationDesc = $"missArrow {configRecord.missArrowCount}→{relaxed2.missArrowCount}"
                 };
             }
 
             // Step 3: targetDensity -0.05
             var relaxed3 = configRecord.ToGeneratorConfig();
             relaxed3.targetDensity -= 0.05f;
-            level = LevelGenerator.GenerateLevel(relaxed3, attemptsPerStep);
+            level = LevelGenerator.GenerateLevel(relaxed3, attemptsPerStep, (current, max) =>
+            {
+                if (onProgress != null && onProgress(current, max, 3, "density-5%"))
+                {
+                    cancelled = true;
+                    return true;
+                }
+                return false;
+            });
+            if (cancelled) return new GenerationResult { levelData = null, relaxationStep = -1, relaxationDesc = "cancelled" };
             if (level != null)
             {
                 return new GenerationResult
                 {
                     levelData = level,
                     relaxationStep = 3,
-                    relaxationDesc = $"density {configRecord.targetDensity:F2}\u2192{relaxed3.targetDensity:F2}"
+                    relaxationDesc = $"density {configRecord.targetDensity:F2}→{relaxed3.targetDensity:F2}"
                 };
             }
 
