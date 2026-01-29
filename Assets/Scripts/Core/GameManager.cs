@@ -463,6 +463,9 @@ namespace BalloonOut.Core
                 // 화살표 목록에서 제거만 수행
                 _arrows.Remove(arrow);
                 Debug.Log($"Arrow extracted, waiting for HomingArrow to hit balloon. Color: {arrow.Color}");
+
+                // 화살표 제거 후 즉시 실패 조건 체크
+                CheckFailCondition();
                 return;
             }
 

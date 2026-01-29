@@ -301,6 +301,9 @@ namespace BalloonOut.UI
         {
             if (BoosterManager.Instance == null) return false;
 
+            // 모든 부스터는 Playing 상태에서만 사용 가능
+            if (GameManager.Instance?.State != GameState.Playing) return false;
+
             bool hasQuantity = BoosterManager.Instance.GetBoosterQuantity(itemType) > 0;
             bool isUnlocked = BoosterManager.Instance.IsBoosterUnlocked(itemType);
 
@@ -310,11 +313,10 @@ namespace BalloonOut.UI
                 return hasQuantity && isUnlocked && BoosterManager.Instance.CanUndo;
             }
 
-            // Hint 추가 조건: 게임 진행 중 + 힌트 미활성 상태
+            // Hint 추가 조건: 힌트 미활성 상태
             if (itemType == ITEM_TYPE.HINT)
             {
                 return hasQuantity && isUnlocked
-                    && GameManager.Instance?.State == GameState.Playing
                     && !(BoosterManager.Instance?.IsHintActive ?? false);
             }
 

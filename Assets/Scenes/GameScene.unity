@@ -1926,7 +1926,7 @@ GameObject:
   - component: {fileID: 778505611}
   - component: {fileID: 778505610}
   m_Layer: 5
-  m_Name: TXT_Restart
+  m_Name: TXT_PlayOn
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -1971,7 +1971,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: Restart
+  m_text: PlayOn
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
   m_sharedMaterial: {fileID: 2180264, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
@@ -1998,7 +1998,7 @@ MonoBehaviour:
   m_faceColor:
     serializedVersion: 2
     rgba: 4294967295
-  m_fontSize: 49.45
+  m_fontSize: 49.1
   m_fontSizeBase: 24
   m_fontWeight: 400
   m_enableAutoSizing: 1
@@ -4093,13 +4093,15 @@ GameObject:
   m_Component:
   - component: {fileID: 1322436881}
   - component: {fileID: 1322436882}
+  - component: {fileID: 1322436883}
+  - component: {fileID: 1322436884}
   m_Layer: 5
   m_Name: PopupFail
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 0
+  m_IsActive: 1
 --- !u!224 &1322436881
 RectTransform:
   m_ObjectHideFlags: 0
@@ -4133,20 +4135,55 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 3a09e5a36891e1949b2e8f12bee1dd14, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  _resultPanel: {fileID: 1322436880}
-  _clearContent: {fileID: 0}
-  _failedContent: {fileID: 1129899912}
+  _failedPanel: {fileID: 1322436880}
+  _dimBackground: {fileID: 1986944753}
   _restartButton: {fileID: 229114854}
-  _nextLevelButton: {fileID: 0}
   _menuButton: {fileID: 1209615568}
   _playOnButton: {fileID: 201057373}
-  _titleText: {fileID: 0}
-  _messageText: {fileID: 0}
-  _levelInfoText: {fileID: 0}
-  _clearTitle: CLEAR!
-  _clearMessage: "\uB808\uBCA8\uC744 \uD074\uB9AC\uC5B4\uD588\uC2B5\uB2C8\uB2E4!"
+  _titleText: {fileID: 1621270376}
+  _messageText: {fileID: 406867632}
   _failedTitle: FAILED
   _failedMessage: Out of Arrows!
+--- !u!223 &1322436883
+Canvas:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1322436880}
+  m_Enabled: 1
+  serializedVersion: 3
+  m_RenderMode: 2
+  m_Camera: {fileID: 0}
+  m_PlaneDistance: 100
+  m_PixelPerfect: 0
+  m_ReceivesEvents: 1
+  m_OverrideSorting: 1
+  m_OverridePixelPerfect: 0
+  m_SortingBucketNormalizedSize: 0
+  m_VertexColorAlwaysGammaSpace: 0
+  m_AdditionalShaderChannelsFlag: 25
+  m_UpdateRectTransformForStandalone: 0
+  m_SortingLayerID: 0
+  m_SortingOrder: 1000
+  m_TargetDisplay: 0
+--- !u!114 &1322436884
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1322436880}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: dc42784cf147c0c48a680349fa168899, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  m_IgnoreReversedGraphics: 1
+  m_BlockingObjects: 0
+  m_BlockingMask:
+    serializedVersion: 2
+    m_Bits: 4294967295
 --- !u!1 &1365776416
 GameObject:
   m_ObjectHideFlags: 0
