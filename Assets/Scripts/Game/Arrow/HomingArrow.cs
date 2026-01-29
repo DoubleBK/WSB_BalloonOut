@@ -62,6 +62,13 @@ namespace BalloonOut.Game.Arrow
         // ========== 유니티 라이프사이클 ==========
         private void Awake()
         {
+            // Inspector에서 할당되지 않았으면 자동으로 찾기
+            if (_spriteRenderer == null)
+                _spriteRenderer = GetComponent<SpriteRenderer>();
+
+            if (_trailRenderer == null)
+                _trailRenderer = GetComponent<TrailRenderer>();
+
             _originalScale = transform.localScale;
             ApplySortingOrder();
         }
