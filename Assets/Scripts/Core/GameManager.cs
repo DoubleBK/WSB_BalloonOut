@@ -523,6 +523,10 @@ namespace BalloonOut.Core
             // 연출을 위해 UI 숨기기
             HideUIForConfetti();
 
+            // 카메라 입력 비활성화 (연출 중 드래그/줌 차단)
+            if (_cameraController != null)
+                _cameraController.SetInputEnabled(false);
+
             // DotMatrix Pulse 먼저 시작
             float pulseDuration = 0f;
             if (_dotMatrixEffect != null)

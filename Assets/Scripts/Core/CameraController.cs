@@ -59,6 +59,9 @@ namespace BalloonOut.Core
         private Vector2 _worldBoundsMax;
         private bool _hasBounds;
 
+        // 입력 활성화 여부
+        private bool _isInputEnabled = true;
+
         // ========== 프로퍼티 ==========
         public bool IsDragging => _isDragging;
         public bool IsPinching => _isPinching;
@@ -67,6 +70,7 @@ namespace BalloonOut.Core
         public Vector2 WorldBoundsMin => _worldBoundsMin;
         public Vector2 WorldBoundsMax => _worldBoundsMax;
         public bool HasBounds => _hasBounds;
+        public bool IsInputEnabled => _isInputEnabled;
 
         // ========== 유니티 라이프사이클 ==========
         private void Awake()
@@ -121,6 +125,8 @@ namespace BalloonOut.Core
         // ========== 마우스 입력 (에디터/PC) ==========
         private void HandleMouseInput()
         {
+            if (!_isInputEnabled) return;
+
             // 마우스 휠 줌
             float scroll = Input.mouseScrollDelta.y;
             if (scroll != 0f)
@@ -146,6 +152,8 @@ namespace BalloonOut.Core
         // ========== 터치 입력 (모바일) ==========
         private void HandleTouchInput()
         {
+            if (!_isInputEnabled) return;
+
             int touchCount = Input.touchCount;
 
             if (touchCount == 1)
@@ -346,6 +354,26 @@ namespace BalloonOut.Core
         {
             transform.position = new Vector3(0, 0, transform.position.z);
             _camera.orthographicSize = 6f;
+        }
+
+        /// <summary>
+        /// 카메라 입력(드래그, 줌) 활성화/비활성화
+        /// </summary>
+        /// <param name="enabled">true: 입력 허용, false: 입력 차단</param>
+        public void SetInputEnabled(bool enabled)
+        {
+            _isInputEnabled = enabled;
+
+            // 입력 비활성화 시 진행 중인 드래그/핀치 종료
+            if (!enabled)
+            {
+                if (_isDragging)
+                    EndDrag();
+                if (_isPinching)
+                    EndPinch();
+            }
+
+            Debug.Log($"[CameraController] Input {(enabled ? "enabled" : "disabled")}");
         }
 
         /// <summary>
