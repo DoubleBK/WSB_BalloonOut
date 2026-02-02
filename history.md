@@ -238,3 +238,70 @@ Filler 이슈 해결 및 밀도 최적화를 위한 계획 작성.
 - [ ] 레벨 복사/붙여넣기
 - [ ] 자동 저장 기능
 - [ ] 인게임 Level Editor (빌드 후 사용 가능)
+
+---
+
+## 2026-02-02
+
+### 1. 기믹 자동 생성 시스템 (개수 기반)
+
+기존 확률 기반 기믹 생성을 **개수 기반**으로 변경.
+
+#### 1.1 GimmickGeneratorConfig 수정
+**파일**: `Assets/Scripts/Data/GimmickGeneratorConfig.cs`
+
+- `chance` (확률) 제거
+- `count` 추가: Surprise 풍선 개수 지정
+- `hitCounts` 리스트 추가: Number 풍선별 hit count 개별 지정
+- `GetExtraArrowCount()`: Number 기믹의 추가 화살표 수 계산
+- `CreateSurpriseInstance()`, `CreateNumberInstance()`: 기믹 인스턴스 생성 헬퍼
+
+#### 1.2 Level Editor UI 변경
+**파일**: `Assets/Scripts/Editor/LevelEditorWindow.cs`
+
+- Surprise: Count 입력 필드
+- Number: hitCounts 리스트 (Add/Remove 버튼)
+- 추가 화살표 개수 실시간 표시
+
+#### 1.3 LevelGenerator 개수 기반 적용
+**파일**: `Assets/Scripts/Data/LevelGenerator.cs`
+
+- `GenerateQueueWithBalloonData()`: BalloonData 포함 Queue 생성
+- `ApplyGimmicksAndInsertExtraColors()`: 개수 기반 기믹 적용 + Number 추가 색상 삽입
+- Number 풍선의 hitCount-1 만큼 동일 색상 풍선 추가 삽입 (화살표 수 맞춤)
+
+---
+
+### 2. Surprise 풍선 활성 위치 버그 수정
+
+**문제**: Surprise 풍선이 맨 첫줄(활성 위치)에 생성됨
+
+**원인**: 기믹 적용 시 모든 풍선이 대상에 포함됨
+
+**해결**: `ApplyGimmicksAndInsertExtraColors()`에서 활성 위치(각 레인 마지막 풍선) 제외
+- Surprise: 활성 위치 제외 (`nonActiveBalloons`)
+- Number: 전체 풍선 대상 (활성 위치 포함 가능)
+- Surprise + Number 조합 지원
+
+---
+
+### 3. 기믹 PRD 문서 추가
+
+**파일**: `Assets/Documents/WSB_Gimmick_PRD.md`
+
+기믹 시스템 설계 문서 작성:
+- Surprise/Number 기믹 동작 정의
+- 아키텍처 설계 (IGimmickBehavior 인터페이스)
+- 개수 기반 자동 생성 UI/로직 설계
+- Validation 시 기믹 고려 사항
+
+---
+
+## 수정된 파일 목록 (2026-02-02)
+
+| 파일 | 작업 |
+|------|------|
+| `Assets/Scripts/Data/GimmickGeneratorConfig.cs` | 수정 (개수 기반) |
+| `Assets/Scripts/Data/LevelGenerator.cs` | 수정 (기믹 적용 로직) |
+| `Assets/Scripts/Editor/LevelEditorWindow.cs` | 수정 (기믹 UI) |
+| `Assets/Documents/WSB_Gimmick_PRD.md` | 신규 생성 |
