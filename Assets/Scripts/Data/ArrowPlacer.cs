@@ -84,6 +84,19 @@ namespace BalloonOut.Data
         private static string CellKey(int x, int y) => $"{x},{y}";
         private static string CellKey(Vector2Int v) => $"{v.x},{v.y}";
 
+        /// <summary>
+        /// 경로가 지정된 셀 집합에 의해 차단되었는지 확인
+        /// </summary>
+        private static bool IsPathBlockedBySet(List<Vector2Int> path, HashSet<string> cellSet)
+        {
+            foreach (var p in path)
+            {
+                if (cellSet.Contains(CellKey(p)))
+                    return true;
+            }
+            return false;
+        }
+
         // ========== Cell Calculation ==========
         private static List<Vector2Int> CalculateCells(int x, int y, string dir, int length)
         {
@@ -190,17 +203,7 @@ namespace BalloonOut.Data
                         if (LevelValidator.WouldCauseFacing(x, y, dir, existingBlocks)) continue;
 
                         var escapePath = GetEscapePath(x, y, dir, gridWidth, gridHeight);
-                        bool blocked = false;
-                        foreach (var p in escapePath)
-                        {
-                            if (occupiedSet.Contains(CellKey(p)))
-                            {
-                                blocked = true;
-                                break;
-                            }
-                        }
-
-                        if (!blocked)
+                        if (!IsPathBlockedBySet(escapePath, occupiedSet))
                         {
                             candidates.Add(new PlacementResult
                             {
@@ -256,35 +259,15 @@ namespace BalloonOut.Data
                         if (LevelValidator.WouldCauseFacing(x, y, dir, existingBlocks)) continue;
 
                         var escapePath = GetEscapePath(x, y, dir, gridWidth, gridHeight);
-                        bool blockedByBlocker = false;
-                        foreach (var p in escapePath)
-                        {
-                            if (blockerSet.Contains(CellKey(p)))
-                            {
-                                blockedByBlocker = true;
-                                break;
-                            }
-                        }
 
-                        if (blockedByBlocker)
+                        // blocker에 의해 막혔는지 확인
+                        if (IsPathBlockedBySet(escapePath, blockerSet))
                         {
+                            // blocker 제외한 다른 화살표에 의해 막혔는지 확인
                             var otherOccupied = new HashSet<string>(occupiedSet);
-                            foreach (var k in blockerSet)
-                            {
-                                otherOccupied.Remove(k);
-                            }
+                            otherOccupied.ExceptWith(blockerSet);
 
-                            bool blockedByOthers = false;
-                            foreach (var p in escapePath)
-                            {
-                                if (otherOccupied.Contains(CellKey(p)))
-                                {
-                                    blockedByOthers = true;
-                                    break;
-                                }
-                            }
-
-                            if (!blockedByOthers)
+                            if (!IsPathBlockedBySet(escapePath, otherOccupied))
                             {
                                 candidates.Add(new PlacementResult
                                 {
@@ -339,16 +322,7 @@ namespace BalloonOut.Data
                         if (checkCanEscape)
                         {
                             var escapePath = GetEscapePath(x, y, dir, gridWidth, gridHeight);
-                            bool canEscape = true;
-                            foreach (var p in escapePath)
-                            {
-                                if (occupiedSet.Contains(CellKey(p)))
-                                {
-                                    canEscape = false;
-                                    break;
-                                }
-                            }
-                            if (!canEscape) continue;
+                            if (IsPathBlockedBySet(escapePath, occupiedSet)) continue;
                         }
 
                         var result = new PlacementResult
@@ -530,17 +504,7 @@ namespace BalloonOut.Data
                     if (result.HasValue && result.Value.path.Count >= Mathf.Min(length, 2))
                     {
                         var escapePath = GetEscapePath(pos.x, pos.y, headDir, gridWidth, gridHeight);
-                        bool blocked = false;
-                        foreach (var p in escapePath)
-                        {
-                            if (occupiedSet.Contains(CellKey(p)))
-                            {
-                                blocked = true;
-                                break;
-                            }
-                        }
-
-                        if (!blocked)
+                        if (!IsPathBlockedBySet(escapePath, occupiedSet))
                         {
                             candidates.Add(new PlacementResult
                             {
@@ -601,35 +565,15 @@ namespace BalloonOut.Data
                         if (!result.HasValue || result.Value.path.Count < Mathf.Min(length, 2)) continue;
 
                         var escapePath = GetEscapePath(x, y, headDir, gridWidth, gridHeight);
-                        bool blockedByBlocker = false;
-                        foreach (var p in escapePath)
-                        {
-                            if (blockerSet.Contains(CellKey(p)))
-                            {
-                                blockedByBlocker = true;
-                                break;
-                            }
-                        }
 
-                        if (blockedByBlocker)
+                        // blocker에 의해 막혔는지 확인
+                        if (IsPathBlockedBySet(escapePath, blockerSet))
                         {
+                            // blocker 제외한 다른 화살표에 의해 막혔는지 확인
                             var otherOccupied = new HashSet<string>(occupiedSet);
-                            foreach (var k in blockerSet)
-                            {
-                                otherOccupied.Remove(k);
-                            }
+                            otherOccupied.ExceptWith(blockerSet);
 
-                            bool blockedByOthers = false;
-                            foreach (var p in escapePath)
-                            {
-                                if (otherOccupied.Contains(CellKey(p)))
-                                {
-                                    blockedByOthers = true;
-                                    break;
-                                }
-                            }
-
-                            if (!blockedByOthers)
+                            if (!IsPathBlockedBySet(escapePath, otherOccupied))
                             {
                                 candidates.Add(new PlacementResult
                                 {
@@ -690,16 +634,7 @@ namespace BalloonOut.Data
                             if (checkCanEscape)
                             {
                                 var escapePath = GetEscapePath(x, y, headDir, gridWidth, gridHeight);
-                                bool canEscape = true;
-                                foreach (var p in escapePath)
-                                {
-                                    if (occupiedSet.Contains(CellKey(p)))
-                                    {
-                                        canEscape = false;
-                                        break;
-                                    }
-                                }
-                                if (!canEscape) continue;
+                                if (IsPathBlockedBySet(escapePath, occupiedSet)) continue;
                             }
 
                             var placementResult = new PlacementResult

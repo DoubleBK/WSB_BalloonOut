@@ -17,7 +17,31 @@ namespace BalloonOut.Data
     public static class LevelGenerator
     {
         // ========== Constants ==========
-        private static readonly string[] COLORS = { "R", "G", "Y", "P", "B", "O" };
+        /// <summary>
+        /// 사용 가능한 전체 색상 (12색, Black 제외)
+        /// R=Red, G=Green, B=Blue, Y=Yellow, P=Purple, O=Orange
+        /// C=Cyan, K=Pink, W=Brown, L=Lime, N=Navy, M=Magenta
+        /// </summary>
+        private static readonly string[] ALL_COLORS = { "R", "G", "B", "Y", "P", "O", "C", "K", "W", "L", "N", "M" };
+
+        // ========== Auto-Calc Constants ==========
+        private const int MIN_BLOCK_LENGTH_BENDING = 3;
+        private const int MIN_BLOCK_LENGTH_STRAIGHT = 2;
+        private const int MAX_BLOCK_LENGTH_BENDING = 25;
+        private const int MAX_BLOCK_LENGTH_STRAIGHT = 15;
+        private const int MIN_LANE_COUNT = 2;
+        private const int MAX_LANE_COUNT = 6;
+        private const int LANE_COUNT_DIVISOR = 5;
+        private const int MAX_DECOY_ARROWS = 5;
+        private const int MAX_MISS_ARROWS = 20;
+        private const int MAX_BALLOONS_PER_LANE = 15;
+        private const int MIN_BALLOONS_PER_LANE = 2;
+        private const int DECOY_PERCENTAGE = 10;
+        private const int MATCH_ARROW_PERCENTAGE = 75;
+        private const int FILLER_MAX_ATTEMPTS = 100;
+        private const int MIN_COLOR_COUNT = 2;
+        private const int DEFAULT_COLOR_COUNT = 6;
+
         // DIRECTIONS, DIR_VECTORS, TURN_PRIORITY, OPPOSITE는 ArrowPlacer로 이동
 
         /// <summary>
@@ -60,6 +84,8 @@ namespace BalloonOut.Data
             public bool branchingMode = false;
             public float branchingChance = 0.4f;
             public int decoyArrowCount = 0;  // 함정 화살표 개수 (풍선 없이 탈출하는 화살표)
+            public int colorCount = 6;       // 사용할 색상 수 (4~12, 기본 6)
+            public List<string> availableColors = null;  // 사용할 색상 목록 (null이면 colorCount만큼 랜덤 선택)
         }
 
         // ========== Internal Data Structures ==========
@@ -76,11 +102,6 @@ namespace BalloonOut.Data
         // ValidationResult는 LevelValidator.ValidationResult 사용
 
         // ========== Auto Parameter Calculation ==========
-        /// <summary>
-        /// 밀도 기반 파라미터 자동 계산
-        /// Filler 없이 목표 밀도(90%+)를 달성하도록 설계
-        /// 지원 Grid Size: 6~30
-        /// </summary>
         /// <summary>
         /// 밀도 기반 파라미터 자동 계산
         /// GridSize에 비례하여 모든 파라미터가 스케일링됨
@@ -104,13 +125,13 @@ namespace BalloonOut.Data
             // 큰 그리드에서는 더 긴 화살표 허용하되, 너무 길면 배치 실패 증가
             if (bendingEnabled)
             {
-                config.minBlockLength = Mathf.Max(3, gridSize / 4);
-                config.maxBlockLength = Mathf.Clamp(gridSize, 6, 25);
+                config.minBlockLength = Mathf.Max(MIN_BLOCK_LENGTH_BENDING, gridSize / 4);
+                config.maxBlockLength = Mathf.Clamp(gridSize, 6, MAX_BLOCK_LENGTH_BENDING);
             }
             else
             {
-                config.minBlockLength = Mathf.Max(2, gridSize / 5);
-                config.maxBlockLength = Mathf.Clamp(gridSize - 1, 4, 15);
+                config.minBlockLength = Mathf.Max(MIN_BLOCK_LENGTH_STRAIGHT, gridSize / 5);
+                config.maxBlockLength = Mathf.Clamp(gridSize - 1, 4, MAX_BLOCK_LENGTH_STRAIGHT);
             }
 
             float avgLength = (config.minBlockLength + config.maxBlockLength) / 2f;
@@ -118,26 +139,26 @@ namespace BalloonOut.Data
             // ── 필요한 총 화살표 수 ──
             int requiredArrows = Mathf.CeilToInt(targetOccupied / avgLength);
 
-            // ── Lane 수: gridSize에 비례 (2~6) ──
-            config.laneCount = Mathf.Clamp(Mathf.CeilToInt(gridSize / 5f), 2, 6);
+            // ── Lane 수: gridSize에 비례 ──
+            config.laneCount = Mathf.Clamp(Mathf.CeilToInt(gridSize / (float)LANE_COUNT_DIVISOR), MIN_LANE_COUNT, MAX_LANE_COUNT);
 
-            // ── Decoy: 전체의 ~10% (0~5) ──
-            config.decoyArrowCount = Mathf.Clamp(requiredArrows / 10, 0, 5);
+            // ── Decoy: 전체의 일정 비율 ──
+            config.decoyArrowCount = Mathf.Clamp(requiredArrows / DECOY_PERCENTAGE, 0, MAX_DECOY_ARROWS);
 
             // ── Match/Miss 분배 ──
             int mainArrowsNeeded = requiredArrows - config.decoyArrowCount;
 
-            // Match 화살표: main의 ~75% (최소 laneCount개)
-            int matchArrows = Mathf.Max(mainArrowsNeeded * 3 / 4, config.laneCount);
+            // Match 화살표: main의 일정 비율 (최소 laneCount개)
+            int matchArrows = Mathf.Max(mainArrowsNeeded * MATCH_ARROW_PERCENTAGE / 100, config.laneCount);
             config.balloonsPerLane = Mathf.Clamp(
                 Mathf.CeilToInt((float)matchArrows / config.laneCount),
-                2, 15
+                MIN_BALLOONS_PER_LANE, MAX_BALLOONS_PER_LANE
             );
 
             int baseArrows = config.laneCount * config.balloonsPerLane;
 
-            // Miss: 남은 화살표 (0~20)
-            config.missArrowCount = Mathf.Clamp(mainArrowsNeeded - baseArrows, 0, 20);
+            // Miss: 남은 화살표
+            config.missArrowCount = Mathf.Clamp(mainArrowsNeeded - baseArrows, 0, MAX_MISS_ARROWS);
 
             // ── Filler 설정 (비활성화되어도 파라미터 유지) ──
             config.fillerMinLength = bendingEnabled ? 2 : 1;
@@ -203,8 +224,31 @@ namespace BalloonOut.Data
         private static string CellKey(int x, int y) => $"{x},{y}";
         private static string CellKey(Vector2Int v) => $"{v.x},{v.y}";
 
+        // ========== Color Selection ==========
+        /// <summary>
+        /// 레벨 생성에 사용할 색상 목록 반환
+        /// 1) availableColors가 지정되어 있으면 해당 색상 사용
+        /// 2) 그렇지 않으면 colorCount 개수만큼 ALL_COLORS에서 랜덤 선택
+        /// </summary>
+        private static string[] GetColorsForConfig(GeneratorConfig config)
+        {
+            // availableColors가 지정되어 있으면 해당 색상 사용
+            if (config.availableColors != null && config.availableColors.Count > 0)
+            {
+                return config.availableColors.ToArray();
+            }
+
+            // colorCount 검증
+            int count = Mathf.Clamp(config.colorCount, MIN_COLOR_COUNT, ALL_COLORS.Length);
+
+            // 전체 색상에서 count개 랜덤 선택
+            var shuffled = new List<string>(ALL_COLORS);
+            Shuffle(shuffled);
+            return shuffled.GetRange(0, count).ToArray();
+        }
+
         // ========== Queue Generation ==========
-        private static List<List<string>> GenerateQueue(GeneratorConfig config)
+        private static List<List<string>> GenerateQueue(GeneratorConfig config, string[] colors)
         {
             var lanes = new List<List<string>>();
             for (int i = 0; i < config.laneCount; i++)
@@ -212,7 +256,7 @@ namespace BalloonOut.Data
                 var lane = new List<string>();
                 for (int j = 0; j < config.balloonsPerLane; j++)
                 {
-                    lane.Add(RandomPick(COLORS));
+                    lane.Add(RandomPick(colors));
                 }
                 lanes.Add(lane);
             }
@@ -220,42 +264,17 @@ namespace BalloonOut.Data
         }
 
         /// <summary>
-        /// 색상 순서 생성 (탈출 순서)
-        /// 핵심: lanes에 먼저 Miss 풍선을 추가한 후, 최종 lanes에서 color sequence를 생성
-        /// 이렇게 해야 "화살표 탈출 순서 = 풍선 팝 순서"가 보장됨
+        /// Miss 풍선을 lanes의 랜덤 위치에 삽입
         /// </summary>
-        private static List<string> GetColorSequence(List<List<string>> lanes, int missCount)
+        private static void InsertMissArrows(List<List<string>> lanes, int missCount, string[] colors)
         {
-            // Step 1: Miss 풍선을 lanes에 먼저 추가
             for (int i = 0; i < missCount; i++)
             {
-                string missColor = RandomPick(COLORS);
-
-                // 랜덤 Lane 선택
+                string missColor = RandomPick(colors);
                 int laneIdx = RandomInt(0, lanes.Count - 1);
-
-                // 랜덤 위치에 삽입 (해당 Lane 내)
                 int insertPos = RandomInt(0, lanes[laneIdx].Count);
                 lanes[laneIdx].Insert(insertPos, missColor);
             }
-
-            // Step 2: 최종 lanes에서 color sequence 생성 (LIFO: lane[end]부터 팝)
-            var colors = new List<string>();
-            var lanesCopy = new List<List<string>>();
-            foreach (var lane in lanes)
-            {
-                lanesCopy.Add(new List<string>(lane));
-            }
-
-            while (lanesCopy.Exists(l => l.Count > 0))
-            {
-                var nonEmpty = lanesCopy.FindAll(l => l.Count > 0);
-                var lane = RandomPick(nonEmpty);
-                colors.Add(lane[lane.Count - 1]);  // LIFO: 끝에서 팝
-                lane.RemoveAt(lane.Count - 1);
-            }
-
-            return colors;
         }
 
         // ========== Cell Calculation ==========
@@ -332,7 +351,7 @@ namespace BalloonOut.Data
         // BlockData는 LevelValidator.BlockData 사용
         private class BlockData : LevelValidator.BlockData { }
 
-        private static List<BlockData> PlaceFillersForDensity(List<BlockData> blocks, HashSet<string> occupiedSet, GeneratorConfig cfg, List<List<string>> lanes)
+        private static List<BlockData> PlaceFillersForDensity(List<BlockData> blocks, HashSet<string> occupiedSet, GeneratorConfig cfg, List<List<string>> lanes, string[] colors)
         {
             var fillers = new List<BlockData>();
             int gridWidth = cfg.GetGridWidth();
@@ -342,7 +361,6 @@ namespace BalloonOut.Data
 
             int currentOccupied = occupiedSet.Count;
             int attempts = 0;
-            int maxAttempts = 100;
 
             bool useBending = cfg.bendingEnabled && cfg.bendingChance > 0;
 
@@ -365,12 +383,12 @@ namespace BalloonOut.Data
             // Facing 검사용: Main 화살표 + 이미 배치된 Filler들
             var allBlocksForFacing = new List<BlockData>(blocks);
 
-            while (currentOccupied < targetOccupied && attempts < maxAttempts)
+            while (currentOccupied < targetOccupied && attempts < FILLER_MAX_ATTEMPTS)
             {
                 attempts++;
 
                 // Filler 색상: 랜덤 선택 (배치 성공 후에만 Queue에 추가)
-                string color = RandomPick(COLORS);
+                string color = RandomPick(colors);
                 int length = RandomInt(cfg.fillerMinLength, cfg.fillerMaxLength);
 
                 // checkCanEscape = true: Filler가 실제로 탈출 가능한 위치에만 배치
@@ -413,6 +431,7 @@ namespace BalloonOut.Data
                     fillers.Add(fillerBlock);
                     allBlocksForFacing.Add(fillerBlock);  // 다음 Filler의 facing 검사에 포함
 
+#if DEBUG_LEVEL_GENERATOR
                     // 디버그: Filler의 head와 dir 확인
                     var fillerHead = placement.cells[0];
                     Debug.Log($"  [DEBUG] Filler {fillers.Count - 1} added: head=({fillerHead.x},{fillerHead.y}) dir={fillerDir} allBlocksCount={allBlocksForFacing.Count}");
@@ -424,6 +443,7 @@ namespace BalloonOut.Data
                         Debug.LogError($"  [CRITICAL] Filler {fillers.Count - 1} CAUSED FACING despite check! Reason: {immediateCheck.reason}");
                         Debug.LogError($"  [CRITICAL] This should NOT happen - investigate WouldCauseFacing logic");
                     }
+#endif
 
                     foreach (var c in placement.cells)
                     {
@@ -471,10 +491,10 @@ namespace BalloonOut.Data
         /// <summary>
         /// 화살표 탈출 순서에 맞춰 색상을 동적으로 할당 (LevelValidator 위임)
         /// </summary>
-        private static bool AssignColorsInEscapeOrder(List<BlockData> blocks, List<List<string>> lanes, int gridWidth, int gridHeight)
+        private static bool AssignColorsInEscapeOrder(List<BlockData> blocks, List<List<string>> lanes, int gridWidth, int gridHeight, string[] colors)
         {
             var validatorBlocks = blocks.Cast<LevelValidator.BlockData>().ToList();
-            bool result = LevelValidator.AssignColorsInEscapeOrder(validatorBlocks, lanes, gridWidth, gridHeight, COLORS);
+            bool result = LevelValidator.AssignColorsInEscapeOrder(validatorBlocks, lanes, gridWidth, gridHeight, colors);
 
             // LevelValidator가 수정한 color/isDecoy 값을 원본 blocks에 복사
             for (int i = 0; i < blocks.Count; i++)
@@ -519,7 +539,10 @@ namespace BalloonOut.Data
         {
             config ??= new GeneratorConfig();
 
+            // 이번 레벨에 사용할 색상 목록 결정
+            string[] colors = GetColorsForConfig(config);
             Debug.Log($"=== Generator v8 (ReverseGrowth) ===");
+            Debug.Log($"Colors: {string.Join(",", colors)} ({colors.Length} colors)");
             Debug.Log($"Bending: {(config.bendingEnabled ? "enabled" : "disabled")} (chance: {config.bendingChance})");
             Debug.Log($"Target density: {config.targetDensity * 100:F1}%");
 
@@ -535,16 +558,10 @@ namespace BalloonOut.Data
                 Debug.Log($"Attempt {attempt + 1}/{maxAttempts}");
 
                 // Step 1: Queue 생성
-                var lanes = GenerateQueue(config);
+                var lanes = GenerateQueue(config, colors);
 
-                // Step 2: Miss 풍선 추가 (기존 GetColorSequence의 Step 1과 동일)
-                for (int mi = 0; mi < config.missArrowCount; mi++)
-                {
-                    string missColor = RandomPick(COLORS);
-                    int laneIdx = RandomInt(0, lanes.Count - 1);
-                    int insertPos = RandomInt(0, lanes[laneIdx].Count);
-                    lanes[laneIdx].Insert(insertPos, missColor);
-                }
+                // Step 2: Miss 풍선 추가
+                InsertMissArrows(lanes, config.missArrowCount, colors);
 
                 Debug.Log($"Lanes (with miss): {string.Join(", ", lanes.ConvertAll(l => "[" + string.Join(",", l) + "]"))}");
 
@@ -628,9 +645,11 @@ namespace BalloonOut.Data
                     };
                     blocks.Add(block);
 
+#if DEBUG_LEVEL_GENERATOR
                     // 디버그: cells[0]이 HEAD인지 확인
                     var head = placement.cells[0];
                     Debug.Log($"  [DEBUG] Arrow {i} added: head=({head.x},{head.y}) dir={blockDir} cells[0]=({placement.cells[0].x},{placement.cells[0].y})");
+#endif
 
                     foreach (var c in placement.cells)
                     {
@@ -643,7 +662,7 @@ namespace BalloonOut.Data
                 if (!success) continue;
 
                 // Step 5: 탈출 순서에 맞춰 색상 할당
-                if (!AssignColorsInEscapeOrder(blocks, lanes, gridWidth, gridHeight))
+                if (!AssignColorsInEscapeOrder(blocks, lanes, gridWidth, gridHeight, colors))
                 {
                     Debug.Log("  Color assignment failed");
                     continue;
@@ -661,7 +680,7 @@ namespace BalloonOut.Data
 
                     if (currentDensity < config.targetDensity)
                     {
-                        var fillers = PlaceFillersForDensity(allBlocks, occupiedSet, config, lanes);
+                        var fillers = PlaceFillersForDensity(allBlocks, occupiedSet, config, lanes, colors);
                         allBlocks.AddRange(fillers);
                     }
                 }
@@ -778,6 +797,7 @@ namespace BalloonOut.Data
                     Debug.Log($"Final density: {finalDensity * 100:F1}%");
                     Debug.Log($"Main arrows: {mainBlockCount}, Fillers: {allBlocks.Count - mainBlockCount}");
 
+#if DEBUG_LEVEL_GENERATOR
                     // Round-trip 검증: LevelData를 다시 BlockData로 변환했을 때 일관성 확인
                     Debug.Log($"[RoundTrip] Verifying LevelData → BlockData conversion consistency...");
                     var roundTripValidation = ValidateLevel(levelData);
@@ -785,12 +805,12 @@ namespace BalloonOut.Data
                     {
                         Debug.LogError($"[RoundTrip] FAILED! Internal validation passed but ValidateLevel failed: {roundTripValidation.reason}");
                         Debug.LogError($"[RoundTrip] This indicates a coordinate/direction transformation issue!");
-                        // 상세 진단을 위해 continue하지 않고 일단 반환 (디버그용)
                     }
                     else
                     {
                         Debug.Log($"[RoundTrip] SUCCESS - Both internal and external validation passed");
                     }
+#endif
 
                     return levelData;
                 }

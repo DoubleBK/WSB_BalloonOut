@@ -10,7 +10,8 @@
       "Bash(python:*)",
       "Bash(pip install:*)",
       "Bash(grep:*)",
-      "Bash(xxd:*)"
+      "Bash(xxd:*)",
+      "Bash(find:*)"
     ]
   }
 }

@@ -22,6 +22,7 @@ namespace BalloonOut.Data
         public float bendingChance;
         public float targetDensity;
         public int difficultyScore;
+        public int colorCount = 6;  // 사용할 색상 수 (4~12, 기본 6)
 
         /// <summary>
         /// GeneratorConfig로 변환
@@ -42,7 +43,8 @@ namespace BalloonOut.Data
                 targetDensity = targetDensity,
                 fillerEnabled = false,
                 branchingMode = false,
-                branchingChance = 0.4f
+                branchingChance = 0.4f,
+                colorCount = colorCount > 0 ? colorCount : 6  // 기본값 6
             };
         }
     }

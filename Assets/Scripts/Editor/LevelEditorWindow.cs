@@ -12,11 +12,25 @@ namespace BalloonOut.Editor
     /// </summary>
     public class LevelEditorWindow : EditorWindow
     {
+        // ========== 설정 상수 ==========
+        private const int DEFAULT_GRID_SIZE = 6;
+        private const int DEFAULT_GEN_GRID_SIZE = 16;
+        private const float DEFAULT_TARGET_DENSITY = 0.9f;
+        private const float DEFAULT_BRANCHING_CHANCE = 0.4f;
+        private const int DEFAULT_COLOR_COUNT = 6;
+        private const int MIN_COLOR_COUNT = 2;
+        private const int MAX_COLOR_COUNT = 12;
+        private const int TOTAL_COLOR_COUNT = 12;
+        private const int INITIAL_COLORS_ENABLED = 6;
+        private const int DEFAULT_BATCH_FROM = 1;
+        private const int DEFAULT_BATCH_TO = 100;
+        private const int GENERATION_ATTEMPTS_PER_STEP = 200;
+
         // ========== 에디터 상태 ==========
         private LevelData _currentLevel;
         private string _levelName = "NewLevel";
-        private int _gridWidth = 6;
-        private int _gridHeight = 6;
+        private int _gridWidth = DEFAULT_GRID_SIZE;
+        private int _gridHeight = DEFAULT_GRID_SIZE;
 
         // 도구 설정
         private GameColor _selectedColor = GameColor.Red;
@@ -36,9 +50,9 @@ namespace BalloonOut.Editor
         private readonly string[] _tabNames = { "Arrows", "Balloons", "Settings", "Generate" };
 
         // Generator 설정
-        private int _genGridWidth = 16;
-        private int _genGridHeight = 16;
-        private float _genTargetDensity = 0.9f;
+        private int _genGridWidth = DEFAULT_GEN_GRID_SIZE;
+        private int _genGridHeight = DEFAULT_GEN_GRID_SIZE;
+        private float _genTargetDensity = DEFAULT_TARGET_DENSITY;
         private bool _genBendingEnabled = true;
         private bool _genFillerEnabled = false;
         private int _genLaneCount = 3;
@@ -48,8 +62,29 @@ namespace BalloonOut.Editor
         private int _genMinLength = 3;
         private int _genMaxLength = 8;
         private bool _genAutoCalculate = true;
-        private bool _genBranchingMode = true;  // 기본값: On
-        private float _genBranchingChance = 0.4f;
+        private bool _genBranchingMode = true;
+        private float _genBranchingChance = DEFAULT_BRANCHING_CHANCE;
+
+        // 색상 설정
+        private int _genColorCount = DEFAULT_COLOR_COUNT;
+        private bool _genUseSpecificColors = false;  // 특정 색상 선택 모드
+        private bool[] _genColorEnabled = new bool[12] { true, true, true, true, true, true, false, false, false, false, false, false };
+        private static readonly string[] COLOR_CODES = { "R", "G", "B", "Y", "P", "O", "C", "K", "W", "L", "N", "M" };
+        private static readonly string[] COLOR_NAMES = { "Red", "Green", "Blue", "Yellow", "Purple", "Orange", "Cyan", "Pink", "Brown", "Lime", "Navy", "Magenta" };
+        private static readonly Color[] COLOR_VALUES = {
+            new Color(1f, 0.3f, 0.3f),      // Red
+            new Color(0.3f, 0.8f, 0.3f),    // Green
+            new Color(0.3f, 0.5f, 1f),      // Blue
+            new Color(1f, 0.9f, 0.2f),      // Yellow
+            new Color(0.7f, 0.3f, 0.9f),    // Purple
+            new Color(1f, 0.6f, 0.2f),      // Orange
+            new Color(0.2f, 0.9f, 0.9f),    // Cyan
+            new Color(1f, 0.5f, 0.7f),      // Pink
+            new Color(0.6f, 0.4f, 0.2f),    // Brown
+            new Color(0.6f, 1f, 0.3f),      // Lime
+            new Color(0.2f, 0.3f, 0.6f),    // Navy
+            new Color(1f, 0.3f, 0.8f)       // Magenta
+        };
 
         // Validation 캐시
         private LevelValidator.ValidationResult _cachedValidation;
@@ -57,8 +92,8 @@ namespace BalloonOut.Editor
 
         // Batch Generation 설정
         private TextAsset _batchConfigTable;
-        private int _batchFromLevel = 1;
-        private int _batchToLevel = 100;
+        private int _batchFromLevel = DEFAULT_BATCH_FROM;
+        private int _batchToLevel = DEFAULT_BATCH_TO;
         private bool _batchOverwrite = false;
 
         // 레벨 목록
@@ -69,7 +104,7 @@ namespace BalloonOut.Editor
         private int _selectedLaneIndex = -1;
 
         // Preview 설정
-        private const float LEFT_PANEL_WIDTH = 350f;
+        private const float LEFT_PANEL_WIDTH = 400f;
         private const float PREVIEW_CELL_SIZE = 28f;
         private const float LEVEL_LIST_PANEL_WIDTH = 200f;
         private Vector2 _previewScrollPosition;
@@ -98,7 +133,7 @@ namespace BalloonOut.Editor
         public static void ShowWindow()
         {
             var window = GetWindow<LevelEditorWindow>("Level Editor");
-            window.minSize = new Vector2(950, 550);
+            window.minSize = new Vector2(1050, 550);
             window.Show();
         }
 
@@ -549,6 +584,19 @@ namespace BalloonOut.Editor
             EditorGUILayout.EndVertical();
         }
 
+        // ========== 색상 토글 UI 헬퍼 ==========
+        private void DrawColorToggle(int colorIndex)
+        {
+            // 체크박스
+            _genColorEnabled[colorIndex] = GUILayout.Toggle(_genColorEnabled[colorIndex], "", GUILayout.Width(14));
+
+            // 색상이 적용된 라벨
+            var colorStyle = new GUIStyle(EditorStyles.miniLabel);
+            colorStyle.normal.textColor = COLOR_VALUES[colorIndex];
+            colorStyle.fontStyle = _genColorEnabled[colorIndex] ? FontStyle.Bold : FontStyle.Normal;
+            GUILayout.Label(COLOR_NAMES[colorIndex], colorStyle, GUILayout.Width(50));
+        }
+
         // ========== Generate 탭 ==========
         private void DrawGenerateTab()
         {
@@ -584,6 +632,55 @@ namespace BalloonOut.Editor
             if (_genBranchingMode)
             {
                 EditorGUILayout.HelpBox("Branching: 화살표가 이전 화살표에 막히지 않고 독립적으로 배치될 확률", MessageType.None);
+            }
+
+            EditorGUILayout.EndVertical();
+
+            EditorGUILayout.Space(5);
+
+            // 색상 설정
+            EditorGUILayout.BeginVertical("box");
+            EditorGUILayout.LabelField("Color Settings", EditorStyles.boldLabel);
+
+            _genUseSpecificColors = EditorGUILayout.Toggle("Select Specific Colors", _genUseSpecificColors);
+
+            if (_genUseSpecificColors)
+            {
+                // 특정 색상 선택 모드
+                EditorGUILayout.LabelField("Available Colors:", EditorStyles.miniLabel);
+
+                // 첫 번째 줄 (6색)
+                GUILayout.BeginHorizontal();
+                for (int i = 0; i < 6; i++)
+                {
+                    DrawColorToggle(i);
+                }
+                GUILayout.FlexibleSpace();
+                GUILayout.EndHorizontal();
+
+                // 두 번째 줄 (6색)
+                GUILayout.BeginHorizontal();
+                for (int i = 6; i < 12; i++)
+                {
+                    DrawColorToggle(i);
+                }
+                GUILayout.FlexibleSpace();
+                GUILayout.EndHorizontal();
+
+                int selectedCount = 0;
+                for (int i = 0; i < 12; i++) if (_genColorEnabled[i]) selectedCount++;
+                EditorGUILayout.LabelField($"Selected: {selectedCount} colors (min 2)", EditorStyles.miniLabel);
+
+                if (selectedCount < 2)
+                {
+                    EditorGUILayout.HelpBox("최소 2개 이상의 색상을 선택해야 합니다.", MessageType.Warning);
+                }
+            }
+            else
+            {
+                // 색상 수 선택 모드
+                _genColorCount = EditorGUILayout.IntSlider("Color Count", _genColorCount, 2, 12);
+                EditorGUILayout.LabelField($"  → {_genColorCount} random colors will be used", EditorStyles.miniLabel);
             }
 
             EditorGUILayout.EndVertical();
@@ -764,6 +861,26 @@ namespace BalloonOut.Editor
             }
 
             // 설정 생성 (직사각형 지원: gridWidth x gridHeight)
+            // 색상 목록 생성
+            List<string> selectedColors = null;
+            if (_genUseSpecificColors)
+            {
+                selectedColors = new List<string>();
+                for (int i = 0; i < 12; i++)
+                {
+                    if (_genColorEnabled[i])
+                    {
+                        selectedColors.Add(COLOR_CODES[i]);
+                    }
+                }
+                // 최소 2개 색상 필요
+                if (selectedColors.Count < 2)
+                {
+                    EditorUtility.DisplayDialog("Error", "최소 2개 이상의 색상을 선택해야 합니다.", "OK");
+                    return;
+                }
+            }
+
             var config = new LevelGenerator.GeneratorConfig
             {
                 gridSize = 0,  // gridWidth/gridHeight 사용
@@ -780,7 +897,9 @@ namespace BalloonOut.Editor
                 maxBlockLength = _genMaxLength,
                 bendingChance = _genBendingEnabled ? 1.0f : 0f,
                 branchingMode = _genBranchingMode,
-                branchingChance = _genBranchingChance
+                branchingChance = _genBranchingChance,
+                colorCount = _genColorCount,
+                availableColors = selectedColors
             };
 
             try
@@ -924,21 +1043,20 @@ namespace BalloonOut.Editor
                 }
 
                 // 생성 시도 (완화 포함) - Progress Bar 콜백 전달
-                const int attemptsPerStep = 200;
                 const int totalSteps = 4;
                 bool wasCancelled = false;
 
                 var result = TryGenerateWithRelaxation(configRecord, (attempt, maxAttempt, step, stepDesc) =>
                 {
                     // 전체 진행률 계산
-                    int attemptInStep = step * attemptsPerStep + attempt;
-                    int totalAttempts = totalSteps * attemptsPerStep;
+                    int attemptInStep = step * GENERATION_ATTEMPTS_PER_STEP + attempt;
+                    int totalAttempts = totalSteps * GENERATION_ATTEMPTS_PER_STEP;
                     float levelProgress = (float)attemptInStep / totalAttempts;
                     float overallProgress = ((float)i + levelProgress) / targetConfigs.Count;
 
                     bool cancel = EditorUtility.DisplayCancelableProgressBar(
                         "Batch Generate",
-                        $"Level {level} ({i + 1}/{targetConfigs.Count}) - ({attempt}/{attemptsPerStep}) Step {step}: {stepDesc}",
+                        $"Level {level} ({i + 1}/{targetConfigs.Count}) - ({attempt}/{GENERATION_ATTEMPTS_PER_STEP}) Step {step}: {stepDesc}",
                         overallProgress);
 
                     if (cancel) wasCancelled = true;
@@ -1008,12 +1126,11 @@ namespace BalloonOut.Editor
             LevelConfigRecord configRecord,
             System.Func<int, int, int, string, bool> onProgress = null)
         {
-            const int attemptsPerStep = 200;
             bool cancelled = false;
 
             // Step 0: 원본 Config
             var config = configRecord.ToGeneratorConfig();
-            var level = LevelGenerator.GenerateLevel(config, attemptsPerStep, (current, max) =>
+            var level = LevelGenerator.GenerateLevel(config, GENERATION_ATTEMPTS_PER_STEP, (current, max) =>
             {
                 if (onProgress != null && onProgress(current, max, 0, "원본"))
                 {
@@ -1031,7 +1148,7 @@ namespace BalloonOut.Editor
             // Step 1: gridSize +1
             var relaxed1 = configRecord.ToGeneratorConfig();
             relaxed1.gridSize += 1;
-            level = LevelGenerator.GenerateLevel(relaxed1, attemptsPerStep, (current, max) =>
+            level = LevelGenerator.GenerateLevel(relaxed1, GENERATION_ATTEMPTS_PER_STEP, (current, max) =>
             {
                 if (onProgress != null && onProgress(current, max, 1, "gridSize+1"))
                 {
@@ -1054,7 +1171,7 @@ namespace BalloonOut.Editor
             // Step 2: missArrowCount -1
             var relaxed2 = configRecord.ToGeneratorConfig();
             relaxed2.missArrowCount = Mathf.Max(0, relaxed2.missArrowCount - 1);
-            level = LevelGenerator.GenerateLevel(relaxed2, attemptsPerStep, (current, max) =>
+            level = LevelGenerator.GenerateLevel(relaxed2, GENERATION_ATTEMPTS_PER_STEP, (current, max) =>
             {
                 if (onProgress != null && onProgress(current, max, 2, "missArrow-1"))
                 {
@@ -1077,7 +1194,7 @@ namespace BalloonOut.Editor
             // Step 3: targetDensity -0.05
             var relaxed3 = configRecord.ToGeneratorConfig();
             relaxed3.targetDensity -= 0.05f;
-            level = LevelGenerator.GenerateLevel(relaxed3, attemptsPerStep, (current, max) =>
+            level = LevelGenerator.GenerateLevel(relaxed3, GENERATION_ATTEMPTS_PER_STEP, (current, max) =>
             {
                 if (onProgress != null && onProgress(current, max, 3, "density-5%"))
                 {
