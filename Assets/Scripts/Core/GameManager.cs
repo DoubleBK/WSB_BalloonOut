@@ -57,6 +57,7 @@ namespace BalloonOut.Core
         private LevelData _currentLevel;
         private List<ArrowController> _arrows = new List<ArrowController>();
         private bool _isProcessing = false;
+        private int _pendingHomingArrows = 0;  // 비행 중인 HomingArrow 개수
 
         // Undo용 이동 전 스냅샷 저장
         private Dictionary<int, ArrowSnapshot> _preMoveSnapshots = new Dictionary<int, ArrowSnapshot>();
@@ -171,6 +172,7 @@ namespace BalloonOut.Core
 
             // 기존 화살표 정리
             ClearArrows();
+            _pendingHomingArrows = 0;
 
             // 그리드 초기화
             if (_gridSystem != null)
@@ -462,7 +464,8 @@ namespace BalloonOut.Core
             {
                 // 화살표 목록에서 제거만 수행
                 _arrows.Remove(arrow);
-                Debug.Log($"Arrow extracted, waiting for HomingArrow to hit balloon. Color: {arrow.Color}");
+                _pendingHomingArrows++;
+                Debug.Log($"Arrow extracted, waiting for HomingArrow. Color: {arrow.Color}, Pending: {_pendingHomingArrows}");
                 // 승리/패배 조건은 OnHomingHitTargetHandler에서 풍선 팝 후 체크
                 return;
             }
@@ -486,6 +489,10 @@ namespace BalloonOut.Core
         /// </summary>
         private void OnHomingHitTargetHandler(HomingArrow homingArrow, GameColor color)
         {
+            // 비행 중인 HomingArrow 카운터 감소
+            _pendingHomingArrows--;
+            Debug.Log($"[GameManager] HomingArrow hit target. Pending: {_pendingHomingArrows}");
+
             // 팝 전에 레인 인덱스 캡처 (Undo 복원용)
             int prePoppedLaneIndex = _queueUI?.FindLaneWithActiveBalloon(color) ?? -1;
 
@@ -642,11 +649,13 @@ namespace BalloonOut.Core
             // 이미 게임이 끝났으면 체크하지 않음
             if (_state != GameState.Playing) return;
 
-            // 풍선이 남아있는데 화살표가 없으면 패배
+            // 풍선이 남아있는데 화살표가 없고 비행 중인 HomingArrow도 없으면 패배
             bool hasRemainingBalloons = _queueUI != null && !_queueUI.IsAllCleared();
             bool hasNoArrows = _arrows.Count == 0;
+            bool hasNoPendingHomingArrows = _pendingHomingArrows <= 0;
 
-            if (hasRemainingBalloons && hasNoArrows)
+            // 비행 중인 HomingArrow가 있으면 아직 패배 아님
+            if (hasRemainingBalloons && hasNoArrows && hasNoPendingHomingArrows)
             {
                 SetState(GameState.Failed);
                 OnLevelFailed?.Invoke();
