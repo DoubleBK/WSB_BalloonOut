@@ -14,11 +14,29 @@ namespace BalloonOut.Data
         /// <summary>레벨 이름</summary>
         public string name;
 
-        /// <summary>그리드 크기</summary>
+        /// <summary>그리드 크기 (정사각형 호환용)</summary>
         public int gridSize;
+
+        /// <summary>그리드 가로 크기 (직사각형용)</summary>
+        public int gridWidth;
+
+        /// <summary>그리드 세로 크기 (직사각형용)</summary>
+        public int gridHeight;
 
         /// <summary>풍선 Queue (Lane별)</summary>
         public List<LaneData> lanes;
+
+        /// <summary>
+        /// 그리드 가로 크기 반환 (호환성 처리)
+        /// gridWidth가 설정되어 있으면 사용, 없으면 gridSize 사용
+        /// </summary>
+        public int GetGridWidth() => gridWidth > 0 ? gridWidth : gridSize;
+
+        /// <summary>
+        /// 그리드 세로 크기 반환 (호환성 처리)
+        /// gridHeight가 설정되어 있으면 사용, 없으면 gridSize 사용
+        /// </summary>
+        public int GetGridHeight() => gridHeight > 0 ? gridHeight : gridSize;
 
         /// <summary>화살표 배열</summary>
         public List<ArrowData> arrows;

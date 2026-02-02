@@ -174,20 +174,20 @@ namespace BalloonOut.Core
             ClearArrows();
             _pendingHomingArrows = 0;
 
-            // 그리드 초기화
+            // 그리드 초기화 (직사각형 지원)
             if (_gridSystem != null)
             {
-                _gridSystem.Initialize(levelData.gridSize);
+                _gridSystem.Initialize(levelData.GetGridWidth(), levelData.GetGridHeight());
             }
 
-            // 카메라 자동 줌 조절
+            // 카메라 자동 줌 조절 (직사각형 지원)
             if (_cameraController != null && _gridSystem != null)
             {
-                _cameraController.AdjustToGrid(levelData.gridSize, _gridSystem.CellSize);
+                _cameraController.AdjustToGrid(levelData.GetGridWidth(), levelData.GetGridHeight(), _gridSystem.CellSize);
             }
             else if (CameraController.Instance != null && _gridSystem != null)
             {
-                CameraController.Instance.AdjustToGrid(levelData.gridSize, _gridSystem.CellSize);
+                CameraController.Instance.AdjustToGrid(levelData.GetGridWidth(), levelData.GetGridHeight(), _gridSystem.CellSize);
             }
 
             // Queue UI 초기화
