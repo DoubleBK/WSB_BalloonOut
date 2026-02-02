@@ -64,31 +64,56 @@ namespace BalloonOut.Game.Balloon
         /// </summary>
         public void SetGrayOverlay(bool show, float alpha = 0.8f)
         {
+            SetGrayOverlay(show, null, alpha);
+        }
+
+        /// <summary>
+        /// 회색 오버레이 설정 (스프라이트 지정 가능)
+        /// </summary>
+        /// <param name="show">오버레이 표시 여부</param>
+        /// <param name="overlaySprite">오버레이 스프라이트 (null이면 기본 이미지 색상만 변경)</param>
+        /// <param name="alpha">오버레이 알파값</param>
+        public void SetGrayOverlay(bool show, Sprite overlaySprite, float alpha = 0.8f)
+        {
             _isOverlayVisible = show;
 
             if (show)
             {
-                EnsureOverlayImage();
-                _overlayImage.color = new Color(0.5f, 0.5f, 0.5f, alpha);
-                _overlayImage.gameObject.SetActive(true);
-
-                // 기본 이미지를 회색으로
+                // 기본 이미지를 회색으로 변경
                 if (_baseImage != null)
                 {
                     _baseImage.color = new Color(0.5f, 0.5f, 0.5f, 1f);
                 }
+
+                // 오버레이 스프라이트가 있으면 오버레이 이미지 표시
+                if (overlaySprite != null)
+                {
+                    EnsureOverlayImage();
+                    _overlayImage.sprite = overlaySprite;
+                    _overlayImage.color = new Color(0.5f, 0.5f, 0.5f, alpha);
+                    _overlayImage.gameObject.SetActive(true);
+                }
+                else
+                {
+                    // 스프라이트 없으면 오버레이 이미지 숨김
+                    if (_overlayImage != null)
+                    {
+                        _overlayImage.gameObject.SetActive(false);
+                    }
+                }
             }
             else
             {
-                if (_overlayImage != null)
-                {
-                    _overlayImage.gameObject.SetActive(false);
-                }
-
                 // 원래 색상으로 복원
                 if (_baseImage != null)
                 {
                     _baseImage.color = ColorHelper.GetColor(_currentColor);
+                }
+
+                // 오버레이 이미지 숨김
+                if (_overlayImage != null)
+                {
+                    _overlayImage.gameObject.SetActive(false);
                 }
             }
         }
@@ -215,49 +240,57 @@ namespace BalloonOut.Game.Balloon
 
         private IEnumerator RevealCoroutine(float duration, System.Action onComplete)
         {
-            // 오버레이 페이드아웃
+            Color startColor = new Color(0.5f, 0.5f, 0.5f, 1f);
+            Color targetColor = ColorHelper.GetColor(_currentColor);
+            Color? overlayStartColor = null;
+
+            // 오버레이 이미지가 활성화되어 있으면 시작 색상 저장
             if (_overlayImage != null && _overlayImage.gameObject.activeSelf)
             {
-                Color startOverlay = _overlayImage.color;
-                float elapsed = 0f;
+                overlayStartColor = _overlayImage.color;
+            }
 
-                while (elapsed < duration)
+            float elapsed = 0f;
+
+            while (elapsed < duration)
+            {
+                elapsed += Time.deltaTime;
+                float t = elapsed / duration;
+
+                // 기본 이미지 색상 전환
+                if (_baseImage != null)
                 {
-                    elapsed += Time.deltaTime;
-                    float t = elapsed / duration;
-
-                    // 오버레이 알파 감소
-                    _overlayImage.color = new Color(
-                        startOverlay.r,
-                        startOverlay.g,
-                        startOverlay.b,
-                        Mathf.Lerp(startOverlay.a, 0f, t)
-                    );
-
-                    // 기본 이미지 색상 전환
-                    if (_baseImage != null)
-                    {
-                        _baseImage.color = Color.Lerp(
-                            new Color(0.5f, 0.5f, 0.5f, 1f),
-                            ColorHelper.GetColor(_currentColor),
-                            t
-                        );
-                    }
-
-                    yield return null;
+                    _baseImage.color = Color.Lerp(startColor, targetColor, t);
                 }
 
+                // 오버레이 이미지 페이드아웃
+                if (overlayStartColor.HasValue && _overlayImage != null)
+                {
+                    _overlayImage.color = new Color(
+                        overlayStartColor.Value.r,
+                        overlayStartColor.Value.g,
+                        overlayStartColor.Value.b,
+                        Mathf.Lerp(overlayStartColor.Value.a, 0f, t)
+                    );
+                }
+
+                yield return null;
+            }
+
+            // 최종 상태 적용
+            if (_baseImage != null)
+            {
+                _baseImage.color = targetColor;
+            }
+
+            // 오버레이 이미지 숨김
+            if (_overlayImage != null)
+            {
                 _overlayImage.gameObject.SetActive(false);
             }
 
             // 텍스트 숨기기 (? 제거)
             HideOverlayText();
-
-            // 최종 색상 적용
-            if (_baseImage != null)
-            {
-                _baseImage.color = ColorHelper.GetColor(_currentColor);
-            }
 
             _isOverlayVisible = false;
             onComplete?.Invoke();

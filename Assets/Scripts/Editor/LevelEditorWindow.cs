@@ -70,6 +70,14 @@ namespace BalloonOut.Editor
         private int _genColorCount = DEFAULT_COLOR_COUNT;
         private bool _genUseSpecificColors = false;  // 특정 색상 선택 모드
         private bool[] _genColorEnabled = new bool[12] { true, true, true, true, true, true, false, false, false, false, false, false };
+
+        // 기믹 생성 설정
+        private const float GIMMICK_PANEL_WIDTH = 220f;
+        private bool _gimmickPanelFoldout = true;
+        private Vector2 _gimmickPanelScroll;
+        private List<GimmickGeneratorConfig> _genBalloonGimmicks = new List<GimmickGeneratorConfig>();
+        private List<GimmickGeneratorConfig> _genArrowGimmicks = new List<GimmickGeneratorConfig>();
+        private bool _gimmicksInitialized = false;
         private static readonly string[] COLOR_CODES = { "R", "G", "B", "Y", "P", "O", "C", "K", "W", "L", "N", "M" };
         private static readonly string[] COLOR_NAMES = { "Red", "Green", "Blue", "Yellow", "Purple", "Orange", "Cyan", "Pink", "Brown", "Lime", "Navy", "Magenta" };
         private static readonly Color[] COLOR_VALUES = {
@@ -143,9 +151,27 @@ namespace BalloonOut.Editor
         {
             RefreshLevelList();
             RefreshLevelListEntries();
+            InitializeGimmickConfigs();
 
             // 윈도우 열릴 때 자동 검증 (delayCall로 에디터 초기화 완료 후 실행)
             EditorApplication.delayCall += AutoValidateOnOpen;
+        }
+
+        /// <summary>
+        /// 기믹 생성 설정 초기화
+        /// </summary>
+        private void InitializeGimmickConfigs()
+        {
+            if (_gimmicksInitialized) return;
+
+            _genBalloonGimmicks = new List<GimmickGeneratorConfig>
+            {
+                new GimmickGeneratorConfig("surprise"),
+                new GimmickGeneratorConfig("number")
+            };
+            _genArrowGimmicks = new List<GimmickGeneratorConfig>();
+
+            _gimmicksInitialized = true;
         }
 
         private void AutoValidateOnOpen()
@@ -202,6 +228,14 @@ namespace BalloonOut.Editor
 
             EditorGUILayout.EndScrollView();
             EditorGUILayout.EndVertical();
+
+            // ========== 기믹 패널 (Generate 탭에서만 표시) ==========
+            if (_currentTab == 3)  // Generate 탭
+            {
+                EditorGUILayout.BeginVertical("box", GUILayout.Width(GIMMICK_PANEL_WIDTH));
+                DrawGimmickPanel();
+                EditorGUILayout.EndVertical();
+            }
 
             // ========== 중앙 패널 (Preview) ==========
             EditorGUILayout.BeginVertical("box");
@@ -1013,6 +1047,119 @@ namespace BalloonOut.Editor
             EditorGUILayout.EndVertical();
         }
 
+        /// <summary>
+        /// 기믹 설정 패널 (Generate 탭 옆에 표시)
+        /// </summary>
+        private void DrawGimmickPanel()
+        {
+            EditorGUILayout.LabelField("Gimmick Settings", EditorStyles.boldLabel);
+            EditorGUILayout.Space(5);
+
+            _gimmickPanelScroll = EditorGUILayout.BeginScrollView(_gimmickPanelScroll);
+
+            // ========== Balloon Gimmicks ==========
+            _gimmickPanelFoldout = EditorGUILayout.Foldout(_gimmickPanelFoldout, "Balloon Gimmicks", true);
+            if (_gimmickPanelFoldout)
+            {
+                EditorGUI.indentLevel++;
+
+                if (_genBalloonGimmicks == null || _genBalloonGimmicks.Count == 0)
+                {
+                    InitializeGimmickConfigs();
+                }
+
+                foreach (var gimmick in _genBalloonGimmicks)
+                {
+                    DrawGimmickConfigUI(gimmick);
+                }
+
+                EditorGUI.indentLevel--;
+            }
+
+            EditorGUILayout.Space(10);
+
+            // ========== Arrow Gimmicks (향후 확장) ==========
+            EditorGUILayout.BeginVertical("box");
+            EditorGUILayout.LabelField("Arrow Gimmicks", EditorStyles.boldLabel);
+            EditorGUILayout.HelpBox("화살표 기믹은 향후 추가될 예정입니다.", MessageType.Info);
+            EditorGUILayout.EndVertical();
+
+            EditorGUILayout.EndScrollView();
+        }
+
+        /// <summary>
+        /// 개별 기믹 설정 UI 그리기
+        /// </summary>
+        private void DrawGimmickConfigUI(GimmickGeneratorConfig config)
+        {
+            EditorGUILayout.BeginVertical("box");
+
+            // 기믹 이름과 활성화 토글
+            EditorGUILayout.BeginHorizontal();
+            config.enabled = EditorGUILayout.Toggle(config.enabled, GUILayout.Width(20));
+            string displayName = GetGimmickDisplayName(config.gimmickId);
+            EditorGUILayout.LabelField(displayName, EditorStyles.boldLabel);
+            EditorGUILayout.EndHorizontal();
+
+            GUI.enabled = config.enabled;
+
+            // 확률 슬라이더
+            EditorGUILayout.BeginHorizontal();
+            EditorGUILayout.LabelField("Chance", GUILayout.Width(50));
+            config.chance = EditorGUILayout.Slider(config.chance, 0f, 1f);
+            EditorGUILayout.EndHorizontal();
+            EditorGUILayout.LabelField($"  → {(config.chance * 100):F0}% 확률", EditorStyles.miniLabel);
+
+            // 기믹별 추가 설정
+            switch (config.gimmickId)
+            {
+                case "number":
+                    EditorGUILayout.Space(3);
+                    EditorGUILayout.LabelField("Hit Count Range:", EditorStyles.miniLabel);
+
+                    EditorGUILayout.BeginHorizontal();
+                    EditorGUILayout.LabelField("Min", GUILayout.Width(30));
+                    config.intParam1 = EditorGUILayout.IntSlider(config.intParam1, 2, 10);
+                    EditorGUILayout.EndHorizontal();
+
+                    EditorGUILayout.BeginHorizontal();
+                    EditorGUILayout.LabelField("Max", GUILayout.Width(30));
+                    config.intParam2 = EditorGUILayout.IntSlider(config.intParam2, 2, 10);
+                    EditorGUILayout.EndHorizontal();
+
+                    // Min <= Max 보장
+                    if (config.intParam1 > config.intParam2)
+                    {
+                        config.intParam1 = config.intParam2;
+                    }
+
+                    EditorGUILayout.LabelField($"  → {config.intParam1}~{config.intParam2} hits", EditorStyles.miniLabel);
+                    break;
+
+                case "surprise":
+                    // Surprise는 추가 설정 없음
+                    EditorGUILayout.LabelField("  (추가 설정 없음)", EditorStyles.miniLabel);
+                    break;
+            }
+
+            GUI.enabled = true;
+            EditorGUILayout.EndVertical();
+            EditorGUILayout.Space(3);
+        }
+
+        /// <summary>
+        /// 기믹 표시 이름 반환
+        /// </summary>
+        private string GetGimmickDisplayName(string gimmickId)
+        {
+            switch (gimmickId)
+            {
+                case "surprise": return "🎁 Surprise";
+                case "number": return "🔢 Number";
+                default: return gimmickId;
+            }
+        }
+
         private void ApplyAutoCalculate()
         {
             // Generator는 정사각형만 지원하므로 min(width, height) 사용
@@ -1076,7 +1223,10 @@ namespace BalloonOut.Editor
                 branchingMode = _genBranchingMode,
                 branchingChance = _genBranchingChance,
                 colorCount = _genColorCount,
-                availableColors = selectedColors
+                availableColors = selectedColors,
+                // 기믹 설정 적용
+                balloonGimmicks = new List<GimmickGeneratorConfig>(_genBalloonGimmicks),
+                arrowGimmicks = new List<GimmickGeneratorConfig>(_genArrowGimmicks)
             };
 
             try

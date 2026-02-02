@@ -86,6 +86,36 @@ namespace BalloonOut.Data
             public int decoyArrowCount = 0;  // 함정 화살표 개수 (풍선 없이 탈출하는 화살표)
             public int colorCount = 6;       // 사용할 색상 수 (4~12, 기본 6)
             public List<string> availableColors = null;  // 사용할 색상 목록 (null이면 colorCount만큼 랜덤 선택)
+
+            // ========== 기믹 설정 ==========
+            /// <summary>풍선 기믹 설정 목록</summary>
+            public List<GimmickGeneratorConfig> balloonGimmicks = new List<GimmickGeneratorConfig>();
+            /// <summary>화살표 기믹 설정 목록 (향후 확장)</summary>
+            public List<GimmickGeneratorConfig> arrowGimmicks = new List<GimmickGeneratorConfig>();
+
+            /// <summary>
+            /// 기본 풍선 기믹 설정 초기화
+            /// </summary>
+            public void InitializeDefaultGimmicks()
+            {
+                if (balloonGimmicks == null)
+                    balloonGimmicks = new List<GimmickGeneratorConfig>();
+
+                // Surprise 기믹 기본 설정
+                if (!balloonGimmicks.Exists(g => g.gimmickId == "surprise"))
+                {
+                    balloonGimmicks.Add(new GimmickGeneratorConfig("surprise"));
+                }
+
+                // Number 기믹 기본 설정
+                if (!balloonGimmicks.Exists(g => g.gimmickId == "number"))
+                {
+                    balloonGimmicks.Add(new GimmickGeneratorConfig("number"));
+                }
+
+                if (arrowGimmicks == null)
+                    arrowGimmicks = new List<GimmickGeneratorConfig>();
+            }
         }
 
         // ========== Internal Data Structures ==========
@@ -717,7 +747,32 @@ namespace BalloonOut.Data
                     {
                         var reversed = new List<string>(lane);
                         reversed.Reverse();
-                        levelData.lanes.Add(new LaneData { balloons = reversed });
+
+                        var laneData = new LaneData { balloons = reversed };
+
+                        // 기믹 적용 (balloonGimmicks 설정에 따라)
+                        if (config.balloonGimmicks != null && config.balloonGimmicks.Count > 0)
+                        {
+                            laneData.balloonData = new List<BalloonData>();
+                            foreach (var colorCode in reversed)
+                            {
+                                var balloonData = new BalloonData(colorCode);
+
+                                // 각 기믹 설정에 대해 확률 적용
+                                foreach (var gimmickConfig in config.balloonGimmicks)
+                                {
+                                    var gimmickData = gimmickConfig.TryCreateInstanceData();
+                                    if (gimmickData != null)
+                                    {
+                                        balloonData.AddGimmick(gimmickData);
+                                    }
+                                }
+
+                                laneData.balloonData.Add(balloonData);
+                            }
+                        }
+
+                        levelData.lanes.Add(laneData);
                     }
 
                     // Arrows 변환

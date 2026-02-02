@@ -13,8 +13,8 @@ MonoBehaviour:
   m_Name: Gimmick_Number
   m_EditorClassIdentifier: 
   gimmickId: number
-  displayName: Number
-  description: 
+  displayName: Number Balloon
+  description: "N\uBC88 \uB9DE\uCDB0\uC57C \uD130\uC9C0\uB294 \uD48D\uC120"
   overlaySprite: {fileID: 0}
   overlayColor: {r: 0.5, g: 0.5, b: 0.5, a: 0.8}
   showText: 1
