@@ -3,6 +3,8 @@ using UnityEngine;
 using UnityEngine.UI;
 using BalloonOut.Core;
 using BalloonOut.Data;
+using BalloonOut.Game.Balloon;
+using BalloonOut.Game.Gimmick;
 
 namespace BalloonOut.UI
 {
@@ -44,6 +46,9 @@ namespace BalloonOut.UI
         private List<List<Image>> _balloonImages = new List<List<Image>>();
         private List<List<GameColor>> _lanes = new List<List<GameColor>>();
 
+        // 기믹 지원용 BalloonInstance 리스트
+        private List<List<BalloonInstance>> _balloonInstances = new List<List<BalloonInstance>>();
+
         // 각 레인의 풍선 기준 위치 (balloons[0]의 anchoredPosition)
         private List<Vector2> _laneBasePositions = new List<Vector2>();
 
@@ -83,12 +88,44 @@ namespace BalloonOut.UI
             Clear();
 
             _lanes = new List<List<GameColor>>();
-            foreach (var lane in lanesData)
+            _balloonInstances = new List<List<BalloonInstance>>();
+
+            for (int laneIdx = 0; laneIdx < lanesData.Count; laneIdx++)
             {
+                var lane = lanesData[laneIdx];
+                var balloonDataList = lane.GetBalloonDataList();
+
                 _lanes.Add(lane.GetColors());
+
+                // BalloonInstance 생성
+                var instanceList = new List<BalloonInstance>();
+                for (int i = 0; i < balloonDataList.Count; i++)
+                {
+                    var instance = new BalloonInstance(laneIdx, i, balloonDataList[i]);
+                    instanceList.Add(instance);
+                }
+                _balloonInstances.Add(instanceList);
             }
 
             CreateUI();
+
+            // 첫 번째 풍선들(활성 위치)에 OnBecomeActive 호출
+            NotifyActiveBalloons();
+        }
+
+        /// <summary>
+        /// 활성 풍선들에게 OnBecomeActive 알림
+        /// </summary>
+        private void NotifyActiveBalloons()
+        {
+            for (int laneIdx = 0; laneIdx < _balloonInstances.Count; laneIdx++)
+            {
+                var lane = _balloonInstances[laneIdx];
+                if (lane.Count > 0)
+                {
+                    lane[0].NotifyBecomeActive();
+                }
+            }
         }
 
         /// <summary>
@@ -109,17 +146,63 @@ namespace BalloonOut.UI
         /// <returns>성공 여부</returns>
         public bool TryPopBalloon(GameColor color, out int poppedLaneIndex)
         {
+            var result = TryPopBalloonWithGimmick(color, out poppedLaneIndex, out _);
+            return result == PopResult.Popped;
+        }
+
+        /// <summary>
+        /// 풍선 팝 시도 결과
+        /// </summary>
+        public enum PopResult
+        {
+            NoMatch,      // 색상이 맞지 않음
+            Hit,          // 기믹에 의해 팝되지 않음 (Number 등)
+            Popped        // 완전히 팝됨
+        }
+
+        /// <summary>
+        /// 풍선 팝 시도 (기믹 지원)
+        /// </summary>
+        /// <param name="color">터뜨릴 색상</param>
+        /// <param name="poppedLaneIndex">처리된 레인 인덱스</param>
+        /// <param name="hitResult">기믹 처리 결과</param>
+        /// <returns>팝 결과</returns>
+        public PopResult TryPopBalloonWithGimmick(GameColor color, out int poppedLaneIndex, out GimmickHitResult hitResult)
+        {
             poppedLaneIndex = -1;
+            hitResult = GimmickHitResult.DefaultPop;
 
             for (int laneIdx = 0; laneIdx < _lanes.Count; laneIdx++)
             {
                 var lane = _lanes[laneIdx];
+                var instanceLane = _balloonInstances.Count > laneIdx ? _balloonInstances[laneIdx] : null;
+
                 // balloons[0]이 활성 풍선 (가장 아래)
                 if (lane.Count > 0 && lane[0] == color)
                 {
-                    // 첫 번째 풍선 팝
-                    lane.RemoveAt(0);
                     poppedLaneIndex = laneIdx;
+
+                    // 기믹이 있는 풍선인지 확인
+                    if (instanceLane != null && instanceLane.Count > 0)
+                    {
+                        var balloon = instanceLane[0];
+
+                        // 기믹 처리
+                        bool shouldPop = balloon.TryHit(color, out hitResult);
+
+                        if (!shouldPop)
+                        {
+                            // 기믹에 의해 팝 방지됨 (Number 기믹 등)
+                            return PopResult.Hit;
+                        }
+
+                        // 팝 진행 - 기믹 알림
+                        balloon.NotifyPop();
+                        instanceLane.RemoveAt(0);
+                    }
+
+                    // 데이터 업데이트
+                    lane.RemoveAt(0);
 
                     // UI 업데이트
                     if (_balloonImages.Count > laneIdx && _balloonImages[laneIdx].Count > 0)
@@ -135,12 +218,19 @@ namespace BalloonOut.UI
                         AnimatePop(firstBalloon.gameObject);
                     }
 
+                    // 다음 풍선에게 활성화 알림
+                    if (instanceLane != null && instanceLane.Count > 0)
+                    {
+                        instanceLane[0].PositionInLane = 0;
+                        instanceLane[0].NotifyBecomeActive();
+                    }
+
                     UpdateHeadHighlights();
-                    return true;
+                    return PopResult.Popped;
                 }
             }
 
-            return false;
+            return PopResult.NoMatch;
         }
 
         /// <summary>
@@ -310,6 +400,21 @@ namespace BalloonOut.UI
                 }
 
                 _balloonImages.Add(balloonList);
+
+                // BalloonInstance와 Visual 연결
+                if (laneIdx < _balloonInstances.Count)
+                {
+                    var instanceLane = _balloonInstances[laneIdx];
+                    for (int i = 0; i < balloonList.Count && i < instanceLane.Count; i++)
+                    {
+                        var visual = balloonList[i].GetComponent<BalloonVisual>();
+                        if (visual != null)
+                        {
+                            instanceLane[i].Visual = visual;
+                            instanceLane[i].RefreshVisual();
+                        }
+                    }
+                }
             }
 
             // 레이아웃 강제 업데이트 (LayoutGroup이 위치를 계산하도록)
@@ -475,6 +580,14 @@ namespace BalloonOut.UI
             {
                 img.color = ColorHelper.GetColor(color);
             }
+
+            // BalloonVisual 컴포넌트 추가 (기믹 렌더링용)
+            var visual = balloonObj.GetComponent<BalloonVisual>();
+            if (visual == null)
+            {
+                visual = balloonObj.AddComponent<BalloonVisual>();
+            }
+            visual.SetColor(color);
 
             return balloonObj;
         }
@@ -903,6 +1016,103 @@ namespace BalloonOut.UI
             }
 
             UpdateHeadHighlights();
+        }
+
+        /// <summary>
+        /// 풍선 복원 (BalloonSnapshot 사용, 기믹 상태 포함)
+        /// </summary>
+        public void RestoreBalloon(BalloonSnapshot snapshot)
+        {
+            if (snapshot == null) return;
+
+            int laneIndex = snapshot.LaneIndex;
+            GameColor color = snapshot.Color;
+
+            // 기존 복원 로직 수행
+            RestoreBalloon(color, laneIndex);
+
+            // BalloonInstance 복원
+            if (laneIndex >= 0 && laneIndex < _balloonInstances.Count)
+            {
+                var instanceLane = _balloonInstances[laneIndex];
+
+                // 새 BalloonData 생성 (기믹 스냅샷 포함)
+                var balloonData = new BalloonData(ColorHelper.ToString(color));
+                if (snapshot.GimmickSnapshots != null)
+                {
+                    foreach (var gimmickSnapshot in snapshot.GimmickSnapshots)
+                    {
+                        balloonData.AddGimmick(gimmickSnapshot.Clone());
+                    }
+                }
+
+                // BalloonInstance 생성 및 복원
+                var instance = new BalloonInstance(laneIndex, 0, balloonData);
+
+                // 기믹 상태 복원 알림
+                if (snapshot.GimmickSnapshots != null && snapshot.GimmickSnapshots.Count > 0)
+                {
+                    instance.NotifyRestore(snapshot.GimmickSnapshots);
+                }
+
+                // 맨 앞에 삽입
+                instanceLane.Insert(0, instance);
+
+                // 다른 인스턴스들의 위치 업데이트
+                for (int i = 1; i < instanceLane.Count; i++)
+                {
+                    instanceLane[i].PositionInLane = i;
+                }
+
+                // Visual 연결
+                if (_balloonImages.Count > laneIndex && _balloonImages[laneIndex].Count > 0)
+                {
+                    var image = _balloonImages[laneIndex][0];
+                    var visual = image.GetComponent<BalloonVisual>();
+                    if (visual == null)
+                    {
+                        visual = image.gameObject.AddComponent<BalloonVisual>();
+                    }
+                    instance.Visual = visual;
+                    instance.RefreshVisual();
+                }
+
+                // 활성 풍선 알림
+                instance.NotifyBecomeActive();
+
+                Debug.Log($"[QueueUI] Balloon restored with gimmicks: Color={color}, Lane={laneIndex}, Gimmicks={snapshot.GimmickSnapshots?.Count ?? 0}");
+            }
+        }
+
+        /// <summary>
+        /// Partial hit 복원 (Number 기믹 등)
+        /// </summary>
+        public void RestorePartialHit(int laneIndex, List<GimmickInstanceData> gimmickSnapshots)
+        {
+            if (laneIndex < 0 || laneIndex >= _balloonInstances.Count)
+                return;
+
+            var instanceLane = _balloonInstances[laneIndex];
+            if (instanceLane.Count == 0)
+                return;
+
+            var instance = instanceLane[0];
+            instance.NotifyRestore(gimmickSnapshots);
+        }
+
+        /// <summary>
+        /// 현재 활성 풍선의 스냅샷 생성
+        /// </summary>
+        public BalloonSnapshot CreateActiveBalloonSnapshot(int laneIndex)
+        {
+            if (laneIndex < 0 || laneIndex >= _balloonInstances.Count)
+                return null;
+
+            var instanceLane = _balloonInstances[laneIndex];
+            if (instanceLane.Count == 0)
+                return null;
+
+            return BalloonSnapshot.CreateFromInstance(instanceLane[0]);
         }
 
         /// <summary>

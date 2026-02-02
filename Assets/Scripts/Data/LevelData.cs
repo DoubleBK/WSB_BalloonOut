@@ -46,34 +46,84 @@ namespace BalloonOut.Data
     }
 
     /// <summary>
-    /// Lane 데이터 (풍선 색상 배열)
+    /// Lane 데이터 (풍선 배열)
     /// </summary>
     [Serializable]
     public class LaneData
     {
+        /// <summary>
+        /// 풍선 색상 배열 (레거시 형식)
+        /// </summary>
         public List<string> balloons;
+
+        /// <summary>
+        /// 풍선 데이터 배열 (기믹 지원 형식)
+        /// </summary>
+        public List<BalloonData> balloonData;
 
         public LaneData()
         {
             balloons = new List<string>();
+            balloonData = new List<BalloonData>();
         }
 
         public LaneData(List<string> balloons)
         {
             this.balloons = balloons;
+            this.balloonData = new List<BalloonData>();
         }
 
         /// <summary>
-        /// GameColor 리스트로 변환
+        /// BalloonData 리스트 반환 (하위 호환성 지원)
+        /// balloonData가 있으면 사용, 없으면 balloons에서 변환
+        /// </summary>
+        public List<BalloonData> GetBalloonDataList()
+        {
+            // balloonData가 있으면 우선 사용
+            if (balloonData != null && balloonData.Count > 0)
+            {
+                return balloonData;
+            }
+
+            // 레거시 형식에서 변환
+            var result = new List<BalloonData>();
+            if (balloons != null)
+            {
+                foreach (var colorCode in balloons)
+                {
+                    result.Add(new BalloonData(colorCode));
+                }
+            }
+            return result;
+        }
+
+        /// <summary>
+        /// GameColor 리스트로 변환 (레거시 호환)
         /// </summary>
         public List<GameColor> GetColors()
         {
+            var balloonList = GetBalloonDataList();
             var colors = new List<GameColor>();
-            foreach (var b in balloons)
+            foreach (var b in balloonList)
             {
-                colors.Add(ColorHelper.FromString(b));
+                colors.Add(b.GetColor());
             }
             return colors;
+        }
+
+        /// <summary>
+        /// 풍선 개수
+        /// </summary>
+        public int Count
+        {
+            get
+            {
+                if (balloonData != null && balloonData.Count > 0)
+                {
+                    return balloonData.Count;
+                }
+                return balloons?.Count ?? 0;
+            }
         }
     }
 

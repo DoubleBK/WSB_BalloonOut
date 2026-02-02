@@ -4,6 +4,7 @@ using UnityEngine.SceneManagement;
 using BalloonOut.Data;
 using BalloonOut.Game.Grid;
 using BalloonOut.Game.Arrow;
+using BalloonOut.Game.Gimmick;
 using BalloonOut.UI;
 using BalloonOut.Effects;
 
@@ -493,14 +494,32 @@ namespace BalloonOut.Core
             _pendingHomingArrows--;
             Debug.Log($"[GameManager] HomingArrow hit target. Pending: {_pendingHomingArrows}");
 
-            // 팝 전에 레인 인덱스 캡처 (Undo 복원용)
+            // 팝 전에 레인 인덱스 및 풍선 스냅샷 캡처 (Undo 복원용)
             int prePoppedLaneIndex = _queueUI?.FindLaneWithActiveBalloon(color) ?? -1;
+            BalloonSnapshot balloonSnapshot = null;
+            if (prePoppedLaneIndex >= 0)
+            {
+                balloonSnapshot = _queueUI?.CreateActiveBalloonSnapshot(prePoppedLaneIndex);
+            }
 
-            // 풍선 팝 시도
+            // 풍선 팝 시도 (기믹 지원)
             bool wasMatch = false;
+            bool wasPartialHit = false;
             if (_queueUI != null)
             {
-                wasMatch = _queueUI.TryPopBalloon(color, out _);
+                var popResult = _queueUI.TryPopBalloonWithGimmick(color, out int poppedLaneIndex, out GimmickHitResult hitResult);
+                wasMatch = (popResult == QueueUI.PopResult.Popped);
+                wasPartialHit = (popResult == QueueUI.PopResult.Hit);
+
+                if (wasPartialHit)
+                {
+                    Debug.Log($"[GameManager] Partial hit on balloon! {hitResult.FeedbackMessage}");
+                    // Partial hit 시 스냅샷에 표시
+                    if (balloonSnapshot != null)
+                    {
+                        balloonSnapshot.WasPartialHit = true;
+                    }
+                }
             }
 
             // Undo 히스토리 기록 - SourceArrowSnapshot null 체크 제거
@@ -513,13 +532,18 @@ namespace BalloonOut.Core
                     Debug.LogWarning($"[GameManager] SourceArrowSnapshot is null for color {color}");
                 }
 
-                BoosterManager.Instance.RecordArrowEscapeFromSnapshot(homingArrow.SourceArrowSnapshot, wasMatch, prePoppedLaneIndex);
+                BoosterManager.Instance.RecordArrowEscapeFromSnapshot(
+                    homingArrow.SourceArrowSnapshot,
+                    wasMatch || wasPartialHit,  // Partial hit도 "hit"으로 처리
+                    prePoppedLaneIndex,
+                    balloonSnapshot);  // 풍선 스냅샷 전달
             }
 
             OnArrowEscaped?.Invoke(color, wasMatch);
             CheckWinCondition();
 
-            Debug.Log(wasMatch ? $"HomingArrow POP! Color: {color}, Lane: {prePoppedLaneIndex}" : $"HomingArrow missed! Color: {color}");
+            string resultMsg = wasMatch ? "POP!" : (wasPartialHit ? "PARTIAL HIT!" : "missed!");
+            Debug.Log($"[GameManager] HomingArrow {resultMsg} Color: {color}, Lane: {prePoppedLaneIndex}");
             // _isProcessing은 OnArrowExtractedHandler에서 이미 false로 설정됨
             // 화살표 탈출 즉시 다음 입력 허용
         }

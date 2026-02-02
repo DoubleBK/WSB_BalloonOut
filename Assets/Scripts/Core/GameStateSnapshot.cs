@@ -139,13 +139,40 @@ namespace BalloonOut.Core
         /// <summary>레인 내 위치 (0 = 가장 앞/활성)</summary>
         public int PositionInLane;
 
-        public BalloonSnapshot() { }
+        /// <summary>기믹 상태 스냅샷들</summary>
+        public List<GimmickInstanceData> GimmickSnapshots;
+
+        /// <summary>Partial hit 여부 (Number 기믹 등)</summary>
+        public bool WasPartialHit;
+
+        public BalloonSnapshot()
+        {
+            GimmickSnapshots = new List<GimmickInstanceData>();
+        }
 
         public BalloonSnapshot(GameColor color, int laneIndex, int positionInLane = 0)
         {
             Color = color;
             LaneIndex = laneIndex;
             PositionInLane = positionInLane;
+            GimmickSnapshots = new List<GimmickInstanceData>();
+        }
+
+        /// <summary>
+        /// BalloonInstance에서 스냅샷 생성
+        /// </summary>
+        public static BalloonSnapshot CreateFromInstance(Game.Balloon.BalloonInstance balloon)
+        {
+            if (balloon == null) return null;
+
+            return new BalloonSnapshot
+            {
+                Color = balloon.Color,
+                LaneIndex = balloon.LaneIndex,
+                PositionInLane = balloon.PositionInLane,
+                GimmickSnapshots = balloon.CreateGimmickSnapshot(),
+                WasPartialHit = false
+            };
         }
     }
 }

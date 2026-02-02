@@ -4,6 +4,7 @@ using UnityEngine;
 using UnityEditor;
 using BalloonOut.Core;
 using BalloonOut.Data;
+using BalloonOut.Game.Gimmick.Behaviors;
 
 namespace BalloonOut.Editor
 {
@@ -490,21 +491,34 @@ namespace BalloonOut.Editor
 
             EditorGUILayout.EndHorizontal();
 
-            // 풍선 목록
-            if (lane.balloons != null && lane.balloons.Count > 0)
+            // 풍선 목록 (balloonData 우선, 없으면 balloons 사용)
+            var balloonDataList = lane.GetBalloonDataList();
+            if (balloonDataList != null && balloonDataList.Count > 0)
             {
                 EditorGUILayout.BeginHorizontal();
 
-                for (int i = 0; i < lane.balloons.Count; i++)
+                for (int i = 0; i < balloonDataList.Count; i++)
                 {
-                    var color = lane.balloons[i];
-                    GUI.backgroundColor = GetColorForBalloon(color);
+                    var balloonData = balloonDataList[i];
+                    var colorCode = balloonData.color;
+                    GUI.backgroundColor = GetColorForBalloon(colorCode);
 
-                    if (GUILayout.Button(color, GUILayout.Width(30), GUILayout.Height(30)))
+                    // 기믹 표시 문자열 생성
+                    string displayText = GetBalloonDisplayText(balloonData);
+
+                    // 풍선 버튼 (우클릭 메뉴 지원)
+                    var buttonRect = GUILayoutUtility.GetRect(35, 35, GUILayout.Width(35), GUILayout.Height(35));
+                    if (GUI.Button(buttonRect, displayText))
                     {
-                        // 클릭 시 삭제
-                        lane.balloons.RemoveAt(i);
-                        GUIUtility.ExitGUI();
+                        // 좌클릭: 컨텍스트 메뉴 표시
+                        ShowBalloonContextMenu(lane, i);
+                    }
+
+                    // 우클릭도 컨텍스트 메뉴
+                    if (Event.current.type == EventType.ContextClick && buttonRect.Contains(Event.current.mousePosition))
+                    {
+                        ShowBalloonContextMenu(lane, i);
+                        Event.current.Use();
                     }
                 }
 
@@ -519,8 +533,167 @@ namespace BalloonOut.Editor
             EditorGUILayout.EndVertical();
         }
 
+        /// <summary>
+        /// 풍선 표시 텍스트 (기믹 포함)
+        /// </summary>
+        private string GetBalloonDisplayText(BalloonData data)
+        {
+            if (data.gimmicks == null || data.gimmicks.Count == 0)
+                return data.color;
+
+            // 기믹 표시
+            string suffix = "";
+            foreach (var gimmick in data.gimmicks)
+            {
+                if (gimmick.gimmickId == SurpriseGimmickBehavior.GIMMICK_ID)
+                {
+                    suffix += "?";
+                }
+                else if (gimmick.gimmickId == NumberGimmickBehavior.GIMMICK_ID)
+                {
+                    int hits = gimmick.GetParamInt("requiredHits", 2);
+                    suffix += hits.ToString();
+                }
+            }
+
+            return string.IsNullOrEmpty(suffix) ? data.color : $"{data.color}\n{suffix}";
+        }
+
+        /// <summary>
+        /// 풍선 컨텍스트 메뉴 표시
+        /// </summary>
+        private void ShowBalloonContextMenu(LaneData lane, int balloonIndex)
+        {
+            EnsureBalloonData(lane);
+            var balloonData = lane.balloonData[balloonIndex];
+
+            var menu = new GenericMenu();
+
+            // 삭제
+            menu.AddItem(new GUIContent("Delete"), false, () =>
+            {
+                lane.balloonData.RemoveAt(balloonIndex);
+                // Legacy list도 동기화
+                if (lane.balloons != null && lane.balloons.Count > balloonIndex)
+                    lane.balloons.RemoveAt(balloonIndex);
+            });
+
+            menu.AddSeparator("");
+
+            // Surprise 기믹 토글
+            bool hasSurprise = balloonData.HasGimmick(SurpriseGimmickBehavior.GIMMICK_ID);
+            menu.AddItem(new GUIContent("Surprise Gimmick"), hasSurprise, () =>
+            {
+                ToggleGimmick(balloonData, SurpriseGimmickBehavior.GIMMICK_ID);
+            });
+
+            // Number 기믹 토글
+            bool hasNumber = balloonData.HasGimmick(NumberGimmickBehavior.GIMMICK_ID);
+            menu.AddItem(new GUIContent("Number Gimmick (2 hits)"), hasNumber, () =>
+            {
+                if (hasNumber)
+                {
+                    // 제거
+                    RemoveGimmick(balloonData, NumberGimmickBehavior.GIMMICK_ID);
+                }
+                else
+                {
+                    // 추가 (기본 2번)
+                    AddNumberGimmick(balloonData, 2);
+                }
+            });
+
+            // Number 기믹 히트 수 변경 (이미 있는 경우)
+            if (hasNumber)
+            {
+                menu.AddSeparator("Number Hits/");
+                for (int hits = 2; hits <= 5; hits++)
+                {
+                    int h = hits; // 클로저 캡처용
+                    var gimmickData = balloonData.gimmicks.Find(g => g.gimmickId == NumberGimmickBehavior.GIMMICK_ID);
+                    bool isCurrentHits = gimmickData != null && gimmickData.GetParamInt("requiredHits", 2) == hits;
+                    menu.AddItem(new GUIContent($"Number Hits/{hits} hits"), isCurrentHits, () =>
+                    {
+                        SetNumberGimmickHits(balloonData, h);
+                    });
+                }
+            }
+
+            menu.ShowAsContext();
+        }
+
+        /// <summary>
+        /// balloonData 리스트 보장 (legacy balloons에서 변환)
+        /// </summary>
+        private void EnsureBalloonData(LaneData lane)
+        {
+            if (lane.balloonData != null && lane.balloonData.Count > 0)
+                return;
+
+            lane.balloonData = new List<BalloonData>();
+            if (lane.balloons != null)
+            {
+                foreach (var color in lane.balloons)
+                {
+                    lane.balloonData.Add(new BalloonData(color));
+                }
+            }
+        }
+
+        /// <summary>
+        /// 기믹 토글
+        /// </summary>
+        private void ToggleGimmick(BalloonData data, string gimmickId)
+        {
+            if (data.HasGimmick(gimmickId))
+            {
+                RemoveGimmick(data, gimmickId);
+            }
+            else
+            {
+                data.AddGimmick(new GimmickInstanceData(gimmickId));
+            }
+        }
+
+        /// <summary>
+        /// 기믹 제거
+        /// </summary>
+        private void RemoveGimmick(BalloonData data, string gimmickId)
+        {
+            if (data.gimmicks == null) return;
+            data.gimmicks.RemoveAll(g => g.gimmickId == gimmickId);
+        }
+
+        /// <summary>
+        /// Number 기믹 추가
+        /// </summary>
+        private void AddNumberGimmick(BalloonData data, int requiredHits)
+        {
+            RemoveGimmick(data, NumberGimmickBehavior.GIMMICK_ID);
+            var gimmick = NumberGimmickBehavior.CreateData(requiredHits);
+            data.AddGimmick(gimmick);
+        }
+
+        /// <summary>
+        /// Number 기믹 히트 수 변경
+        /// </summary>
+        private void SetNumberGimmickHits(BalloonData data, int requiredHits)
+        {
+            var gimmick = data.gimmicks?.Find(g => g.gimmickId == NumberGimmickBehavior.GIMMICK_ID);
+            if (gimmick != null)
+            {
+                gimmick.SetParam("requiredHits", requiredHits);
+                gimmick.SetParam("remainingHits", requiredHits);
+            }
+        }
+
         private void AddBalloon(LaneData lane, string color)
         {
+            // balloonData 형식 우선 사용
+            EnsureBalloonData(lane);
+            lane.balloonData.Add(new BalloonData(color));
+
+            // legacy 호환성을 위해 balloons도 업데이트
             if (lane.balloons == null)
                 lane.balloons = new List<string>();
             lane.balloons.Add(color);

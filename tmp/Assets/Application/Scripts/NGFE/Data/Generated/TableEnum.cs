@@ -1,54 +1,17 @@
 namespace NGFE.Data
 {
-	public enum LOBBY_STAGEBLOCK_TYPE
-	{
-		GREEN = 0,										// 로비 스테이지 블록 | Green
-		RED = 1,										// 로비 스테이지 블록 | Red
-		PURPLE = 2,										// 로비 스테이지 블록 | Purple
-	}
-
 	public enum GIMMICK_UNLOCK_INFO_TYPE
 	{
 		NONE = 0,										// 기믹 언락 안내 | None
-		ARROW_BLOCK = 1,								// 기믹 언락 안내 | ArrowBlock
-		LAYER_BLOCK = 2,								// 기믹 언락 안내 | LayerBlock
-		ICE_BLOCK = 3,									// 기믹 언락 안내 | IceBlock
-		STAR_BLOCK = 4,									// 기믹 언락 안내 | StarBlock
-		STAR_GATE = 5,									// 기믹 언락 안내 | StarGate
-		CHAIN_BLOCK = 6,								// 기믹 언락 안내 | ChainBlock
-		KEY_BLOCK = 7,									// 기믹 언락 안내 | KeyBlock
-		COMBINED_BLOCK = 8,								// 기믹 언락 안내 | CombinedBlock
-		DOOR = 9,										// 기믹 언락 안내 | Door
-		BOMB_BLOCK = 10,								// 기믹 언락 안내 | BombBlock
-		ROPES_BLOCK = 11,								// 기믹 언락 안내 | RopesBlock
-		SCISSORS_BLOCK = 12,							// 기믹 언락 안내 | ScissorsBlock
-		COLORFUL_PATH = 13,								// 기믹 언락 안내 | ColorfulPath
-		ICE_GATE = 14,									// 기믹 언락 안내 | IceGate
-		MOVING_DOOR_LOCK = 15,							// 기믹 언락 안내 | MovingDoorLock
-		CRATE = 16,										// 기믹 언락 안내 | Crate
-		MOVING_OBSTACLE = 17,							// 기믹 언락 안내 | MovingObstacle
-		SCREW_BLOCK = 18,								// 기믹 언락 안내 | ScrewBlock
-		COLOR_DOOR = 19,								// 기믹 언락 안내 | ColorDoor
-		CHAIN_GATE = 20,								// 기믹 언락 안내 | ChainGate
-		GATEKEY_BLOCK = 21,								// 기믹 언락 안내 | GatekeyBlock
-		SIZE_CHANGING_DOOR = 22,						// 기믹 언락 안내 | SizeChangingDoor
-		COMBINED_LOCKED_BLOCK = 23,						// 기믹 언락 안내 | CombinedLockedBlock
-		HIDDEN_BLOCK = 24,								// 기믹 언락 안내 | HiddenBlock
-		DYNAMITE_BLOCK = 25,							// 기믹 언락 안내 | DynamiteBlock
-		CURTAIN_BLOCK = 26,								// 기믹 언락 안내 | CuratinBlock
-		MOVEABLE_CRATE = 27,							// 기믹 언락 안내 | MoveableCrate
-		COLOR_SWITCHING_DOOR = 28,						// 기믹 언락 안내 | ColorSwitchingDoor
-		TIME_CAPSULE_BLOCK = 29,						// 기믹 언락 안내 | TimeCapsuleBlock
-		COLOR_SWITCHING_BLOCK = 30,						// 기믹 언락 안내 | ColorSwitchingBlock
-		JUMPING_SINGLE_DOOR = 31,						// 기믹 언락 안내 | JumpingSingleDoor
+		SURPRISEBALLOON = 1,							// 기믹 언락 안내 | SurpriseBalloon
+		NUMBERBALLOON = 2,								// 기믹 언락 안내 | NumberBalloon
 	}
 
 	public enum GIMMICK_UNLOCK_INFO_CATEGORY
 	{
 		NONE = 0,										// 기믹 카테고리 | None
-		TILE = 1,										// 기믹 카테고리 | 타일
-		BLOCK = 2,										// 기믹 카테고리 | 블록
-		GATE = 3,										// 기믹 카테고리 | 게이트
+		BALLOON = 1,									// 기믹 카테고리 | 타일
+		ARROW = 2,										// 기믹 카테고리 | 블록
 	}
 
 	public enum UNITTYPE
@@ -113,151 +76,10 @@ namespace NGFE.Data
 		DOOR = 2,										// 게이트 타입 | Door
 	}
 
-	public enum BLOCK_GIMMICKTYPE
+	public enum BALLOON_GIMMICK_TYPE
 	{
-		NORMAL = 0,										// 블럭 기믹 타입 | Normal
-		ARROW = 1,										// 블럭 기믹 타입 | Arrow
-		LAYER = 2,										// 블럭 기믹 타입 | Layer
-		ICE = 3,										// 블럭 기믹 타입 | Ice
-		STAR = 4,										// 블럭 기믹 타입 | Star
-		CHAIN = 5,										// 블럭 기믹 타입 | Chain
-		KEY = 6,										// 블럭 기믹 타입 | Key
-		COMBINE = 7,									// 블럭 기믹 타입 | Combine
-		BOMB = 8,										// 블럭 기믹 타입 | Bomb
-		ROPES = 9,										// 블럭 기믹 타입 | Ropes
-		SCISSORS = 10,									// 블럭 기믹 타입 | Scissors
-		MOVING_OBSTACLE = 11,							// 블럭 기믹 타입 | Moving_Obstacle
-		SCREW = 12,										// 블럭 기믹 타입 | Screw
-		CRATE = 13,										// 블럭 기믹 타입 | Crate
-		RAINBOW = 14,									// 블럭 기믹 타입 | Rainbow
-		COMBINEDLOCKEDBLOCK = 15,						// 블럭 기믹 타입 | CombinedLockedBlock
-		HIDDENBLOCK = 16,								// 블럭 기믹 타입 | HiddenBlock
-		DYNAMITE = 17,									// 블럭 기믹 타입 | Dynamite
-		CURTAIN = 18,									// 블럭 기믹 타입 | Curtain
-		MOVEABLECRATE = 19,								// 블럭 기믹 타입 | MoveableCrate
-		TIMECAPSULE = 20,								// 블럭 기믹 타입 | TimeCapsule
-		COLORSWITCHING = 21,							// 블럭 기믹 타입 | ColorSwitching
-	}
-
-	public enum BLOCK_TYPE
-	{
-		SQUARE_1X1 = 0,									// 블럭 타입 | 1x1_Square
-		SQUARE_1X2 = 1,									// 블럭 타입 | 1x2_Square
-		SQUARE_1X3 = 2,									// 블럭 타입 | 1x3_Square
-		SQUARE_2X2 = 3,									// 블럭 타입 | 2x2_Square
-		CORNER_2X2 = 4,									// 블럭 타입 | 2x2_Corner
-		CORNER_2X3 = 5,									// 블럭 타입 | 2x3_Corner
-		CROSS_2X3 = 6,									// 블럭 타입 | 2x3_Cross
-		CROSS_3X3 = 7,									// 블럭 타입 | 3x3_Cross
-		CORNER_2X3_R = 8,								// 블럭 타입 | 2x3_Corner_R
-		U_3X2 = 9,										// 블럭 타입 | U_3x2
-		S_3X2 = 10,										// 블럭 타입 | S_3x2
-		Z_3X2 = 11,										// 블럭 타입 | Z_3x2
-	}
-
-	public enum TILE_TYPE
-	{
-		NORMAL = 0,										// 타일 타입 | Normal
-		COLORFUL = 1,									// 타일 타입 | Colorful
-	}
-
-	public enum WALL_TYPE
-	{
-		WALLOUT = 0,									// 벽 타입 | WallOut
-		CORNER = 1,										// 벽 타입 | Corner
-		WALL = 2,										// 벽 타입 | Wall
-	}
-
-	public enum BLOCK_COLOR
-	{
-		R = 0,											// 블럭 색상 | 빨강
-		G = 1,											// 블럭 색상 | 녹색
-		LG = 2,											// 블럭 색상 | 연두
-		B = 3,											// 블럭 색상 | 파랑
-		P = 4,											// 블럭 색상 | 핑크
-		RP = 5,											// 블럭 색상 | 보라
-		Y = 6,											// 블럭 색상 | 노랑
-		LB = 7,											// 블럭 색상 | 하늘
-		O = 8,											// 블럭 색상 | 주황
-		BG = 9,											// #REF!
-		OBS = 10,										// 블럭 색상 | 회색(분쇄 못하는 블럭)
-		RAINBOW = 11,									// 블럭 색상 | 무지개색
-	}
-
-	public enum TILE_ROTATION_TYPE
-	{
-		NONE = 0,										// 타일 회전 | 0
-		DEGREE_90 = 1,									// 타일 회전 | 90
-		DEGREE_180 = 2,									// 타일 회전 | 180
-		DEGREE_270 = 3,									// 타일 회전 | 270
-	}
-
-	public enum TILE_MAP_DIRECTION
-	{
-		LT = 0,											// 맵툴 사용 | LT
-		T = 1,											// 맵툴 사용 | T
-		RT = 2,											// 맵툴 사용 | RT
-		LC = 3,											// 맵툴 사용 | LC
-		C = 4,											// 맵툴 사용 | C
-		RC = 5,											// 맵툴 사용 | RC
-		LB = 6,											// 맵툴 사용 | LB
-		B = 7,											// 맵툴 사용 | B
-		RB = 8,											// 맵툴 사용 | RB
-	}
-
-	public enum GATE_GIMMICKTYPE
-	{
-		NORMAL = 0,										// 게이트 기믹 타입 | Normal
-		STAR = 1,										// 게이트 기믹 타입 | Star
-		DOOR = 2,										// 게이트 기믹 타입 | Door
-		MOVING_DOOR_LOCK = 3,							// 게이트 기믹 타입 | Moving_Door_Lock
-		ICEGATE = 4,									// 게이트 기믹 타입 | IceGate
-		COLORGATE = 5,									// 게이트 기믹 타입 | ColorGate
-		CHAIN = 6,										// 게이트 기믹 타입 | Chain
-		SIZECHANGING = 7,								// 게이트 기믹 타입 | SizeChanging
-		COLORSWITCHING = 8,								// 게이트 기믹 타입 | ColorSwitching
-		JUMPINGSINGLE = 9,								// 게이트 기믹 타입 | JumpingSingle
-	}
-
-	public enum TILE_GIMMICKTYPE
-	{
-		NORMAL = 0,										// 타일 기믹 타입 | Normal
-		COLORFUL = 1,									// 타일 기믹 타입 | Colorful
-	}
-
-	public enum BLOCK_GIMMICK_CATEGORY
-	{
-		NONE = 0,										// 블럭 기믹 카테고리 | None
-		DEFAULT = 1,									// 블럭 기믹 카테고리 | 특별히 분류 할 필요 없는 기믹
-		ORIGINAL = 2,									// 블럭 기믹 카테고리 | 블럭이 나눠질 때 복사되면 안되는 기믹
-		COUNT = 3,										// 블럭 기믹 카테고리 | 카운트를 사용하는 기믹
-		STATECHANGE = 4,								// 블럭 기믹 카테고리 | 상태가 변하는 기믹
-	}
-
-	public enum CRATEBLOCK_TYPE
-	{
-		SQUARE_1X1 = 0,									// Crate 기믹 블록타입 | Square_1x1
-		SQUARE_1X2 = 1,									// Crate 기믹 블록타입 | Square_1x2
-		SQUARE_1X3 = 2,									// Crate 기믹 블록타입 | Square_1x3
-		SQUARE_2X2 = 3,									// Crate 기믹 블록타입 | Square_2x2
-		SQUARE_2X3 = 4,									// Crate 기믹 블록타입 | Square_2x3
-		SQUARE_2X4 = 5,									// Crate 기믹 블록타입 | Square_2x4
-		SQUARE_2X5 = 6,									// Crate 기믹 블록타입 | Square_2x5
-		SQUARE_3X3 = 7,									// Crate 기믹 블록타입 | Square_3x3
-		SQUARE_3X4 = 8,									// Crate 기믹 블록타입 | Square_3x4
-		CORNER_2X2 = 9,									// Crate 기믹 블록타입 | Corner_2x2
-		CORNER_2X3 = 10,								// Crate 기믹 블록타입 | Corner_2x3
-		CORNER_2X3_R = 11,								// Crate 기믹 블록타입 | Corner_2x3_R
-		CORNER_2X4 = 12,								// Crate 기믹 블록타입 | Corner_2x4
-		CORNER_2X4_R = 13,								// Crate 기믹 블록타입 | Corner_2x4_R
-		CORNER_3X4 = 14,								// Crate 기믹 블록타입 | Corner_3x4
-		CORNER_3X4_R = 15,								// Crate 기믹 블록타입 | Corner_3x4_R
-		T_3X2 = 16,										// Crate 기믹 블록타입 | T_3x2
-		T_3X3 = 17,										// Crate 기믹 블록타입 | T_3x3
-		CROSS_3X3 = 18,									// Crate 기믹 블록타입 | Cross_3x3
-		CROSS_5X5 = 19,									// Crate 기믹 블록타입 | Cross_5x5
-		S_3X2 = 20,										// Crate 기믹 블록타입 | S_3x2
-		Z_3X2 = 21,										// Crate 기믹 블록타입 | Z_3x2
+		SURPRISEBALLOON = 0,							// 풍선 기믹 타입 | SurpriseBalloon
+		NUMBERBALLOON = 1,								// 풍선 기믹 타입 | NumberBalloon
 	}
 
 	public enum AD_FORMAT

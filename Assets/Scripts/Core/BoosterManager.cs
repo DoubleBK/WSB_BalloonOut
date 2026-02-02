@@ -118,14 +118,19 @@ namespace BalloonOut.Core
         /// 화살표 탈출 기록 (GameManager에서 호출 - ArrowSnapshot 버전)
         /// HomingArrow 사용 시 화살표가 이미 파괴된 경우를 위한 오버로드
         /// </summary>
-        public void RecordArrowEscapeFromSnapshot(ArrowSnapshot arrowSnapshot, bool wasMatch, int laneIndex = -1)
+        /// <param name="arrowSnapshot">화살표 스냅샷</param>
+        /// <param name="wasMatch">풍선과 매칭되었는지</param>
+        /// <param name="laneIndex">레인 인덱스</param>
+        /// <param name="existingBalloonSnapshot">기존 풍선 스냅샷 (기믹 상태 포함, null이면 자동 생성)</param>
+        public void RecordArrowEscapeFromSnapshot(ArrowSnapshot arrowSnapshot, bool wasMatch, int laneIndex = -1, BalloonSnapshot existingBalloonSnapshot = null)
         {
             // 힌트 화살표가 탈출했으면 하이라이트 해제
             ClearHintHighlight();
 
-            BalloonSnapshot balloonSnapshot = null;
-            if (wasMatch && laneIndex >= 0 && arrowSnapshot != null)
+            BalloonSnapshot balloonSnapshot = existingBalloonSnapshot;
+            if (balloonSnapshot == null && wasMatch && laneIndex >= 0 && arrowSnapshot != null)
             {
+                // 기믹 정보 없는 기본 스냅샷 생성 (하위 호환성)
                 balloonSnapshot = new BalloonSnapshot(arrowSnapshot.Color, laneIndex, 0);
             }
 
@@ -138,7 +143,7 @@ namespace BalloonOut.Core
 
             _undoHistory?.RecordArrowEscapeFromSnapshot(arrowSnapshot, balloonSnapshot);
 
-            Debug.Log($"[BoosterManager] Recorded escape from snapshot: Arrow={arrowSnapshot.ArrowId}, Color={arrowSnapshot.Color}, WasMatch={wasMatch}");
+            Debug.Log($"[BoosterManager] Recorded escape from snapshot: Arrow={arrowSnapshot.ArrowId}, Color={arrowSnapshot.Color}, WasMatch={wasMatch}, HasGimmicks={balloonSnapshot?.GimmickSnapshots?.Count ?? 0}");
         }
 
         // ========== Undo 부스터 ==========
@@ -203,9 +208,18 @@ namespace BalloonOut.Core
         {
             if (balloonSnapshot == null || _queueUI == null) return;
 
-            _queueUI.RestoreBalloon(balloonSnapshot.Color, balloonSnapshot.LaneIndex);
-
-            Debug.Log($"[BoosterManager] Restoring balloon: Color={balloonSnapshot.Color}, Lane={balloonSnapshot.LaneIndex}");
+            // Partial hit인 경우: 풍선 자체는 복원하지 않고 기믹 상태만 복원
+            if (balloonSnapshot.WasPartialHit)
+            {
+                _queueUI.RestorePartialHit(balloonSnapshot.LaneIndex, balloonSnapshot.GimmickSnapshots);
+                Debug.Log($"[BoosterManager] Restoring partial hit gimmick state: Lane={balloonSnapshot.LaneIndex}, Gimmicks={balloonSnapshot.GimmickSnapshots?.Count ?? 0}");
+            }
+            else
+            {
+                // 완전 팝된 풍선: 풍선 전체 복원 (기믹 포함)
+                _queueUI.RestoreBalloon(balloonSnapshot);
+                Debug.Log($"[BoosterManager] Restoring popped balloon: Color={balloonSnapshot.Color}, Lane={balloonSnapshot.LaneIndex}, Gimmicks={balloonSnapshot.GimmickSnapshots?.Count ?? 0}");
+            }
         }
 
         // ========== Hint 부스터 ==========
