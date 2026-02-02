@@ -59,6 +59,20 @@ namespace BalloonOut.Data
         private static string CellKey(int x, int y) => $"{x},{y}";
         private static string CellKey(Vector2Int v) => $"{v.x},{v.y}";
 
+        /// <summary>
+        /// Game 좌표계 방향을 Generator 좌표계로 변환 (Y축 반전)
+        /// Game: U=(0,1), D=(0,-1) / Generator: U=(0,-1), D=(0,1)
+        /// </summary>
+        private static string FlipYDirection(string dir)
+        {
+            return dir switch
+            {
+                "U" => "D",  // Game U (Y+) → Generator D (Y+)
+                "D" => "U",  // Game D (Y-) → Generator U (Y-)
+                _ => dir     // L, R은 동일
+            };
+        }
+
         // ========== Public API ==========
         /// <summary>
         /// LevelData 검증 (외부에서 호출 가능)
