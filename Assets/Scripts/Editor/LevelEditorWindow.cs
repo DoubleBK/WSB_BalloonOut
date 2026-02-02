@@ -15,7 +15,8 @@ namespace BalloonOut.Editor
         // ========== 에디터 상태 ==========
         private LevelData _currentLevel;
         private string _levelName = "NewLevel";
-        private int _gridSize = 6;
+        private int _gridWidth = 6;
+        private int _gridHeight = 6;
 
         // 도구 설정
         private GameColor _selectedColor = GameColor.Red;
@@ -35,7 +36,8 @@ namespace BalloonOut.Editor
         private readonly string[] _tabNames = { "Arrows", "Balloons", "Settings", "Generate" };
 
         // Generator 설정
-        private int _genGridSize = 16;
+        private int _genGridWidth = 16;
+        private int _genGridHeight = 16;
         private float _genTargetDensity = 0.9f;
         private bool _genBendingEnabled = true;
         private bool _genFillerEnabled = false;
@@ -77,7 +79,6 @@ namespace BalloonOut.Editor
         private Vector2Int _dragStartPos;
         private List<Vector2Int> _dragPath = new List<Vector2Int>();
         private Rect _dragGridRect;
-        private int _dragGridSize;
 
         // LevelList 패널
         private Vector2 _levelListScrollPosition;
@@ -288,7 +289,8 @@ namespace BalloonOut.Editor
             // 에디터 상태 초기화
             _currentLevel = null;
             _levelName = "NewLevel";
-            _gridSize = 6;
+            _gridWidth = 6;
+            _gridHeight = 6;
             _selectedArrowIndex = -1;
             _selectedLaneIndex = -1;
             _cachedValidation = null;
@@ -517,10 +519,13 @@ namespace BalloonOut.Editor
 
             _currentLevel.name = EditorGUILayout.TextField("Level Name", _currentLevel.name);
 
-            int newGridSize = EditorGUILayout.IntSlider("Grid Size", _currentLevel.gridSize, 4, 10);
-            if (newGridSize != _currentLevel.gridSize)
+            int newGridWidth = EditorGUILayout.IntSlider("Grid Width", _currentLevel.GetGridWidth(), 4, 12);
+            int newGridHeight = EditorGUILayout.IntSlider("Grid Height", _currentLevel.GetGridHeight(), 4, 12);
+            if (newGridWidth != _currentLevel.GetGridWidth() || newGridHeight != _currentLevel.GetGridHeight())
             {
-                _currentLevel.gridSize = newGridSize;
+                _currentLevel.gridWidth = newGridWidth;
+                _currentLevel.gridHeight = newGridHeight;
+                _currentLevel.gridSize = 0;  // width/height 사용 표시
                 SceneView.RepaintAll();
             }
 
@@ -558,7 +563,8 @@ namespace BalloonOut.Editor
             EditorGUILayout.BeginVertical("box");
             EditorGUILayout.LabelField("Basic Settings", EditorStyles.boldLabel);
 
-            _genGridSize = EditorGUILayout.IntSlider("Grid Size", _genGridSize, 4, 30);
+            _genGridWidth = EditorGUILayout.IntSlider("Grid Width", _genGridWidth, 4, 30);
+            _genGridHeight = EditorGUILayout.IntSlider("Grid Height", _genGridHeight, 4, 30);
             _genTargetDensity = EditorGUILayout.Slider("Target Density", _genTargetDensity, 0.2f, 1.0f);
             EditorGUILayout.LabelField($"  → {(_genTargetDensity * 100):F0}% of grid will be filled", EditorStyles.miniLabel);
 
@@ -657,12 +663,12 @@ namespace BalloonOut.Editor
             EditorGUILayout.BeginVertical("box");
             EditorGUILayout.LabelField("Estimated Stats", EditorStyles.miniLabel);
 
-            int totalCells = _genGridSize * _genGridSize;
+            int totalCells = _genGridWidth * _genGridHeight;
             int targetOccupied = Mathf.FloorToInt(totalCells * _genTargetDensity);
             int mainArrows = _genLaneCount * _genBalloonsPerLane + _genMissArrowCount;
             int totalArrows = mainArrows + _genDecoyArrowCount;
 
-            EditorGUILayout.LabelField($"  Grid: {_genGridSize}x{_genGridSize} = {totalCells} cells");
+            EditorGUILayout.LabelField($"  Grid: {_genGridWidth}x{_genGridHeight} = {totalCells} cells");
             EditorGUILayout.LabelField($"  Main Arrows: {mainArrows}, Decoy: {_genDecoyArrowCount}, Total: {totalArrows}");
             EditorGUILayout.LabelField($"  Target Cells: {targetOccupied} ({_genTargetDensity * 100:F0}%)");
 
@@ -735,7 +741,9 @@ namespace BalloonOut.Editor
 
         private void ApplyAutoCalculate()
         {
-            var config = LevelGenerator.CalculateAutoParams(_genGridSize, _genTargetDensity, _genBendingEnabled);
+            // Generator는 정사각형만 지원하므로 min(width, height) 사용
+            int genGridSize = Mathf.Min(_genGridWidth, _genGridHeight);
+            var config = LevelGenerator.CalculateAutoParams(genGridSize, _genTargetDensity, _genBendingEnabled);
 
             _genLaneCount = config.laneCount;
             _genBalloonsPerLane = config.balloonsPerLane;
@@ -755,10 +763,12 @@ namespace BalloonOut.Editor
                 ApplyAutoCalculate();
             }
 
-            // 설정 생성
+            // 설정 생성 (직사각형 지원: gridWidth x gridHeight)
             var config = new LevelGenerator.GeneratorConfig
             {
-                gridSize = _genGridSize,
+                gridSize = 0,  // gridWidth/gridHeight 사용
+                gridWidth = _genGridWidth,
+                gridHeight = _genGridHeight,
                 targetDensity = _genTargetDensity,
                 bendingEnabled = _genBendingEnabled,
                 fillerEnabled = _genFillerEnabled,
@@ -803,6 +813,11 @@ namespace BalloonOut.Editor
 
                 if (generatedLevel != null)
                 {
+                    // 생성된 레벨에 실제 width/height 적용
+                    generatedLevel.gridWidth = _genGridWidth;
+                    generatedLevel.gridHeight = _genGridHeight;
+                    generatedLevel.gridSize = 0;  // width/height 사용 표시
+
                     _currentLevel = generatedLevel;
 
                     // 사용자가 입력한 이름이 있으면 적용, 없으면 생성된 이름 사용
@@ -815,7 +830,8 @@ namespace BalloonOut.Editor
                         _levelName = generatedLevel.name;
                     }
 
-                    _gridSize = generatedLevel.gridSize;
+                    _gridWidth = generatedLevel.GetGridWidth();
+                    _gridHeight = generatedLevel.GetGridHeight();
                     _selectedArrowIndex = -1;
                     _validationDirty = true; // 검증 갱신 필요
 
@@ -1396,18 +1412,20 @@ namespace BalloonOut.Editor
         {
             if (_currentLevel == null) return;
 
-            int gridSize = _currentLevel.gridSize;
-            float totalSize = gridSize * PREVIEW_CELL_SIZE;
+            int gridWidth = _currentLevel.GetGridWidth();
+            int gridHeight = _currentLevel.GetGridHeight();
+            float totalWidth = gridWidth * PREVIEW_CELL_SIZE;
+            float totalHeight = gridHeight * PREVIEW_CELL_SIZE;
 
-            EditorGUILayout.LabelField($"Grid ({gridSize}x{gridSize}) - Drag to draw, Ctrl+Click direction, Right-click delete", EditorStyles.boldLabel);
+            EditorGUILayout.LabelField($"Grid ({gridWidth}x{gridHeight}) - Drag to draw, Ctrl+Click direction, Right-click delete", EditorStyles.boldLabel);
 
             // 그리드 영역 확보
-            Rect gridRect = GUILayoutUtility.GetRect(totalSize + 20, totalSize + 20);
+            Rect gridRect = GUILayoutUtility.GetRect(totalWidth + 20, totalHeight + 20);
             gridRect.x += 10;
             gridRect.y += 5;
 
             // 클릭 이벤트 처리 (그리드 렌더링 전에 처리)
-            HandlePreviewGridInput(gridRect, gridSize);
+            HandlePreviewGridInput(gridRect, gridWidth, gridHeight);
 
             // 점유된 셀 계산
             var occupiedCells = new Dictionary<Vector2Int, (Color color, bool isHead, string dir)>();
@@ -1432,26 +1450,26 @@ namespace BalloonOut.Editor
             Handles.color = new Color(0.5f, 0.5f, 0.5f, 0.6f);
 
             // 수직선
-            for (int x = 0; x <= gridSize; x++)
+            for (int x = 0; x <= gridWidth; x++)
             {
                 Vector3 start = new Vector3(gridRect.x + x * PREVIEW_CELL_SIZE, gridRect.y, 0);
-                Vector3 end = new Vector3(gridRect.x + x * PREVIEW_CELL_SIZE, gridRect.y + gridSize * PREVIEW_CELL_SIZE, 0);
+                Vector3 end = new Vector3(gridRect.x + x * PREVIEW_CELL_SIZE, gridRect.y + gridHeight * PREVIEW_CELL_SIZE, 0);
                 Handles.DrawLine(start, end);
             }
 
             // 수평선
-            for (int y = 0; y <= gridSize; y++)
+            for (int y = 0; y <= gridHeight; y++)
             {
                 Vector3 start = new Vector3(gridRect.x, gridRect.y + y * PREVIEW_CELL_SIZE, 0);
-                Vector3 end = new Vector3(gridRect.x + gridSize * PREVIEW_CELL_SIZE, gridRect.y + y * PREVIEW_CELL_SIZE, 0);
+                Vector3 end = new Vector3(gridRect.x + gridWidth * PREVIEW_CELL_SIZE, gridRect.y + y * PREVIEW_CELL_SIZE, 0);
                 Handles.DrawLine(start, end);
             }
 
             // 빈 셀만 그리기 (화살표는 별도로 그림)
             // Y좌표 반전: 인게임에서는 Y=0이 아래, 에디터 GUI에서는 Y=0이 위
-            for (int y = 0; y < gridSize; y++)
+            for (int y = 0; y < gridHeight; y++)
             {
-                for (int x = 0; x < gridSize; x++)
+                for (int x = 0; x < gridWidth; x++)
                 {
                     Vector2Int pos = new Vector2Int(x, y);
 
@@ -1459,7 +1477,7 @@ namespace BalloonOut.Editor
                     if (!occupiedCells.ContainsKey(pos))
                     {
                         // Y좌표 반전하여 그리기
-                        int flippedY = gridSize - 1 - y;
+                        int flippedY = gridHeight - 1 - y;
                         Rect cellRect = new Rect(
                             gridRect.x + x * PREVIEW_CELL_SIZE + 1,
                             gridRect.y + flippedY * PREVIEW_CELL_SIZE + 1,
@@ -1481,7 +1499,7 @@ namespace BalloonOut.Editor
 
                 foreach (var cell in selectedCells)
                 {
-                    int flippedY = gridSize - 1 - cell.y;
+                    int flippedY = gridHeight - 1 - cell.y;
                     Rect cellRect = new Rect(
                         gridRect.x + cell.x * PREVIEW_CELL_SIZE,
                         gridRect.y + flippedY * PREVIEW_CELL_SIZE,
@@ -1500,21 +1518,21 @@ namespace BalloonOut.Editor
                     var arrow = _currentLevel.arrows[arrowIdx];
                     Color arrowColor = GetPreviewColor(arrow.color);
 
-                    DrawArrowInPreview(gridRect, arrow, arrowColor, gridSize);
+                    DrawArrowInPreview(gridRect, arrow, arrowColor, gridWidth, gridHeight);
                 }
             }
 
             // 드래그 중인 경로 미리보기
             if (_isDragging && _dragPath.Count > 0)
             {
-                DrawDragPreview(gridRect, gridSize);
+                DrawDragPreview(gridRect, gridWidth, gridHeight);
             }
         }
 
         /// <summary>
         /// 드래그 중인 화살표 경로 미리보기 렌더링
         /// </summary>
-        private void DrawDragPreview(Rect gridRect, int gridSize)
+        private void DrawDragPreview(Rect gridRect, int gridWidth, int gridHeight)
         {
             Color previewColor = GetPreviewColor(ColorHelper.ToString(_selectedColor));
             previewColor.a = 0.5f;
@@ -1522,7 +1540,7 @@ namespace BalloonOut.Editor
             // 경로 셀 하이라이트
             foreach (var cell in _dragPath)
             {
-                int flippedY = gridSize - 1 - cell.y;
+                int flippedY = gridHeight - 1 - cell.y;
                 Rect cellRect = new Rect(
                     gridRect.x + cell.x * PREVIEW_CELL_SIZE + 1,
                     gridRect.y + flippedY * PREVIEW_CELL_SIZE + 1,
@@ -1536,7 +1554,7 @@ namespace BalloonOut.Editor
             List<Vector3> positions = new List<Vector3>();
             foreach (var cell in _dragPath)
             {
-                int flippedY = gridSize - 1 - cell.y;
+                int flippedY = gridHeight - 1 - cell.y;
                 float cx = gridRect.x + cell.x * PREVIEW_CELL_SIZE + PREVIEW_CELL_SIZE * 0.5f;
                 float cy = gridRect.y + flippedY * PREVIEW_CELL_SIZE + PREVIEW_CELL_SIZE * 0.5f;
                 positions.Add(new Vector3(cx, cy, 0));
@@ -1561,7 +1579,7 @@ namespace BalloonOut.Editor
             }
         }
 
-        private void DrawArrowInPreview(Rect gridRect, ArrowData arrow, Color arrowColor, int gridSize)
+        private void DrawArrowInPreview(Rect gridRect, ArrowData arrow, Color arrowColor, int gridWidth, int gridHeight)
         {
             var cells = arrow.GetCells();
             if (cells.Count == 0) return;
@@ -1571,7 +1589,7 @@ namespace BalloonOut.Editor
             foreach (var cell in cells)
             {
                 // Y좌표 반전: 인게임에서는 Y=0이 아래, 에디터 GUI에서는 Y=0이 위
-                int flippedY = gridSize - 1 - cell.y;
+                int flippedY = gridHeight - 1 - cell.y;
                 float cx = gridRect.x + cell.x * PREVIEW_CELL_SIZE + PREVIEW_CELL_SIZE * 0.5f;
                 float cy = gridRect.y + flippedY * PREVIEW_CELL_SIZE + PREVIEW_CELL_SIZE * 0.5f;
                 screenPositions.Add(new Vector3(cx, cy, 0));
@@ -1620,12 +1638,12 @@ namespace BalloonOut.Editor
         /// <summary>
         /// Preview 그리드에서 클릭/드래그 이벤트 처리
         /// </summary>
-        private void HandlePreviewGridInput(Rect gridRect, int gridSize)
+        private void HandlePreviewGridInput(Rect gridRect, int gridWidth, int gridHeight)
         {
             Event e = Event.current;
 
             // 그리드 영역
-            Rect clickableArea = new Rect(gridRect.x, gridRect.y, gridSize * PREVIEW_CELL_SIZE, gridSize * PREVIEW_CELL_SIZE);
+            Rect clickableArea = new Rect(gridRect.x, gridRect.y, gridWidth * PREVIEW_CELL_SIZE, gridHeight * PREVIEW_CELL_SIZE);
 
             // 좌클릭 Down: 드래그 시작 또는 Ctrl+클릭
             if (e.type == EventType.MouseDown && e.button == 0)
@@ -1633,8 +1651,8 @@ namespace BalloonOut.Editor
                 if (!clickableArea.Contains(e.mousePosition))
                     return;
 
-                Vector2Int gridPos = ScreenToGridPosition(e.mousePosition, gridRect, gridSize);
-                if (!IsValidGridPosition(gridPos, gridSize))
+                Vector2Int gridPos = ScreenToGridPosition(e.mousePosition, gridRect, gridWidth, gridHeight);
+                if (!IsValidGridPosition(gridPos, gridWidth, gridHeight))
                     return;
 
                 // Ctrl+클릭: 기존 화살표 Head 방향 변경
@@ -1661,7 +1679,6 @@ namespace BalloonOut.Editor
                     _dragPath.Clear();
                     _dragPath.Add(gridPos);
                     _dragGridRect = gridRect;
-                    _dragGridSize = gridSize;
                     _selectedArrowIndex = -1;
                 }
 
@@ -1671,8 +1688,10 @@ namespace BalloonOut.Editor
             // 드래그 중: 경로 추가
             else if (e.type == EventType.MouseDrag && e.button == 0 && _isDragging)
             {
-                Vector2Int gridPos = ScreenToGridPosition(e.mousePosition, _dragGridRect, _dragGridSize);
-                if (!IsValidGridPosition(gridPos, _dragGridSize))
+                int dragGridWidth = _currentLevel.GetGridWidth();
+                int dragGridHeight = _currentLevel.GetGridHeight();
+                Vector2Int gridPos = ScreenToGridPosition(e.mousePosition, _dragGridRect, dragGridWidth, dragGridHeight);
+                if (!IsValidGridPosition(gridPos, dragGridWidth, dragGridHeight))
                     return;
 
                 Vector2Int lastPos = _dragPath[_dragPath.Count - 1];
@@ -1723,9 +1742,9 @@ namespace BalloonOut.Editor
                 if (!clickableArea.Contains(e.mousePosition))
                     return;
 
-                Vector2Int gridPos = ScreenToGridPosition(e.mousePosition, gridRect, gridSize);
+                Vector2Int gridPos = ScreenToGridPosition(e.mousePosition, gridRect, gridWidth, gridHeight);
 
-                if (IsValidGridPosition(gridPos, gridSize))
+                if (IsValidGridPosition(gridPos, gridWidth, gridHeight))
                 {
                     RemoveArrowAt(gridPos);
                     e.Use();
@@ -1839,12 +1858,12 @@ namespace BalloonOut.Editor
         /// <summary>
         /// 화면 좌표를 그리드 좌표로 변환
         /// </summary>
-        private Vector2Int ScreenToGridPosition(Vector2 mousePos, Rect gridRect, int gridSize)
+        private Vector2Int ScreenToGridPosition(Vector2 mousePos, Rect gridRect, int gridWidth, int gridHeight)
         {
             int cellX = Mathf.FloorToInt((mousePos.x - gridRect.x) / PREVIEW_CELL_SIZE);
             // Y좌표 반전: 에디터 GUI에서는 Y=0이 위, 인게임에서는 Y=0이 아래
             int screenY = Mathf.FloorToInt((mousePos.y - gridRect.y) / PREVIEW_CELL_SIZE);
-            int cellY = gridSize - 1 - screenY;
+            int cellY = gridHeight - 1 - screenY;
 
             return new Vector2Int(cellX, cellY);
         }
@@ -1852,9 +1871,9 @@ namespace BalloonOut.Editor
         /// <summary>
         /// 그리드 좌표 유효성 검사
         /// </summary>
-        private bool IsValidGridPosition(Vector2Int pos, int gridSize)
+        private bool IsValidGridPosition(Vector2Int pos, int gridWidth, int gridHeight)
         {
-            return pos.x >= 0 && pos.x < gridSize && pos.y >= 0 && pos.y < gridSize;
+            return pos.x >= 0 && pos.x < gridWidth && pos.y >= 0 && pos.y < gridHeight;
         }
 
 
@@ -2145,8 +2164,9 @@ namespace BalloonOut.Editor
             else
             {
                 // 밀도 직접 계산
-                int gridSize = _currentLevel.gridSize;
-                int totalCells = gridSize * gridSize;
+                int gridWidth = _currentLevel.GetGridWidth();
+                int gridHeight = _currentLevel.GetGridHeight();
+                int totalCells = gridWidth * gridHeight;
                 int occupiedCells = 0;
 
                 if (_currentLevel.arrows != null)
@@ -2183,7 +2203,7 @@ namespace BalloonOut.Editor
         // ========== 레벨 관리 ==========
         private void CreateNewLevel()
         {
-            _currentLevel = LevelSaver.CreateNew(_levelName, _gridSize);
+            _currentLevel = LevelSaver.CreateNew(_levelName, _gridWidth, _gridHeight);
             _selectedArrowIndex = -1;
             _validationDirty = true; // 검증 갱신 필요
             Debug.Log($"[LevelEditor] Created new level: {_levelName}");
@@ -2200,7 +2220,8 @@ namespace BalloonOut.Editor
             {
                 _currentLevel = stageData.ToLevelData();
                 _levelName = ExtractLevelNameFromAsset(levelName);
-                _gridSize = _currentLevel.gridSize;
+                _gridWidth = _currentLevel.GetGridWidth();
+                _gridHeight = _currentLevel.GetGridHeight();
                 _selectedArrowIndex = -1;
                 _validationDirty = true;
 
@@ -2234,7 +2255,9 @@ namespace BalloonOut.Editor
 
             if (record != null)
             {
-                _genGridSize = record.gridSize;
+                // Config Table이 아직 width/height를 지원하지 않으므로 gridSize를 양쪽에 적용
+                _genGridWidth = record.gridSize;
+                _genGridHeight = record.gridSize;
                 _genLaneCount = record.laneCount;
                 _genBalloonsPerLane = record.balloonsPerLane;
                 _genMissArrowCount = record.missArrowCount;

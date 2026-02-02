@@ -75,6 +75,12 @@ namespace BalloonOut.Data
             return x >= 0 && x < gridSize && y >= 0 && y < gridSize;
         }
 
+        // 직사각형 그리드용 오버로드
+        private static bool IsInBounds(int x, int y, int gridWidth, int gridHeight)
+        {
+            return x >= 0 && x < gridWidth && y >= 0 && y < gridHeight;
+        }
+
         private static string CellKey(int x, int y) => $"{x},{y}";
         private static string CellKey(Vector2Int v) => $"{v.x},{v.y}";
 
@@ -96,12 +102,20 @@ namespace BalloonOut.Data
         /// </summary>
         public static List<Vector2Int> GetEscapePath(int x, int y, string dir, int gridSize)
         {
+            return GetEscapePath(x, y, dir, gridSize, gridSize);
+        }
+
+        /// <summary>
+        /// 탈출 경로 계산 (직사각형 그리드)
+        /// </summary>
+        public static List<Vector2Int> GetEscapePath(int x, int y, string dir, int gridWidth, int gridHeight)
+        {
             var path = new List<Vector2Int>();
             var d = DIR_VECTORS[dir];
             int cx = x + d.x;
             int cy = y + d.y;
 
-            while (IsInBounds(cx, cy, gridSize))
+            while (IsInBounds(cx, cy, gridWidth, gridHeight))
             {
                 path.Add(new Vector2Int(cx, cy));
                 cx += d.x;
@@ -130,11 +144,31 @@ namespace BalloonOut.Data
             return true;
         }
 
+        // 직사각형 그리드용 오버로드
+        private static bool AllCellsInBounds(List<Vector2Int> cells, int gridWidth, int gridHeight)
+        {
+            foreach (var c in cells)
+            {
+                if (!IsInBounds(c.x, c.y, gridWidth, gridHeight))
+                    return false;
+            }
+            return true;
+        }
+
         // ========== Straight Arrow Placement ==========
         /// <summary>
-        /// 첫 번째 화살표 배치 (즉시 탈출 가능한 위치)
+        /// 첫 번째 화살표 배치 (즉시 탈출 가능한 위치) - 정사각형 호환
         /// </summary>
         public static PlacementResult PlaceFirstArrow(int length, int gridSize,
+            HashSet<string> occupiedSet, List<LevelValidator.BlockData> existingBlocks = null)
+        {
+            return PlaceFirstArrow(length, gridSize, gridSize, occupiedSet, existingBlocks);
+        }
+
+        /// <summary>
+        /// 첫 번째 화살표 배치 (즉시 탈출 가능한 위치) - 직사각형 지원
+        /// </summary>
+        public static PlacementResult PlaceFirstArrow(int length, int gridWidth, int gridHeight,
             HashSet<string> occupiedSet, List<LevelValidator.BlockData> existingBlocks = null)
         {
             var candidates = new List<PlacementResult>();
@@ -143,19 +177,19 @@ namespace BalloonOut.Data
 
             foreach (var dir in dirs)
             {
-                for (int x = 0; x < gridSize; x++)
+                for (int x = 0; x < gridWidth; x++)
                 {
-                    for (int y = 0; y < gridSize; y++)
+                    for (int y = 0; y < gridHeight; y++)
                     {
                         var cells = CalculateCells(x, y, dir, length);
 
-                        if (!AllCellsInBounds(cells, gridSize)) continue;
+                        if (!AllCellsInBounds(cells, gridWidth, gridHeight)) continue;
                         if (HasOverlap(cells, occupiedSet)) continue;
 
                         // Facing 검사
                         if (LevelValidator.WouldCauseFacing(x, y, dir, existingBlocks)) continue;
 
-                        var escapePath = GetEscapePath(x, y, dir, gridSize);
+                        var escapePath = GetEscapePath(x, y, dir, gridWidth, gridHeight);
                         bool blocked = false;
                         foreach (var p in escapePath)
                         {
@@ -181,9 +215,19 @@ namespace BalloonOut.Data
         }
 
         /// <summary>
-        /// 이전 화살표에 의해 막히는 위치에 배치
+        /// 이전 화살표에 의해 막히는 위치에 배치 - 정사각형 호환
         /// </summary>
         public static PlacementResult FindBlockedPosition(int length, int gridSize,
+            HashSet<string> occupiedSet, List<Vector2Int> blockerCells,
+            List<LevelValidator.BlockData> existingBlocks = null)
+        {
+            return FindBlockedPosition(length, gridSize, gridSize, occupiedSet, blockerCells, existingBlocks);
+        }
+
+        /// <summary>
+        /// 이전 화살표에 의해 막히는 위치에 배치 - 직사각형 지원
+        /// </summary>
+        public static PlacementResult FindBlockedPosition(int length, int gridWidth, int gridHeight,
             HashSet<string> occupiedSet, List<Vector2Int> blockerCells,
             List<LevelValidator.BlockData> existingBlocks = null)
         {
@@ -199,19 +243,19 @@ namespace BalloonOut.Data
 
             foreach (var dir in dirs)
             {
-                for (int x = 0; x < gridSize; x++)
+                for (int x = 0; x < gridWidth; x++)
                 {
-                    for (int y = 0; y < gridSize; y++)
+                    for (int y = 0; y < gridHeight; y++)
                     {
                         var cells = CalculateCells(x, y, dir, length);
 
-                        if (!AllCellsInBounds(cells, gridSize)) continue;
+                        if (!AllCellsInBounds(cells, gridWidth, gridHeight)) continue;
                         if (HasOverlap(cells, occupiedSet)) continue;
 
                         // Facing 검사
                         if (LevelValidator.WouldCauseFacing(x, y, dir, existingBlocks)) continue;
 
-                        var escapePath = GetEscapePath(x, y, dir, gridSize);
+                        var escapePath = GetEscapePath(x, y, dir, gridWidth, gridHeight);
                         bool blockedByBlocker = false;
                         foreach (var p in escapePath)
                         {
@@ -256,9 +300,19 @@ namespace BalloonOut.Data
         }
 
         /// <summary>
-        /// Fallback 배치 (빈 공간에 배치)
+        /// Fallback 배치 (빈 공간에 배치) - 정사각형 호환
         /// </summary>
         public static PlacementResult PlaceFallback(int length, int gridSize,
+            HashSet<string> occupiedSet, HashSet<string> forbiddenCells = null,
+            bool checkCanEscape = false, List<LevelValidator.BlockData> existingBlocks = null)
+        {
+            return PlaceFallback(length, gridSize, gridSize, occupiedSet, forbiddenCells, checkCanEscape, existingBlocks);
+        }
+
+        /// <summary>
+        /// Fallback 배치 (빈 공간에 배치) - 직사각형 지원
+        /// </summary>
+        public static PlacementResult PlaceFallback(int length, int gridWidth, int gridHeight,
             HashSet<string> occupiedSet, HashSet<string> forbiddenCells = null,
             bool checkCanEscape = false, List<LevelValidator.BlockData> existingBlocks = null)
         {
@@ -269,13 +323,13 @@ namespace BalloonOut.Data
 
             foreach (var dir in dirs)
             {
-                for (int x = 0; x < gridSize; x++)
+                for (int x = 0; x < gridWidth; x++)
                 {
-                    for (int y = 0; y < gridSize; y++)
+                    for (int y = 0; y < gridHeight; y++)
                     {
                         var cells = CalculateCells(x, y, dir, length);
 
-                        if (!AllCellsInBounds(cells, gridSize)) continue;
+                        if (!AllCellsInBounds(cells, gridWidth, gridHeight)) continue;
                         if (HasOverlap(cells, occupiedSet)) continue;
 
                         // Facing 검사
@@ -284,7 +338,7 @@ namespace BalloonOut.Data
                         // 탈출 가능 여부 확인
                         if (checkCanEscape)
                         {
-                            var escapePath = GetEscapePath(x, y, dir, gridSize);
+                            var escapePath = GetEscapePath(x, y, dir, gridWidth, gridHeight);
                             bool canEscape = true;
                             foreach (var p in escapePath)
                             {
@@ -337,8 +391,16 @@ namespace BalloonOut.Data
         }
 
         // ========== Bending Arrow Placement (ReverseGrowth) ==========
+        // 정사각형 호환 오버로드
         private static (int x, int y, string dir)? FindNextGrowthCell(int x, int y, string preferredDir,
             HashSet<string> occupiedSet, int gridSize, HashSet<string> selfPathSet = null)
+        {
+            return FindNextGrowthCell(x, y, preferredDir, occupiedSet, gridSize, gridSize, selfPathSet);
+        }
+
+        // 직사각형 지원
+        private static (int x, int y, string dir)? FindNextGrowthCell(int x, int y, string preferredDir,
+            HashSet<string> occupiedSet, int gridWidth, int gridHeight, HashSet<string> selfPathSet = null)
         {
             var priority = TURN_PRIORITY[preferredDir];
             var shuffledTurns = new List<string> { priority[1], priority[2] };
@@ -352,7 +414,7 @@ namespace BalloonOut.Data
                 int nx = x + d.x;
                 int ny = y + d.y;
 
-                if (!IsInBounds(nx, ny, gridSize) || occupiedSet.Contains(CellKey(nx, ny)))
+                if (!IsInBounds(nx, ny, gridWidth, gridHeight) || occupiedSet.Contains(CellKey(nx, ny)))
                     continue;
 
                 if (selfPathSet != null && selfPathSet.Contains(CellKey(nx, ny)))
@@ -363,8 +425,16 @@ namespace BalloonOut.Data
             return null;
         }
 
+        // 정사각형 호환 오버로드
         private static (List<Vector2Int> path, string headDir)? GrowArrowReverse(int headX, int headY, string headDir,
             int targetLength, HashSet<string> occupiedSet, int gridSize)
+        {
+            return GrowArrowReverse(headX, headY, headDir, targetLength, occupiedSet, gridSize, gridSize);
+        }
+
+        // 직사각형 지원
+        private static (List<Vector2Int> path, string headDir)? GrowArrowReverse(int headX, int headY, string headDir,
+            int targetLength, HashSet<string> occupiedSet, int gridWidth, int gridHeight)
         {
             var path = new List<Vector2Int> { new Vector2Int(headX, headY) };
             var selfPathSet = new HashSet<string> { CellKey(headX, headY) };
@@ -375,7 +445,7 @@ namespace BalloonOut.Data
 
             for (int i = 1; i < targetLength; i++)
             {
-                var next = FindNextGrowthCell(currentX, currentY, currentDir, occupiedSet, gridSize, selfPathSet);
+                var next = FindNextGrowthCell(currentX, currentY, currentDir, occupiedSet, gridWidth, gridHeight, selfPathSet);
 
                 if (!next.HasValue)
                     break;
@@ -394,23 +464,30 @@ namespace BalloonOut.Data
             return null;
         }
 
+        // 정사각형 호환 오버로드
         private static List<Vector2Int> GetEdgePositions(string dir, int gridSize)
+        {
+            return GetEdgePositions(dir, gridSize, gridSize);
+        }
+
+        // 직사각형 지원
+        private static List<Vector2Int> GetEdgePositions(string dir, int gridWidth, int gridHeight)
         {
             var positions = new List<Vector2Int>();
 
             switch (dir)
             {
-                case "U":
-                    for (int x = 0; x < gridSize; x++) positions.Add(new Vector2Int(x, 0));
+                case "U":  // 위쪽 가장자리: y=0, x는 width 범위
+                    for (int x = 0; x < gridWidth; x++) positions.Add(new Vector2Int(x, 0));
                     break;
-                case "D":
-                    for (int x = 0; x < gridSize; x++) positions.Add(new Vector2Int(x, gridSize - 1));
+                case "D":  // 아래쪽 가장자리: y=height-1, x는 width 범위
+                    for (int x = 0; x < gridWidth; x++) positions.Add(new Vector2Int(x, gridHeight - 1));
                     break;
-                case "L":
-                    for (int y = 0; y < gridSize; y++) positions.Add(new Vector2Int(0, y));
+                case "L":  // 왼쪽 가장자리: x=0, y는 height 범위
+                    for (int y = 0; y < gridHeight; y++) positions.Add(new Vector2Int(0, y));
                     break;
-                case "R":
-                    for (int y = 0; y < gridSize; y++) positions.Add(new Vector2Int(gridSize - 1, y));
+                case "R":  // 오른쪽 가장자리: x=width-1, y는 height 범위
+                    for (int y = 0; y < gridHeight; y++) positions.Add(new Vector2Int(gridWidth - 1, y));
                     break;
             }
 
@@ -419,9 +496,18 @@ namespace BalloonOut.Data
         }
 
         /// <summary>
-        /// 첫 번째 꺾이는 화살표 배치
+        /// 첫 번째 꺾이는 화살표 배치 - 정사각형 호환
         /// </summary>
         public static PlacementResult PlaceFirstArrowBending(int length, int gridSize,
+            HashSet<string> occupiedSet, List<LevelValidator.BlockData> existingBlocks = null)
+        {
+            return PlaceFirstArrowBending(length, gridSize, gridSize, occupiedSet, existingBlocks);
+        }
+
+        /// <summary>
+        /// 첫 번째 꺾이는 화살표 배치 - 직사각형 지원
+        /// </summary>
+        public static PlacementResult PlaceFirstArrowBending(int length, int gridWidth, int gridHeight,
             HashSet<string> occupiedSet, List<LevelValidator.BlockData> existingBlocks = null)
         {
             var candidates = new List<PlacementResult>();
@@ -430,7 +516,7 @@ namespace BalloonOut.Data
 
             foreach (var headDir in dirs)
             {
-                var edgePositions = GetEdgePositions(headDir, gridSize);
+                var edgePositions = GetEdgePositions(headDir, gridWidth, gridHeight);
 
                 foreach (var pos in edgePositions)
                 {
@@ -439,11 +525,11 @@ namespace BalloonOut.Data
                     // Facing 검사
                     if (LevelValidator.WouldCauseFacing(pos.x, pos.y, headDir, existingBlocks)) continue;
 
-                    var result = GrowArrowReverse(pos.x, pos.y, headDir, length, occupiedSet, gridSize);
+                    var result = GrowArrowReverse(pos.x, pos.y, headDir, length, occupiedSet, gridWidth, gridHeight);
 
                     if (result.HasValue && result.Value.path.Count >= Mathf.Min(length, 2))
                     {
-                        var escapePath = GetEscapePath(pos.x, pos.y, headDir, gridSize);
+                        var escapePath = GetEscapePath(pos.x, pos.y, headDir, gridWidth, gridHeight);
                         bool blocked = false;
                         foreach (var p in escapePath)
                         {
@@ -473,9 +559,19 @@ namespace BalloonOut.Data
         }
 
         /// <summary>
-        /// 꺾이는 화살표 - 이전 화살표에 의해 막히는 위치에 배치
+        /// 꺾이는 화살표 - 이전 화살표에 의해 막히는 위치에 배치 - 정사각형 호환
         /// </summary>
         public static PlacementResult FindBlockedPositionBending(int length, int gridSize,
+            HashSet<string> occupiedSet, List<Vector2Int> blockerCells,
+            List<LevelValidator.BlockData> existingBlocks = null)
+        {
+            return FindBlockedPositionBending(length, gridSize, gridSize, occupiedSet, blockerCells, existingBlocks);
+        }
+
+        /// <summary>
+        /// 꺾이는 화살표 - 이전 화살표에 의해 막히는 위치에 배치 - 직사각형 지원
+        /// </summary>
+        public static PlacementResult FindBlockedPositionBending(int length, int gridWidth, int gridHeight,
             HashSet<string> occupiedSet, List<Vector2Int> blockerCells,
             List<LevelValidator.BlockData> existingBlocks = null)
         {
@@ -486,9 +582,9 @@ namespace BalloonOut.Data
                 blockerSet.Add(CellKey(c));
             }
 
-            for (int x = 0; x < gridSize; x++)
+            for (int x = 0; x < gridWidth; x++)
             {
-                for (int y = 0; y < gridSize; y++)
+                for (int y = 0; y < gridHeight; y++)
                 {
                     if (occupiedSet.Contains(CellKey(x, y))) continue;
 
@@ -500,11 +596,11 @@ namespace BalloonOut.Data
                         // Facing 검사
                         if (LevelValidator.WouldCauseFacing(x, y, headDir, existingBlocks)) continue;
 
-                        var result = GrowArrowReverse(x, y, headDir, length, occupiedSet, gridSize);
+                        var result = GrowArrowReverse(x, y, headDir, length, occupiedSet, gridWidth, gridHeight);
 
                         if (!result.HasValue || result.Value.path.Count < Mathf.Min(length, 2)) continue;
 
-                        var escapePath = GetEscapePath(x, y, headDir, gridSize);
+                        var escapePath = GetEscapePath(x, y, headDir, gridWidth, gridHeight);
                         bool blockedByBlocker = false;
                         foreach (var p in escapePath)
                         {
@@ -553,18 +649,28 @@ namespace BalloonOut.Data
         }
 
         /// <summary>
-        /// 꺾이는 화살표 Fallback 배치
+        /// 꺾이는 화살표 Fallback 배치 - 정사각형 호환
         /// </summary>
         public static PlacementResult PlaceFallbackBending(int length, int gridSize,
+            HashSet<string> occupiedSet, HashSet<string> forbiddenCells = null,
+            bool checkCanEscape = false, List<LevelValidator.BlockData> existingBlocks = null)
+        {
+            return PlaceFallbackBending(length, gridSize, gridSize, occupiedSet, forbiddenCells, checkCanEscape, existingBlocks);
+        }
+
+        /// <summary>
+        /// 꺾이는 화살표 Fallback 배치 - 직사각형 지원
+        /// </summary>
+        public static PlacementResult PlaceFallbackBending(int length, int gridWidth, int gridHeight,
             HashSet<string> occupiedSet, HashSet<string> forbiddenCells = null,
             bool checkCanEscape = false, List<LevelValidator.BlockData> existingBlocks = null)
         {
             var candidates = new List<PlacementResult>();
             var fallbackCandidates = new List<PlacementResult>();
 
-            for (int x = 0; x < gridSize; x++)
+            for (int x = 0; x < gridWidth; x++)
             {
-                for (int y = 0; y < gridSize; y++)
+                for (int y = 0; y < gridHeight; y++)
                 {
                     if (occupiedSet.Contains(CellKey(x, y))) continue;
 
@@ -576,14 +682,14 @@ namespace BalloonOut.Data
                         // Facing 검사
                         if (LevelValidator.WouldCauseFacing(x, y, headDir, existingBlocks)) continue;
 
-                        var result = GrowArrowReverse(x, y, headDir, length, occupiedSet, gridSize);
+                        var result = GrowArrowReverse(x, y, headDir, length, occupiedSet, gridWidth, gridHeight);
 
                         if (result.HasValue && result.Value.path.Count >= Mathf.Min(length, 2))
                         {
                             // 탈출 가능 여부 확인
                             if (checkCanEscape)
                             {
-                                var escapePath = GetEscapePath(x, y, headDir, gridSize);
+                                var escapePath = GetEscapePath(x, y, headDir, gridWidth, gridHeight);
                                 bool canEscape = true;
                                 foreach (var p in escapePath)
                                 {

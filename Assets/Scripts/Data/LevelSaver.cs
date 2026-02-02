@@ -253,7 +253,7 @@ namespace BalloonOut.Data
         // ========== 유틸리티 ==========
 
         /// <summary>
-        /// 새 레벨 데이터 생성
+        /// 새 레벨 데이터 생성 (정사각형)
         /// </summary>
         public static LevelData CreateNew(string name, int gridSize = 6)
         {
@@ -261,6 +261,23 @@ namespace BalloonOut.Data
             {
                 name = name,
                 gridSize = gridSize,
+                lanes = new List<LaneData>(),
+                arrows = new List<ArrowData>(),
+                stats = new LevelStats()
+            };
+        }
+
+        /// <summary>
+        /// 새 레벨 데이터 생성 (직사각형)
+        /// </summary>
+        public static LevelData CreateNew(string name, int gridWidth, int gridHeight)
+        {
+            return new LevelData
+            {
+                name = name,
+                gridSize = 0,  // width/height 사용 표시
+                gridWidth = gridWidth,
+                gridHeight = gridHeight,
                 lanes = new List<LaneData>(),
                 arrows = new List<ArrowData>(),
                 stats = new LevelStats()
@@ -300,7 +317,7 @@ namespace BalloonOut.Data
             levelData.stats.totalArrows = mainArrows + fillers;
 
             // 밀도 계산
-            int totalCells = levelData.gridSize * levelData.gridSize;
+            int totalCells = levelData.GetGridWidth() * levelData.GetGridHeight();
             int occupiedCells = 0;
 
             if (levelData.arrows != null)

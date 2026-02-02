@@ -38,8 +38,15 @@ namespace BalloonOut.Data
         [Serializable]
         public class GeneratorConfig
         {
-            public int gridSize = 16;
+            public int gridSize = 16;      // 기존 호환용 (정사각형)
+            public int gridWidth = 0;      // 직사각형용 (0이면 gridSize 사용)
+            public int gridHeight = 0;     // 직사각형용 (0이면 gridSize 사용)
             public int laneCount = 3;
+
+            /// <summary>실제 그리드 너비 반환</summary>
+            public int GetGridWidth() => gridWidth > 0 ? gridWidth : gridSize;
+            /// <summary>실제 그리드 높이 반환</summary>
+            public int GetGridHeight() => gridHeight > 0 ? gridHeight : gridSize;
             public int balloonsPerLane = 2;
             public int missArrowCount = 1;
             public int minBlockLength = 3;
@@ -182,6 +189,12 @@ namespace BalloonOut.Data
             }
         }
 
+        private static bool IsInBounds(int x, int y, int gridWidth, int gridHeight)
+        {
+            return x >= 0 && x < gridWidth && y >= 0 && y < gridHeight;
+        }
+
+        // 호환성 오버로드 (정사각형)
         private static bool IsInBounds(int x, int y, int gridSize)
         {
             return x >= 0 && x < gridSize && y >= 0 && y < gridSize;
@@ -249,25 +262,25 @@ namespace BalloonOut.Data
         // ArrowPlacer로 이동 (CalculateCells, HasOverlap, AllCellsInBounds)
 
         // ========== Arrow Placement (ArrowPlacer 위임) ==========
-        private static PlacementResult PlaceFirstArrow(string color, int length, int gridSize, HashSet<string> occupiedSet, List<BlockData> existingBlocks = null)
+        private static PlacementResult PlaceFirstArrow(string color, int length, int gridWidth, int gridHeight, HashSet<string> occupiedSet, List<BlockData> existingBlocks = null)
         {
             var validatorBlocks = existingBlocks?.Cast<LevelValidator.BlockData>().ToList();
-            var result = ArrowPlacer.PlaceFirstArrow(length, gridSize, occupiedSet, validatorBlocks);
+            var result = ArrowPlacer.PlaceFirstArrow(length, gridWidth, gridHeight, occupiedSet, validatorBlocks);
             return ConvertPlacementResult(result);
         }
 
-        private static PlacementResult FindBlockedPosition(string color, int length, int gridSize,
+        private static PlacementResult FindBlockedPosition(string color, int length, int gridWidth, int gridHeight,
             HashSet<string> occupiedSet, List<Vector2Int> blockerCells, List<BlockData> existingBlocks = null)
         {
             var validatorBlocks = existingBlocks?.Cast<LevelValidator.BlockData>().ToList();
-            var result = ArrowPlacer.FindBlockedPosition(length, gridSize, occupiedSet, blockerCells, validatorBlocks);
+            var result = ArrowPlacer.FindBlockedPosition(length, gridWidth, gridHeight, occupiedSet, blockerCells, validatorBlocks);
             return ConvertPlacementResult(result);
         }
 
-        private static PlacementResult PlaceFallback(string color, int length, int gridSize, HashSet<string> occupiedSet, HashSet<string> forbiddenCells = null, bool checkCanEscape = false, List<BlockData> existingBlocks = null)
+        private static PlacementResult PlaceFallback(string color, int length, int gridWidth, int gridHeight, HashSet<string> occupiedSet, HashSet<string> forbiddenCells = null, bool checkCanEscape = false, List<BlockData> existingBlocks = null)
         {
             var validatorBlocks = existingBlocks?.Cast<LevelValidator.BlockData>().ToList();
-            var result = ArrowPlacer.PlaceFallback(length, gridSize, occupiedSet, forbiddenCells, checkCanEscape, validatorBlocks);
+            var result = ArrowPlacer.PlaceFallback(length, gridWidth, gridHeight, occupiedSet, forbiddenCells, checkCanEscape, validatorBlocks);
             return ConvertPlacementResult(result);
         }
 
@@ -287,32 +300,32 @@ namespace BalloonOut.Data
         }
 
         // ========== ReverseGrowth (ArrowPlacer 위임) ==========
-        private static PlacementResult PlaceFirstArrowBending(string color, int length, int gridSize, HashSet<string> occupiedSet, List<BlockData> existingBlocks = null)
+        private static PlacementResult PlaceFirstArrowBending(string color, int length, int gridWidth, int gridHeight, HashSet<string> occupiedSet, List<BlockData> existingBlocks = null)
         {
             var validatorBlocks = existingBlocks?.Cast<LevelValidator.BlockData>().ToList();
-            var result = ArrowPlacer.PlaceFirstArrowBending(length, gridSize, occupiedSet, validatorBlocks);
+            var result = ArrowPlacer.PlaceFirstArrowBending(length, gridWidth, gridHeight, occupiedSet, validatorBlocks);
             return ConvertPlacementResult(result);
         }
 
-        private static PlacementResult FindBlockedPositionBending(string color, int length, int gridSize,
+        private static PlacementResult FindBlockedPositionBending(string color, int length, int gridWidth, int gridHeight,
             HashSet<string> occupiedSet, List<Vector2Int> blockerCells, List<BlockData> existingBlocks = null)
         {
             var validatorBlocks = existingBlocks?.Cast<LevelValidator.BlockData>().ToList();
-            var result = ArrowPlacer.FindBlockedPositionBending(length, gridSize, occupiedSet, blockerCells, validatorBlocks);
+            var result = ArrowPlacer.FindBlockedPositionBending(length, gridWidth, gridHeight, occupiedSet, blockerCells, validatorBlocks);
             return ConvertPlacementResult(result);
         }
 
-        private static PlacementResult PlaceFallbackBending(string color, int length, int gridSize, HashSet<string> occupiedSet, HashSet<string> forbiddenCells = null, bool checkCanEscape = false, List<BlockData> existingBlocks = null)
+        private static PlacementResult PlaceFallbackBending(string color, int length, int gridWidth, int gridHeight, HashSet<string> occupiedSet, HashSet<string> forbiddenCells = null, bool checkCanEscape = false, List<BlockData> existingBlocks = null)
         {
             var validatorBlocks = existingBlocks?.Cast<LevelValidator.BlockData>().ToList();
-            var result = ArrowPlacer.PlaceFallbackBending(length, gridSize, occupiedSet, forbiddenCells, checkCanEscape, validatorBlocks);
+            var result = ArrowPlacer.PlaceFallbackBending(length, gridWidth, gridHeight, occupiedSet, forbiddenCells, checkCanEscape, validatorBlocks);
             return ConvertPlacementResult(result);
         }
 
         // ========== Legacy Cell Calculation (Filler용 유지) ==========
-        private static List<Vector2Int> GetEscapePath(int x, int y, string dir, int gridSize)
+        private static List<Vector2Int> GetEscapePath(int x, int y, string dir, int gridWidth, int gridHeight)
         {
-            return ArrowPlacer.GetEscapePath(x, y, dir, gridSize);
+            return ArrowPlacer.GetEscapePath(x, y, dir, gridWidth, gridHeight);
         }
 
         // ========== Filler Placement ==========
@@ -322,7 +335,9 @@ namespace BalloonOut.Data
         private static List<BlockData> PlaceFillersForDensity(List<BlockData> blocks, HashSet<string> occupiedSet, GeneratorConfig cfg, List<List<string>> lanes)
         {
             var fillers = new List<BlockData>();
-            int totalCells = cfg.gridSize * cfg.gridSize;
+            int gridWidth = cfg.GetGridWidth();
+            int gridHeight = cfg.GetGridHeight();
+            int totalCells = gridWidth * gridHeight;
             int targetOccupied = Mathf.FloorToInt(totalCells * cfg.targetDensity);
 
             int currentOccupied = occupiedSet.Count;
@@ -337,7 +352,7 @@ namespace BalloonOut.Data
             {
                 if (block.cells == null || block.cells.Count == 0) continue;
                 var head = block.cells[0];  // path[0] = HEAD
-                var path = GetEscapePath(head.x, head.y, block.dir, cfg.gridSize);
+                var path = GetEscapePath(head.x, head.y, block.dir, gridWidth, gridHeight);
                 foreach (var cell in path)
                 {
                     escapePaths.Add(CellKey(cell));
@@ -361,8 +376,8 @@ namespace BalloonOut.Data
                 // checkCanEscape = true: Filler가 실제로 탈출 가능한 위치에만 배치
                 // existingBlocks: Main 화살표 + 이미 배치된 Filler들과 facing 방지
                 PlacementResult placement = useBending
-                    ? PlaceFallbackBending(color, length, cfg.gridSize, occupiedSet, escapePaths, checkCanEscape: true, existingBlocks: allBlocksForFacing)
-                    : PlaceFallback(color, length, cfg.gridSize, occupiedSet, escapePaths, checkCanEscape: true, existingBlocks: allBlocksForFacing);
+                    ? PlaceFallbackBending(color, length, gridWidth, gridHeight, occupiedSet, escapePaths, checkCanEscape: true, existingBlocks: allBlocksForFacing)
+                    : PlaceFallback(color, length, gridWidth, gridHeight, occupiedSet, escapePaths, checkCanEscape: true, existingBlocks: allBlocksForFacing);
 
                 if (placement != null)
                 {
@@ -417,7 +432,7 @@ namespace BalloonOut.Data
 
                     // 이 Filler의 탈출 경로도 escapePaths에 추가
                     // 다음 Filler가 이 Filler의 탈출 경로를 막지 않도록
-                    var fillerEscapePath = GetEscapePath(placement.x, placement.y, fillerDir, cfg.gridSize);
+                    var fillerEscapePath = GetEscapePath(placement.x, placement.y, fillerDir, gridWidth, gridHeight);
                     foreach (var cell in fillerEscapePath)
                     {
                         escapePaths.Add(CellKey(cell));
@@ -446,20 +461,20 @@ namespace BalloonOut.Data
         /// <summary>
         /// BlockData 리스트 검증 (내부 사용)
         /// </summary>
-        private static LevelValidator.ValidationResult ValidateGeneratedLevel(List<BlockData> blocks, List<List<string>> lanes, int gridSize)
+        private static LevelValidator.ValidationResult ValidateGeneratedLevel(List<BlockData> blocks, List<List<string>> lanes, int gridWidth, int gridHeight)
         {
             // BlockData를 LevelValidator.BlockData로 변환 (상속 관계이므로 캐스팅 가능)
             var validatorBlocks = blocks.Cast<LevelValidator.BlockData>().ToList();
-            return LevelValidator.ValidateBlocks(validatorBlocks, lanes, gridSize);
+            return LevelValidator.ValidateBlocks(validatorBlocks, lanes, gridWidth, gridHeight);
         }
 
         /// <summary>
         /// 화살표 탈출 순서에 맞춰 색상을 동적으로 할당 (LevelValidator 위임)
         /// </summary>
-        private static bool AssignColorsInEscapeOrder(List<BlockData> blocks, List<List<string>> lanes, int gridSize)
+        private static bool AssignColorsInEscapeOrder(List<BlockData> blocks, List<List<string>> lanes, int gridWidth, int gridHeight)
         {
             var validatorBlocks = blocks.Cast<LevelValidator.BlockData>().ToList();
-            bool result = LevelValidator.AssignColorsInEscapeOrder(validatorBlocks, lanes, gridSize, COLORS);
+            bool result = LevelValidator.AssignColorsInEscapeOrder(validatorBlocks, lanes, gridWidth, gridHeight, COLORS);
 
             // LevelValidator가 수정한 color/isDecoy 값을 원본 blocks에 복사
             for (int i = 0; i < blocks.Count; i++)
@@ -548,6 +563,9 @@ namespace BalloonOut.Data
                 var occupiedSet = new HashSet<string>();
                 bool success = true;
 
+                int gridWidth = config.GetGridWidth();
+                int gridHeight = config.GetGridHeight();
+
                 for (int i = 0; i < arrowCount; i++)
                 {
                     string placeholderColor = "X"; // 플레이스홀더 색상
@@ -559,8 +577,8 @@ namespace BalloonOut.Data
                     if (i == 0)
                     {
                         placement = useBending
-                            ? PlaceFirstArrowBending(placeholderColor, length, config.gridSize, occupiedSet, blocks)
-                            : PlaceFirstArrow(placeholderColor, length, config.gridSize, occupiedSet, blocks);
+                            ? PlaceFirstArrowBending(placeholderColor, length, gridWidth, gridHeight, occupiedSet, blocks)
+                            : PlaceFirstArrow(placeholderColor, length, gridWidth, gridHeight, occupiedSet, blocks);
                     }
                     else
                     {
@@ -569,22 +587,22 @@ namespace BalloonOut.Data
                         if (useBranching)
                         {
                             placement = useBending
-                                ? PlaceFirstArrowBending(placeholderColor, length, config.gridSize, occupiedSet, blocks)
-                                : PlaceFirstArrow(placeholderColor, length, config.gridSize, occupiedSet, blocks);
+                                ? PlaceFirstArrowBending(placeholderColor, length, gridWidth, gridHeight, occupiedSet, blocks)
+                                : PlaceFirstArrow(placeholderColor, length, gridWidth, gridHeight, occupiedSet, blocks);
                         }
                         else
                         {
                             var prevBlock = blocks[i - 1];
                             placement = useBending
-                                ? FindBlockedPositionBending(placeholderColor, length, config.gridSize, occupiedSet, prevBlock.cells, blocks)
-                                : FindBlockedPosition(placeholderColor, length, config.gridSize, occupiedSet, prevBlock.cells, blocks);
+                                ? FindBlockedPositionBending(placeholderColor, length, gridWidth, gridHeight, occupiedSet, prevBlock.cells, blocks)
+                                : FindBlockedPosition(placeholderColor, length, gridWidth, gridHeight, occupiedSet, prevBlock.cells, blocks);
                         }
 
                         if (placement == null)
                         {
                             placement = useBending
-                                ? PlaceFallbackBending(placeholderColor, length, config.gridSize, occupiedSet, existingBlocks: blocks)
-                                : PlaceFallback(placeholderColor, length, config.gridSize, occupiedSet, existingBlocks: blocks);
+                                ? PlaceFallbackBending(placeholderColor, length, gridWidth, gridHeight, occupiedSet, existingBlocks: blocks)
+                                : PlaceFallback(placeholderColor, length, gridWidth, gridHeight, occupiedSet, existingBlocks: blocks);
                         }
                     }
 
@@ -625,7 +643,7 @@ namespace BalloonOut.Data
                 if (!success) continue;
 
                 // Step 5: 탈출 순서에 맞춰 색상 할당
-                if (!AssignColorsInEscapeOrder(blocks, lanes, config.gridSize))
+                if (!AssignColorsInEscapeOrder(blocks, lanes, gridWidth, gridHeight))
                 {
                     Debug.Log("  Color assignment failed");
                     continue;
@@ -638,7 +656,7 @@ namespace BalloonOut.Data
 
                 if (config.fillerEnabled)
                 {
-                    float currentDensity = occupiedSet.Count / (float)(config.gridSize * config.gridSize);
+                    float currentDensity = occupiedSet.Count / (float)(gridWidth * gridHeight);
                     Debug.Log($"  Current density before filler: {currentDensity * 100:F1}%");
 
                     if (currentDensity < config.targetDensity)
@@ -649,7 +667,7 @@ namespace BalloonOut.Data
                 }
 
                 // Step 7: 검증
-                var validation = ValidateGeneratedLevel(allBlocks, lanes, config.gridSize);
+                var validation = ValidateGeneratedLevel(allBlocks, lanes, gridWidth, gridHeight);
                 Debug.Log($"Validation: valid={validation.valid}, reason={validation.reason}");
 
                 if (validation.valid)
@@ -666,7 +684,9 @@ namespace BalloonOut.Data
                     var levelData = new LevelData
                     {
                         name = $"Gen_{DateTime.Now:HHmmss}",
-                        gridSize = config.gridSize,
+                        gridSize = 0,  // width/height 사용 표시
+                        gridWidth = gridWidth,
+                        gridHeight = gridHeight,
                         lanes = new List<LaneData>(),
                         arrows = new List<ArrowData>(),
                         stats = new LevelStats()
@@ -688,7 +708,7 @@ namespace BalloonOut.Data
                         var arrowData = new ArrowData
                         {
                             x = b.x,
-                            y = config.gridSize - 1 - b.y,  // Generator → Game 좌표계 변환 (Y 플립)
+                            y = gridHeight - 1 - b.y,  // Generator → Game 좌표계 변환 (Y 플립)
                             color = b.color,
                             // 직선 화살표: Y축 반전에 따라 U↔D 플립
                             // Bending 화살표: path에서 방향 재계산되므로 원본 유지 (나중에 덮어씌워짐)
@@ -711,7 +731,7 @@ namespace BalloonOut.Data
                                 var p = b.path[pi];
                                 arrowData.path.Add(new Vector2IntSerializable {
                                     x = p.x,
-                                    y = config.gridSize - 1 - p.y  // Y 좌표 플립
+                                    y = gridHeight - 1 - p.y  // Y 좌표 플립
                                 });
                             }
 
@@ -745,7 +765,7 @@ namespace BalloonOut.Data
                     }
 
                     // Stats
-                    float finalDensity = occupiedSet.Count / (float)(config.gridSize * config.gridSize);
+                    float finalDensity = occupiedSet.Count / (float)(gridWidth * gridHeight);
                     levelData.stats = new LevelStats
                     {
                         density = finalDensity,

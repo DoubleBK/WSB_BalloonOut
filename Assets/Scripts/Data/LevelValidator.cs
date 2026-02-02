@@ -53,7 +53,12 @@ namespace BalloonOut.Data
         // ========== Utility Functions ==========
         private static bool IsInBounds(int x, int y, int gridSize)
         {
-            return x >= 0 && x < gridSize && y >= 0 && y < gridSize;
+            return IsInBounds(x, y, gridSize, gridSize);
+        }
+
+        private static bool IsInBounds(int x, int y, int gridWidth, int gridHeight)
+        {
+            return x >= 0 && x < gridWidth && y >= 0 && y < gridHeight;
         }
 
         private static string CellKey(int x, int y) => $"{x},{y}";
@@ -82,7 +87,8 @@ namespace BalloonOut.Data
             if (levelData == null)
                 return new ValidationResult { valid = false, reason = "null level" };
 
-            int gridSize = levelData.gridSize;
+            int gridWidth = levelData.GetGridWidth();
+            int gridHeight = levelData.GetGridHeight();
 
             // LevelData를 BlockData 리스트로 변환
             var blocks = new List<BlockData>();
@@ -103,13 +109,13 @@ namespace BalloonOut.Data
                     // Game → Generator 좌표계 변환: Y 좌표 플립
                     for (int i = 0; i < cells.Count; i++)
                     {
-                        cells[i] = new Vector2Int(cells[i].x, gridSize - 1 - cells[i].y);
+                        cells[i] = new Vector2Int(cells[i].x, gridHeight - 1 - cells[i].y);
                     }
 
                     var block = new BlockData
                     {
                         x = arrow.x,
-                        y = gridSize - 1 - arrow.y,
+                        y = gridHeight - 1 - arrow.y,
                         color = arrow.color,
                         dir = arrow.direction,
                         length = arrow.length,
@@ -133,13 +139,21 @@ namespace BalloonOut.Data
                 }
             }
 
-            return ValidateBlocks(blocks, lanes, levelData.gridSize);
+            return ValidateBlocks(blocks, lanes, gridWidth, gridHeight);
         }
 
         /// <summary>
-        /// BlockData 리스트 검증 (LevelGenerator에서 호출)
+        /// BlockData 리스트 검증 (LevelGenerator에서 호출) - 정사각형 호환
         /// </summary>
         public static ValidationResult ValidateBlocks(List<BlockData> blocks, List<List<string>> lanes, int gridSize)
+        {
+            return ValidateBlocks(blocks, lanes, gridSize, gridSize);
+        }
+
+        /// <summary>
+        /// BlockData 리스트 검증 (LevelGenerator에서 호출) - 직사각형 지원
+        /// </summary>
+        public static ValidationResult ValidateBlocks(List<BlockData> blocks, List<List<string>> lanes, int gridWidth, int gridHeight)
         {
             try
             {
@@ -234,7 +248,7 @@ namespace BalloonOut.Data
                         int cy = head.y + d.y;
                         bool blocked = false;
 
-                        while (IsInBounds(cx, cy, gridSize))
+                        while (IsInBounds(cx, cy, gridWidth, gridHeight))
                         {
                             if (occupied.Contains(CellKey(cx, cy)))
                             {
@@ -274,7 +288,7 @@ namespace BalloonOut.Data
                             int cx = head.x + d.x;
                             int cy = head.y + d.y;
 
-                            while (IsInBounds(cx, cy, gridSize))
+                            while (IsInBounds(cx, cy, gridWidth, gridHeight))
                             {
                                 string cellKey = CellKey(cx, cy);
                                 if (escape.block.cells.Any(c => CellKey(c) == cellKey))
@@ -450,9 +464,17 @@ namespace BalloonOut.Data
 
         // ========== Color Assignment ==========
         /// <summary>
-        /// 화살표 탈출 순서에 맞춰 색상을 동적으로 할당
+        /// 화살표 탈출 순서에 맞춰 색상을 동적으로 할당 - 정사각형 호환
         /// </summary>
         public static bool AssignColorsInEscapeOrder(List<BlockData> blocks, List<List<string>> lanes, int gridSize, string[] availableColors)
+        {
+            return AssignColorsInEscapeOrder(blocks, lanes, gridSize, gridSize, availableColors);
+        }
+
+        /// <summary>
+        /// 화살표 탈출 순서에 맞춰 색상을 동적으로 할당 - 직사각형 지원
+        /// </summary>
+        public static bool AssignColorsInEscapeOrder(List<BlockData> blocks, List<List<string>> lanes, int gridWidth, int gridHeight, string[] availableColors)
         {
             if (blocks == null || blocks.Count == 0 || lanes == null)
                 return false;
@@ -520,7 +542,7 @@ namespace BalloonOut.Data
                     int cy = head.y + d.y;
                     bool blocked = false;
 
-                    while (IsInBounds(cx, cy, gridSize))
+                    while (IsInBounds(cx, cy, gridWidth, gridHeight))
                     {
                         if (occupied.Contains(CellKey(cx, cy)))
                         {
