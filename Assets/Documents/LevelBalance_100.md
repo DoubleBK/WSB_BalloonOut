@@ -1,4 +1,4 @@
-# Level Balance Document - Level 1~100 (v2 - 난이도 상향)
+# Level Balance Document - Level 1~100 (v2.2 - 밀도+길이 완화)
 
 ## 1. 난이도 설계 철학
 
@@ -11,7 +11,7 @@
 
 | 파라미터 | 값 | 이유 |
 |----------|-----|------|
-| targetDensity | **0.90 ~ 0.95** | 맵이 항상 가득 찬 느낌 유지. 초반~후반 모두 동일 |
+| targetDensity | **0.88 ~ 0.92** | 맵이 항상 가득 찬 느낌 유지. 초반~후반 모두 동일 (v2.1: 생성 성공률 향상을 위해 0.02 완화) |
 | fillerEnabled | false | Filler 없이 Main/Miss/Decoy 화살표만으로 밀도 달성 |
 
 ### 1.3 난이도 조절 파라미터
@@ -24,7 +24,7 @@
 | missArrowCount | 0~7 | ★★★ | 풍선과 매칭 안 되는 화살표. 노이즈 역할 |
 | decoyArrowCount | 0~4 | ★★ | 함정 화살표. 탈출해도 풍선 안 터뜨림 |
 | minBlockLength | 2 | ★★ | 최소 화살표 길이 (전체 고정) |
-| maxBlockLength | 3~16 | ★★★ | 최대 화살표 길이. 길수록 서로 더 많이 막힘 |
+| maxBlockLength | 3~14 | ★★★ | 최대 화살표 길이. 길수록 서로 더 많이 막힘 (v2.2: 생성 성공률 향상을 위해 -2 완화) |
 | bendingEnabled | T/F | ★★★ | 꺽이는 화살표 활성화. 탈출 경로 예측 난이도 상승 |
 | bendingChance | 0~1.0 | ★★ | 꺽이는 화살표 비율 |
 ### 1.4 난이도 점수 산정 공식 (100점 만점)
@@ -152,7 +152,7 @@ DifficultyScore =
 | 풍선 복잡도 | `laneCount`, `balloonsPerLane` | O - 직접 지정 |
 | 노이즈/함정 | `missArrowCount`, `decoyArrowCount` | O - 직접 지정 |
 | 화살표 복잡도 | `minBlockLength`, `maxBlockLength` | O - 직접 지정 |
-| 공간 밀도 | `targetDensity` | O - 0.90~0.95 고정 |
+| 공간 밀도 | `targetDensity` | O - 0.88~0.92 고정 |
 | 경로 복잡도 | `bendingEnabled`, `bendingChance` | O - 직접 지정 |
 
 ### 4.3 추가 고려사항
@@ -174,7 +174,7 @@ DifficultyScore =
 - **MaxL**: maxBlockLength
 - **Bend**: bendingEnabled (O/X)
 - **BC**: bendingChance
-- **Dens**: targetDensity (전 레벨 0.90~0.95)
+- **Dens**: targetDensity (전 레벨 0.88~0.92)
 - **Diff**: 난이도 점수 (100점 만점)
 - **총화살**: 총 화살표 수 = Ln×B/L + Miss + Dcoy
 
@@ -417,7 +417,7 @@ var config = new LevelGenerator.GeneratorConfig
     decoyArrowCount = 1,
     minBlockLength = 3,
     maxBlockLength = 8,
-    targetDensity = 0.90f,
+    targetDensity = 0.88f,
     bendingEnabled = true,
     bendingChance = 0.8f,
     fillerEnabled = false,
