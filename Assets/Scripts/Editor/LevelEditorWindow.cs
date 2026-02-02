@@ -472,13 +472,17 @@ namespace BalloonOut.Editor
             EditorGUILayout.BeginHorizontal();
             EditorGUILayout.LabelField($"Lane {laneIdx + 1}", EditorStyles.boldLabel, GUILayout.Width(60));
 
-            // 풍선 추가 버튼들
-            if (GUILayout.Button("R", GUILayout.Width(25))) AddBalloon(lane, "R");
-            if (GUILayout.Button("G", GUILayout.Width(25))) AddBalloon(lane, "G");
-            if (GUILayout.Button("B", GUILayout.Width(25))) AddBalloon(lane, "B");
-            if (GUILayout.Button("Y", GUILayout.Width(25))) AddBalloon(lane, "Y");
-            if (GUILayout.Button("P", GUILayout.Width(25))) AddBalloon(lane, "P");
-            if (GUILayout.Button("O", GUILayout.Width(25))) AddBalloon(lane, "O");
+            // 풍선 추가 버튼들 (12색)
+            for (int i = 0; i < COLOR_CODES.Length; i++)
+            {
+                var prevColor = GUI.backgroundColor;
+                GUI.backgroundColor = COLOR_VALUES[i];
+                if (GUILayout.Button(COLOR_CODES[i], GUILayout.Width(22)))
+                {
+                    AddBalloon(lane, COLOR_CODES[i]);
+                }
+                GUI.backgroundColor = prevColor;
+            }
 
             GUILayout.FlexibleSpace();
 
