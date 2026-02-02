@@ -25,5 +25,15 @@
 	{"LevelIdx":24,"StageIdx":24,"Difficulty":"Hard"},
 	{"LevelIdx":25,"StageIdx":25,"Difficulty":"Hard"},
 	{"LevelIdx":26,"StageIdx":26,"Difficulty":"Hard"},
-	{"LevelIdx":27,"StageIdx":27,"Difficulty":"Hard"}
+	{"LevelIdx":27,"StageIdx":27,"Difficulty":"Hard"},
+	{"LevelIdx":36,"StageIdx":36,"Difficulty":"Nightmare"},
+	{"LevelIdx":37,"StageIdx":37,"Difficulty":"Hard"},
+	{"LevelIdx":38,"StageIdx":38,"Difficulty":"Hard"},
+	{"LevelIdx":40,"StageIdx":40,"Difficulty":"Hard"},
+	{"LevelIdx":41,"StageIdx":41,"Difficulty":"Hard"},
+	{"LevelIdx":42,"StageIdx":42,"Difficulty":"Hard"},
+	{"LevelIdx":43,"StageIdx":43,"Difficulty":"Hard"},
+	{"LevelIdx":44,"StageIdx":44,"Difficulty":"Hard"},
+	{"LevelIdx":49,"StageIdx":49,"Difficulty":"Nightmare"},
+	{"LevelIdx":50,"StageIdx":50,"Difficulty":"Normal"}
 ]
