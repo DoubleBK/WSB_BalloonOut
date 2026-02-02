@@ -2376,8 +2376,6 @@ MonoBehaviour:
   _settingsTabButton: {fileID: 68671694}
   _tabHighlight: {fileID: 2029655134}
   _resetButton: {fileID: 2048152400}
-  _cheatPanel: {fileID: 0}
-  _cheatToggleButton: {fileID: 0}
   _dataResetCheatButton: {fileID: 2048152400}
   _levelInputField: {fileID: 304519028}
   _levelJumpButton: {fileID: 1053509722}
@@ -2464,7 +2462,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: Bubble Out!
+  m_text: Balloon Out!
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
   m_sharedMaterial: {fileID: 152909036}
@@ -2493,7 +2491,7 @@ MonoBehaviour:
   m_faceColor:
     serializedVersion: 2
     rgba: 4294967295
-  m_fontSize: 66.25
+  m_fontSize: 63.2
   m_fontSizeBase: 72
   m_fontWeight: 400
   m_enableAutoSizing: 1
@@ -3908,7 +3906,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0.5, y: 0.5}
   m_AnchorMax: {x: 0.5, y: 0.5}
-  m_AnchoredPosition: {x: 0, y: -550}
+  m_AnchoredPosition: {x: 0, y: -500}
   m_SizeDelta: {x: 400, y: 300}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &2097940050
