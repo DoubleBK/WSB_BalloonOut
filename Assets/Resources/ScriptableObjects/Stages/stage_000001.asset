@@ -13,43 +13,38 @@ MonoBehaviour:
   m_Name: stage_000001
   m_EditorClassIdentifier: 
   stageName: 000001
-  gridSize: 4
+  gridSize: 0
   lanes:
   - balloons:
-    - R
-    - R
+    - K
+    - K
     balloonData:
-    - color: R
+    - color: K
       gimmicks: []
-    - color: R
+    - color: K
       gimmicks:
       - gimmickId: surprise
-        _paramKeys: []
-        _paramValues: []
+        _paramKeys:
+        - isRevealed
+        _paramValues:
+        - False
   - balloons:
     - P
-    - P
+    - C
     balloonData:
     - color: P
       gimmicks: []
-    - color: P
+    - color: C
       gimmicks:
       - gimmickId: surprise
-        _paramKeys: []
-        _paramValues: []
+        _paramKeys:
+        - isRevealed
+        _paramValues:
+        - False
   arrows:
-  - x: 2
-    y: 0
-    color: P
-    direction: D
-    length: 3
-    path: []
-    order: 1
-    isFiller: 0
-    isDecoy: 0
   - x: 1
     y: 0
-    color: R
+    color: P
     direction: D
     length: 3
     path:
@@ -59,37 +54,58 @@ MonoBehaviour:
       y: 1
     - x: 1
       y: 0
+    order: 4
+    isFiller: 0
+    isDecoy: 0
+  - x: 3
+    y: 1
+    color: K
+    direction: R
+    length: 6
+    path:
+    - x: 0
+      y: 3
+    - x: 1
+      y: 3
+    - x: 2
+      y: 3
+    - x: 2
+      y: 2
+    - x: 2
+      y: 1
+    - x: 3
+      y: 1
+    order: 1
+    isFiller: 0
+    isDecoy: 0
+  - x: 3
+    y: 3
+    color: K
+    direction: U
+    length: 2
+    path:
+    - x: 3
+      y: 2
+    - x: 3
+      y: 3
     order: 2
     isFiller: 0
     isDecoy: 0
   - x: 0
-    y: 0
-    color: R
-    direction: D
+    y: 1
+    color: C
+    direction: U
     length: 2
     path:
     - x: 0
-      y: 1
-    - x: 0
       y: 0
+    - x: 0
+      y: 1
     order: 3
     isFiller: 0
     isDecoy: 0
-  - x: 3
-    y: 0
-    color: P
-    direction: D
-    length: 2
-    path:
-    - x: 3
-      y: 1
-    - x: 3
-      y: 0
-    order: 4
-    isFiller: 0
-    isDecoy: 0
   stats:
-    density: 0.375
-    mainArrows: 2
+    density: 0.8125
+    mainArrows: 4
     fillers: 0
-    totalArrows: 2
+    totalArrows: 4
