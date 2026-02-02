@@ -80,7 +80,7 @@ namespace BalloonOut.Game.Arrow
             bool inputUp = false;
             Vector2 inputPos = Vector2.zero;
 
-#if UNITY_EDITOR || UNITY_STANDALONE
+#if UNITY_EDITOR || UNITY_STANDALONE || UNITY_WEBGL
             if (Input.GetMouseButtonDown(0))
             {
                 inputDown = true;
