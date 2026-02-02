@@ -1,12 +1,13 @@
 using System;
+using System.Collections.Generic;
 using UnityEngine;
 using BalloonOut.Game.Gimmick;
 
 namespace BalloonOut.Data
 {
     /// <summary>
-    /// 기믹 자동 생성 설정
-    /// 각 기믹별로 활성화 여부, 적용 확률, 파라미터 설정 가능
+    /// 기믹 자동 생성 설정 (개수 기반)
+    /// 각 기믹별로 활성화 여부, 생성 개수, 파라미터 설정 가능
     /// </summary>
     [Serializable]
     public class GimmickGeneratorConfig
@@ -23,33 +24,24 @@ namespace BalloonOut.Data
         /// </summary>
         public bool enabled;
 
-        /// <summary>
-        /// 적용 확률 (0~1)
-        /// </summary>
-        [Range(0f, 1f)]
-        public float chance;
-
-        // ========== 기믹별 파라미터 ==========
-        // Unity 직렬화를 위해 기본 타입 사용
+        // ========== 개수 기반 설정 ==========
 
         /// <summary>
-        /// 정수 파라미터 1 (Number 기믹: minHits)
+        /// Surprise 기믹: 생성할 개수
         /// </summary>
+        public int count;
+
+        /// <summary>
+        /// Number 기믹: 각 풍선별 hit count
+        /// 리스트 크기 = 생성할 Number 풍선 개수
+        /// 예: [2, 3, 4] → 3개 Number 풍선, 각각 2, 3, 4 hits
+        /// </summary>
+        public List<int> hitCounts;
+
+        // ========== 예비 파라미터 (향후 확장용) ==========
+
         public int intParam1;
-
-        /// <summary>
-        /// 정수 파라미터 2 (Number 기믹: maxHits)
-        /// </summary>
-        public int intParam2;
-
-        /// <summary>
-        /// 실수 파라미터 1 (향후 사용)
-        /// </summary>
         public float floatParam1;
-
-        /// <summary>
-        /// 문자열 파라미터 1 (향후 사용)
-        /// </summary>
         public string stringParam1;
 
         // ========== 생성자 ==========
@@ -58,9 +50,9 @@ namespace BalloonOut.Data
         {
             gimmickId = "";
             enabled = false;
-            chance = 0f;
+            count = 0;
+            hitCounts = new List<int>();
             intParam1 = 0;
-            intParam2 = 0;
             floatParam1 = 0f;
             stringParam1 = "";
         }
@@ -69,9 +61,9 @@ namespace BalloonOut.Data
         {
             gimmickId = id;
             enabled = false;
-            chance = 0f;
+            count = 0;
+            hitCounts = new List<int>();
             intParam1 = 0;
-            intParam2 = 0;
             floatParam1 = 0f;
             stringParam1 = "";
 
@@ -89,38 +81,66 @@ namespace BalloonOut.Data
             switch (id)
             {
                 case "surprise":
-                    chance = 0.2f;
+                    count = 0;  // 기본: 비활성화
                     break;
 
                 case "number":
-                    chance = 0.15f;
-                    intParam1 = 2;  // minHits
-                    intParam2 = 4;  // maxHits
+                    hitCounts = new List<int>();  // 기본: 빈 리스트
                     break;
             }
         }
 
         /// <summary>
-        /// 런타임에 GimmickInstanceData로 변환
-        /// 확률 체크는 포함하지 않음 (호출자가 처리)
+        /// Number 기믹의 생성 개수 (hitCounts 리스트 크기)
         /// </summary>
-        public GimmickInstanceData ToInstanceData()
+        public int GetNumberCount()
+        {
+            return hitCounts?.Count ?? 0;
+        }
+
+        /// <summary>
+        /// Number 기믹의 추가 화살표 수 계산
+        /// 각 hitCount - 1의 합계 (기본 1개 제외)
+        /// </summary>
+        public int GetExtraArrowCount()
+        {
+            if (gimmickId != "number" || hitCounts == null || hitCounts.Count == 0)
+                return 0;
+
+            int extra = 0;
+            foreach (var hitCount in hitCounts)
+            {
+                extra += Mathf.Max(0, hitCount - 1);
+            }
+            return extra;
+        }
+
+        /// <summary>
+        /// 지정된 인덱스의 hit count로 GimmickInstanceData 생성
+        /// Number 기믹용
+        /// </summary>
+        public GimmickInstanceData ToInstanceData(int hitCountIndex = 0)
         {
             var data = new GimmickInstanceData(gimmickId);
 
             switch (gimmickId)
             {
                 case "number":
-                    // minHits ~ maxHits 사이의 랜덤 값
-                    int minHits = Mathf.Max(1, intParam1);
-                    int maxHits = Mathf.Max(minHits, intParam2);
-                    int hits = UnityEngine.Random.Range(minHits, maxHits + 1);
-                    data.SetParam("requiredHits", hits);
-                    data.SetParam("currentHits", hits);
+                    if (hitCounts != null && hitCountIndex < hitCounts.Count)
+                    {
+                        int hits = Mathf.Max(1, hitCounts[hitCountIndex]);
+                        data.SetParam("requiredHits", hits);
+                        data.SetParam("currentHits", hits);
+                    }
+                    else
+                    {
+                        // 기본값
+                        data.SetParam("requiredHits", 2);
+                        data.SetParam("currentHits", 2);
+                    }
                     break;
 
                 case "surprise":
-                    // Surprise는 기본적으로 공개되지 않은 상태
                     data.SetParam("isRevealed", false);
                     break;
             }
@@ -129,18 +149,25 @@ namespace BalloonOut.Data
         }
 
         /// <summary>
-        /// 확률 체크 후 GimmickInstanceData 생성
-        /// 확률에 걸리지 않으면 null 반환
+        /// Surprise 기믹용 간단 생성
         /// </summary>
-        public GimmickInstanceData TryCreateInstanceData()
+        public GimmickInstanceData CreateSurpriseInstance()
         {
-            if (!enabled || chance <= 0f)
-                return null;
+            var data = new GimmickInstanceData("surprise");
+            data.SetParam("isRevealed", false);
+            return data;
+        }
 
-            if (UnityEngine.Random.value > chance)
-                return null;
-
-            return ToInstanceData();
+        /// <summary>
+        /// Number 기믹용 생성 (특정 hitCount)
+        /// </summary>
+        public GimmickInstanceData CreateNumberInstance(int hitCount)
+        {
+            var data = new GimmickInstanceData("number");
+            int hits = Mathf.Max(1, hitCount);
+            data.SetParam("requiredHits", hits);
+            data.SetParam("currentHits", hits);
+            return data;
         }
 
         /// <summary>
@@ -148,16 +175,17 @@ namespace BalloonOut.Data
         /// </summary>
         public GimmickGeneratorConfig Clone()
         {
-            return new GimmickGeneratorConfig
+            var clone = new GimmickGeneratorConfig
             {
                 gimmickId = this.gimmickId,
                 enabled = this.enabled,
-                chance = this.chance,
+                count = this.count,
+                hitCounts = this.hitCounts != null ? new List<int>(this.hitCounts) : new List<int>(),
                 intParam1 = this.intParam1,
-                intParam2 = this.intParam2,
                 floatParam1 = this.floatParam1,
                 stringParam1 = this.stringParam1
             };
+            return clone;
         }
 
         /// <summary>
@@ -167,6 +195,24 @@ namespace BalloonOut.Data
         {
             var def = GimmickRegistry.Instance?.GetDefinition(gimmickId);
             return def?.displayName ?? gimmickId;
+        }
+
+        /// <summary>
+        /// 현재 설정으로 생성될 기믹 개수
+        /// </summary>
+        public int GetTotalCount()
+        {
+            if (!enabled) return 0;
+
+            switch (gimmickId)
+            {
+                case "surprise":
+                    return count;
+                case "number":
+                    return hitCounts?.Count ?? 0;
+                default:
+                    return 0;
+            }
         }
     }
 }

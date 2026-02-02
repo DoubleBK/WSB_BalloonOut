@@ -1088,7 +1088,7 @@ namespace BalloonOut.Editor
         }
 
         /// <summary>
-        /// 개별 기믹 설정 UI 그리기
+        /// 개별 기믹 설정 UI 그리기 (개수 기반)
         /// </summary>
         private void DrawGimmickConfigUI(GimmickGeneratorConfig config)
         {
@@ -1103,48 +1103,90 @@ namespace BalloonOut.Editor
 
             GUI.enabled = config.enabled;
 
-            // 확률 슬라이더
-            EditorGUILayout.BeginHorizontal();
-            EditorGUILayout.LabelField("Chance", GUILayout.Width(50));
-            config.chance = EditorGUILayout.Slider(config.chance, 0f, 1f);
-            EditorGUILayout.EndHorizontal();
-            EditorGUILayout.LabelField($"  → {(config.chance * 100):F0}% 확률", EditorStyles.miniLabel);
-
-            // 기믹별 추가 설정
+            // 기믹별 설정
             switch (config.gimmickId)
             {
-                case "number":
-                    EditorGUILayout.Space(3);
-                    EditorGUILayout.LabelField("Hit Count Range:", EditorStyles.miniLabel);
-
-                    EditorGUILayout.BeginHorizontal();
-                    EditorGUILayout.LabelField("Min", GUILayout.Width(30));
-                    config.intParam1 = EditorGUILayout.IntSlider(config.intParam1, 2, 10);
-                    EditorGUILayout.EndHorizontal();
-
-                    EditorGUILayout.BeginHorizontal();
-                    EditorGUILayout.LabelField("Max", GUILayout.Width(30));
-                    config.intParam2 = EditorGUILayout.IntSlider(config.intParam2, 2, 10);
-                    EditorGUILayout.EndHorizontal();
-
-                    // Min <= Max 보장
-                    if (config.intParam1 > config.intParam2)
-                    {
-                        config.intParam1 = config.intParam2;
-                    }
-
-                    EditorGUILayout.LabelField($"  → {config.intParam1}~{config.intParam2} hits", EditorStyles.miniLabel);
+                case "surprise":
+                    DrawSurpriseGimmickUI(config);
                     break;
 
-                case "surprise":
-                    // Surprise는 추가 설정 없음
-                    EditorGUILayout.LabelField("  (추가 설정 없음)", EditorStyles.miniLabel);
+                case "number":
+                    DrawNumberGimmickUI(config);
+                    break;
+
+                default:
+                    EditorGUILayout.LabelField("  (설정 없음)", EditorStyles.miniLabel);
                     break;
             }
 
             GUI.enabled = true;
             EditorGUILayout.EndVertical();
             EditorGUILayout.Space(3);
+        }
+
+        /// <summary>
+        /// Surprise 기믹 UI (개수 입력)
+        /// </summary>
+        private void DrawSurpriseGimmickUI(GimmickGeneratorConfig config)
+        {
+            EditorGUILayout.BeginHorizontal();
+            EditorGUILayout.LabelField("Count", GUILayout.Width(50));
+            config.count = EditorGUILayout.IntField(config.count, GUILayout.Width(60));
+            config.count = Mathf.Max(0, config.count);
+            EditorGUILayout.EndHorizontal();
+
+            EditorGUILayout.LabelField($"  → {config.count}개 Surprise 풍선 생성", EditorStyles.miniLabel);
+        }
+
+        /// <summary>
+        /// Number 기믹 UI (hitCounts 리스트)
+        /// </summary>
+        private void DrawNumberGimmickUI(GimmickGeneratorConfig config)
+        {
+            // hitCounts가 null이면 초기화
+            if (config.hitCounts == null)
+            {
+                config.hitCounts = new List<int>();
+            }
+
+            EditorGUILayout.LabelField("Hit Counts:", EditorStyles.miniLabel);
+
+            // Add 버튼
+            EditorGUILayout.BeginHorizontal();
+            if (GUILayout.Button("[+] Add", GUILayout.Width(80)))
+            {
+                config.hitCounts.Add(2); // 기본값 2
+            }
+            EditorGUILayout.EndHorizontal();
+
+            // 각 hitCount 항목
+            for (int i = 0; i < config.hitCounts.Count; i++)
+            {
+                EditorGUILayout.BeginHorizontal();
+                EditorGUILayout.LabelField($"  #{i + 1}:", GUILayout.Width(40));
+                config.hitCounts[i] = EditorGUILayout.IntField(config.hitCounts[i], GUILayout.Width(40));
+                config.hitCounts[i] = Mathf.Max(1, config.hitCounts[i]); // 최소 1
+                EditorGUILayout.LabelField("hits", GUILayout.Width(30));
+
+                // 삭제 버튼
+                if (GUILayout.Button("x", GUILayout.Width(20)))
+                {
+                    config.hitCounts.RemoveAt(i);
+                    i--;
+                    continue;
+                }
+                EditorGUILayout.EndHorizontal();
+            }
+
+            // 요약 정보
+            int totalCount = config.hitCounts.Count;
+            int extraArrows = config.GetExtraArrowCount();
+            EditorGUILayout.Space(3);
+            EditorGUILayout.LabelField($"  → {totalCount}개 Number 풍선", EditorStyles.miniLabel);
+            if (extraArrows > 0)
+            {
+                EditorGUILayout.LabelField($"  → 추가 화살표: {extraArrows}개 필요", EditorStyles.miniLabel);
+            }
         }
 
         /// <summary>

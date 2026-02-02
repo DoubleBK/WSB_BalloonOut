@@ -294,6 +294,24 @@ namespace BalloonOut.Data
         }
 
         /// <summary>
+        /// Queue 생성 (BalloonData 포함)
+        /// </summary>
+        private static List<List<BalloonData>> GenerateQueueWithBalloonData(GeneratorConfig config, string[] colors)
+        {
+            var lanes = new List<List<BalloonData>>();
+            for (int i = 0; i < config.laneCount; i++)
+            {
+                var lane = new List<BalloonData>();
+                for (int j = 0; j < config.balloonsPerLane; j++)
+                {
+                    lane.Add(new BalloonData(RandomPick(colors)));
+                }
+                lanes.Add(lane);
+            }
+            return lanes;
+        }
+
+        /// <summary>
         /// Miss 풍선을 lanes의 랜덤 위치에 삽입
         /// </summary>
         private static void InsertMissArrows(List<List<string>> lanes, int missCount, string[] colors)
@@ -304,6 +322,121 @@ namespace BalloonOut.Data
                 int laneIdx = RandomInt(0, lanes.Count - 1);
                 int insertPos = RandomInt(0, lanes[laneIdx].Count);
                 lanes[laneIdx].Insert(insertPos, missColor);
+            }
+        }
+
+        /// <summary>
+        /// Miss 풍선을 lanes의 랜덤 위치에 삽입 (BalloonData 버전)
+        /// </summary>
+        private static void InsertMissArrowsWithBalloonData(List<List<BalloonData>> lanes, int missCount, string[] colors)
+        {
+            for (int i = 0; i < missCount; i++)
+            {
+                string missColor = RandomPick(colors);
+                int laneIdx = RandomInt(0, lanes.Count - 1);
+                int insertPos = RandomInt(0, lanes[laneIdx].Count);
+                lanes[laneIdx].Insert(insertPos, new BalloonData(missColor));
+            }
+        }
+
+        /// <summary>
+        /// 개수 기반 기믹 적용 및 Number 추가 색상 삽입
+        /// </summary>
+        private static void ApplyGimmicksAndInsertExtraColors(List<List<BalloonData>> balloonLanes, List<GimmickGeneratorConfig> gimmickConfigs, string[] colors)
+        {
+            // 전체 풍선을 1차원 리스트로 평탄화
+            // 활성 위치(각 레인의 마지막 풍선)와 비활성 위치 분리
+            // Generator: lane[end] = 활성 위치, 역순 후 lane[0] = 활성 위치
+            var nonActiveBalloons = new List<(int laneIdx, int balloonIdx, BalloonData balloon)>();
+            var allBalloons = new List<(int laneIdx, int balloonIdx, BalloonData balloon)>();
+
+            for (int laneIdx = 0; laneIdx < balloonLanes.Count; laneIdx++)
+            {
+                var lane = balloonLanes[laneIdx];
+                for (int balloonIdx = 0; balloonIdx < lane.Count; balloonIdx++)
+                {
+                    var entry = (laneIdx, balloonIdx, lane[balloonIdx]);
+                    allBalloons.Add(entry);
+
+                    // 마지막 풍선(활성 위치)은 nonActiveBalloons에서 제외
+                    if (balloonIdx < lane.Count - 1)
+                    {
+                        nonActiveBalloons.Add(entry);
+                    }
+                }
+            }
+
+            // Surprise용: 활성 위치 제외 (nonActiveBalloons)
+            var shuffledNonActiveIndices = new List<int>();
+            for (int i = 0; i < nonActiveBalloons.Count; i++)
+            {
+                shuffledNonActiveIndices.Add(i);
+            }
+            Shuffle(shuffledNonActiveIndices);
+
+            // Number용: 전체 풍선 (allBalloons)
+            var shuffledAllIndices = new List<int>();
+            for (int i = 0; i < allBalloons.Count; i++)
+            {
+                shuffledAllIndices.Add(i);
+            }
+            Shuffle(shuffledAllIndices);
+
+            // Surprise 기믹 적용 (활성 위치 제외)
+            var surpriseConfig = gimmickConfigs.Find(g => g.gimmickId == "surprise" && g.enabled);
+            if (surpriseConfig != null && surpriseConfig.count > 0)
+            {
+                int surpriseCount = Mathf.Min(surpriseConfig.count, nonActiveBalloons.Count);
+                int applied = 0;
+                for (int i = 0; i < shuffledNonActiveIndices.Count && applied < surpriseCount; i++)
+                {
+                    int idx = shuffledNonActiveIndices[i];
+                    var balloon = nonActiveBalloons[idx].balloon;
+                    balloon.AddGimmick(surpriseConfig.CreateSurpriseInstance());
+                    applied++;
+                }
+                Debug.Log($"  [Gimmick] Applied {applied} Surprise gimmicks (excluded active positions)");
+            }
+
+            // Number 기믹 적용 및 추가 색상 삽입 (전체 풍선, 조합 가능)
+            var numberConfig = gimmickConfigs.Find(g => g.gimmickId == "number" && g.enabled);
+            if (numberConfig != null && numberConfig.hitCounts != null && numberConfig.hitCounts.Count > 0)
+            {
+                int numberCount = numberConfig.hitCounts.Count;
+                int totalExtraArrows = 0;
+                int applied = 0;
+
+                for (int i = 0; i < shuffledAllIndices.Count && applied < numberCount; i++)
+                {
+                    int idx = shuffledAllIndices[i];
+                    var (laneIdx, balloonIdx, balloon) = allBalloons[idx];
+
+                    // Number 기믹이 이미 적용된 풍선은 건너뜀
+                    if (balloon.HasGimmick("number"))
+                        continue;
+
+                    int hitCount = numberConfig.hitCounts[applied];
+
+                    // Number 기믹 적용 (Surprise와 조합 가능)
+                    balloon.AddGimmick(numberConfig.CreateNumberInstance(hitCount));
+
+                    // 추가 색상 삽입 (hitCount - 1개)
+                    int extraColors = hitCount - 1;
+                    totalExtraArrows += extraColors;
+                    string balloonColor = balloon.color;
+
+                    for (int e = 0; e < extraColors; e++)
+                    {
+                        // 랜덤 레인의 랜덤 위치에 삽입 (기믹 없는 풍선)
+                        int targetLane = RandomInt(0, balloonLanes.Count - 1);
+                        int insertPos = RandomInt(0, balloonLanes[targetLane].Count);
+                        balloonLanes[targetLane].Insert(insertPos, new BalloonData(balloonColor));
+                    }
+
+                    applied++;
+                }
+
+                Debug.Log($"  [Gimmick] Applied {applied} Number gimmicks (hitCounts: {string.Join(",", numberConfig.hitCounts.GetRange(0, applied))}), extra colors: {totalExtraArrows}");
             }
         }
 
@@ -587,13 +720,24 @@ namespace BalloonOut.Data
 
                 Debug.Log($"Attempt {attempt + 1}/{maxAttempts}");
 
-                // Step 1: Queue 생성
-                var lanes = GenerateQueue(config, colors);
+                // Step 1: Queue 생성 (BalloonData 포함)
+                var balloonLanes = GenerateQueueWithBalloonData(config, colors);
 
                 // Step 2: Miss 풍선 추가
-                InsertMissArrows(lanes, config.missArrowCount, colors);
+                InsertMissArrowsWithBalloonData(balloonLanes, config.missArrowCount, colors);
 
-                Debug.Log($"Lanes (with miss): {string.Join(", ", lanes.ConvertAll(l => "[" + string.Join(",", l) + "]"))}");
+                Debug.Log($"Lanes (with miss): {string.Join(", ", balloonLanes.ConvertAll(l => "[" + string.Join(",", l.ConvertAll(b => b.color)) + "]"))}");
+
+                // Step 2.5: 기믹 적용 (개수 기반) 및 Number 추가 색상 삽입
+                if (config.balloonGimmicks != null && config.balloonGimmicks.Count > 0)
+                {
+                    ApplyGimmicksAndInsertExtraColors(balloonLanes, config.balloonGimmicks, colors);
+                }
+
+                Debug.Log($"Lanes (with gimmicks): {string.Join(", ", balloonLanes.ConvertAll(l => "[" + string.Join(",", l.ConvertAll(b => b.color + (b.gimmicks?.Count > 0 ? "*" : ""))) + "]"))}");
+
+                // string lanes로 변환 (기존 로직 호환용)
+                var lanes = balloonLanes.ConvertAll(lane => lane.ConvertAll(b => b.color));
 
                 // Step 3: 화살표 개수 = 총 풍선 개수 + Decoy 화살표
                 int mainArrowCount = 0;
@@ -743,35 +887,17 @@ namespace BalloonOut.Data
 
                     // Lanes 변환 (LIFO → FIFO 순서로 역순 변환)
                     // Generator 내부: lane[end]가 활성 풍선, Game: lane[0]이 활성 풍선
-                    foreach (var lane in lanes)
+                    // balloonLanes를 사용 (이미 기믹이 적용된 상태)
+                    foreach (var lane in balloonLanes)
                     {
-                        var reversed = new List<string>(lane);
-                        reversed.Reverse();
+                        var reversedBalloons = new List<BalloonData>(lane);
+                        reversedBalloons.Reverse();
 
-                        var laneData = new LaneData { balloons = reversed };
-
-                        // 기믹 적용 (balloonGimmicks 설정에 따라)
-                        if (config.balloonGimmicks != null && config.balloonGimmicks.Count > 0)
+                        var laneData = new LaneData
                         {
-                            laneData.balloonData = new List<BalloonData>();
-                            foreach (var colorCode in reversed)
-                            {
-                                var balloonData = new BalloonData(colorCode);
-
-                                // 각 기믹 설정에 대해 확률 적용
-                                foreach (var gimmickConfig in config.balloonGimmicks)
-                                {
-                                    var gimmickData = gimmickConfig.TryCreateInstanceData();
-                                    if (gimmickData != null)
-                                    {
-                                        balloonData.AddGimmick(gimmickData);
-                                    }
-                                }
-
-                                laneData.balloonData.Add(balloonData);
-                            }
-                        }
-
+                            balloons = reversedBalloons.ConvertAll(b => b.color),
+                            balloonData = reversedBalloons
+                        };
                         levelData.lanes.Add(laneData);
                     }
 
