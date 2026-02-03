@@ -305,3 +305,71 @@ Filler 이슈 해결 및 밀도 최적화를 위한 계획 작성.
 | `Assets/Scripts/Data/LevelGenerator.cs` | 수정 (기믹 적용 로직) |
 | `Assets/Scripts/Editor/LevelEditorWindow.cs` | 수정 (기믹 UI) |
 | `Assets/Documents/WSB_Gimmick_PRD.md` | 신규 생성 |
+
+---
+
+## 2026-02-03
+
+### 1. 버그 수정: 화살표 겹침 및 그리드 위치 오류
+
+**증상**:
+- Level Editor에서 생성된 레벨에서 화살표들이 겹쳐 표시됨
+- 인게임에서 그리드가 화면 우측 상단에 배치됨 (중앙이 아님)
+
+**원인 분석**:
+- `StageData.cs`에 `gridWidth`/`gridHeight` 필드가 없어서 직사각형 그리드 정보 손실
+- LevelGenerator가 `gridSize=0, gridWidth=X, gridHeight=Y`로 생성
+- StageData.CopyFrom()이 `gridSize=0`만 복사 (width/height 무시)
+- 로드 시 `GetGridWidth()` → `0` 반환
+- GridSystem이 0x0 그리드로 초기화 → 원점 계산 오류
+
+**해결**:
+`StageData.cs` 수정:
+- `gridWidth`, `gridHeight` 필드 추가
+- `CopyFrom()`: gridWidth/gridHeight 복사 추가
+- `ToLevelData()`: 하위 호환성 폴백 (gridWidth/gridHeight가 0이면 gridSize 사용)
+
+---
+
+### 2. 버그 수정: 화살표 좌표계 변환 오류 (FlipYDirection 제거)
+
+**증상**:
+- 레벨 생성 시 화살표들이 겹쳐서 생성됨
+- 일부 화살표가 그리드 외부에 생성됨
+
+**원인 분석**:
+Generator 좌표계와 Game 좌표계의 방향 변환 로직 오류:
+
+1. **ArrowPlacer (Generator 좌표계)**: `"U"=(0,-1)`, `"D"=(0,1)` - Y=0이 상단
+2. **DirectionHelper (Game 좌표계)**: `Up=(0,+1)`, `Down=(0,-1)` - Y=0이 하단
+3. **LevelGenerator**: 직선 화살표에 `FlipYDirection()`을 적용해서 U↔D 변환
+
+**문제 예시**:
+- Generator: HEAD(3,1), direction="U", length=3 → 셀 (3,1), (3,2), (3,3)
+- Y-flip 후: HEAD(3,5), direction="D" (잘못된 플립!)
+- `ArrowData.GetCells()` 계산 시 (direction="D", dir=(0,-1)):
+  - i=2: (3, 5+2) = **(3, 7)** ← 그리드 외부!
+
+**핵심 인사이트**:
+- Generator "U" = 상단 가장자리(y=-1)로 탈출
+- Game "U" = 상단 가장자리(y=+max)로 탈출
+- **둘 다 "상단으로 탈출"의 의미**이므로 방향을 플립하면 안 됨!
+
+**해결**:
+`LevelGenerator.cs` line 917:
+```csharp
+// Before (버그):
+direction = (b.path != null && b.path.Count > 0) ? b.dir : FlipYDirection(b.dir),
+
+// After (수정):
+direction = b.dir,  // 방향 플립 제거 - Game 좌표계에서도 동일한 탈출 방향
+```
+
+---
+
+## 수정된 파일 목록 (2026-02-03)
+
+| 파일 | 작업 |
+|------|------|
+| `Assets/Scripts/Data/StageData.cs` | 수정 (gridWidth/gridHeight 추가) |
+| `Assets/Scripts/Data/LevelGenerator.cs` | 수정 (FlipYDirection 제거) |
