@@ -437,6 +437,32 @@ namespace BalloonOut.Data
                     queuesCopy.Add(laneCopy);
                 }
 
+                // Connected 기믹: 그룹별 Marked 상태 추적
+                // Key: groupId, Value: 해당 그룹의 (laneIdx, balloonIdx) 목록
+                var connectedGroups = new Dictionary<string, List<(int laneIdx, BalloonData balloon)>>();
+                for (int laneIdx = 0; laneIdx < queuesCopy.Count; laneIdx++)
+                {
+                    foreach (var balloon in queuesCopy[laneIdx])
+                    {
+                        var connectedGimmick = balloon.gimmicks?.Find(g => g.gimmickId == "connected");
+                        if (connectedGimmick != null)
+                        {
+                            string groupId = connectedGimmick.GetParam("groupId", "");
+                            if (!string.IsNullOrEmpty(groupId))
+                            {
+                                if (!connectedGroups.ContainsKey(groupId))
+                                {
+                                    connectedGroups[groupId] = new List<(int, BalloonData)>();
+                                }
+                                connectedGroups[groupId].Add((laneIdx, balloon));
+                            }
+                        }
+                    }
+                }
+
+                // isMarked 임시 상태 추적 (BalloonData에 없으므로 별도 해시셋)
+                var markedBalloons = new HashSet<BalloonData>();
+
                 var escapeSequence = new List<int>();
 
                 int iterations = 0;
@@ -470,7 +496,8 @@ namespace BalloonOut.Data
                             bool balloonActive = false;
                             foreach (var lane in queuesCopy)
                             {
-                                if (lane.Count > 0 && lane[0].color == b.color)
+                                // Connected 기믹: Marked 풍선은 타겟에서 제외
+                                if (lane.Count > 0 && lane[0].color == b.color && !markedBalloons.Contains(lane[0]))
                                 {
                                     balloonActive = true;
                                     break;
@@ -502,7 +529,8 @@ namespace BalloonOut.Data
                             bool canPop = false;
                             foreach (var lane in queuesCopy)
                             {
-                                if (lane.Count > 0 && lane[0].color == b.color)
+                                // Connected 기믹: Marked 풍선은 타겟에서 제외
+                                if (lane.Count > 0 && lane[0].color == b.color && !markedBalloons.Contains(lane[0]))
                                 {
                                     canPop = true;
                                     break;
@@ -557,19 +585,66 @@ namespace BalloonOut.Data
                         var b = selectedEscape.block;
                         int i = selectedEscape.index;
 
-                        // Number 기믹 지원: remainingHits 감소, 0이면 제거
-                        foreach (var lane in queuesCopy)
+                        // 풍선 찾기 (Marked가 아닌 풍선만)
+                        BalloonData targetBalloon = null;
+                        int targetLaneIdx = -1;
+                        for (int laneIdx = 0; laneIdx < queuesCopy.Count; laneIdx++)
                         {
-                            if (lane.Count > 0 && lane[0].color == b.color)
+                            var lane = queuesCopy[laneIdx];
+                            if (lane.Count > 0 && lane[0].color == b.color && !markedBalloons.Contains(lane[0]))
                             {
-                                var balloon = lane[0];
-                                balloon.remainingHits--;
-
-                                if (balloon.remainingHits <= 0)
-                                {
-                                    lane.RemoveAt(0);  // 히트 완료 시에만 제거
-                                }
+                                targetBalloon = lane[0];
+                                targetLaneIdx = laneIdx;
                                 break;
+                            }
+                        }
+
+                        if (targetBalloon != null)
+                        {
+                            // Number 기믹 지원: remainingHits 감소
+                            targetBalloon.remainingHits--;
+
+                            if (targetBalloon.remainingHits <= 0)
+                            {
+                                // Connected 기믹 처리
+                                var connectedGimmick = targetBalloon.gimmicks?.Find(g => g.gimmickId == "connected");
+                                if (connectedGimmick != null)
+                                {
+                                    string groupId = connectedGimmick.GetParam("groupId", "");
+                                    if (!string.IsNullOrEmpty(groupId) && connectedGroups.ContainsKey(groupId))
+                                    {
+                                        // Marked로 표시
+                                        markedBalloons.Add(targetBalloon);
+
+                                        // 그룹의 모든 풍선이 Marked인지 확인
+                                        bool allMarked = true;
+                                        foreach (var (_, groupBalloon) in connectedGroups[groupId])
+                                        {
+                                            if (!markedBalloons.Contains(groupBalloon))
+                                            {
+                                                allMarked = false;
+                                                break;
+                                            }
+                                        }
+
+                                        if (allMarked)
+                                        {
+                                            // 모든 풍선이 Marked → 전체 팝!
+                                            foreach (var (gLaneIdx, groupBalloon) in connectedGroups[groupId])
+                                            {
+                                                var gLane = queuesCopy[gLaneIdx];
+                                                gLane.Remove(groupBalloon);
+                                                markedBalloons.Remove(groupBalloon);
+                                            }
+                                        }
+                                        // 아직 전체 Marked 아님 → 이 풍선은 제거하지 않고 Marked 상태 유지
+                                    }
+                                }
+                                else
+                                {
+                                    // Connected가 아닌 일반 풍선: 바로 제거
+                                    queuesCopy[targetLaneIdx].RemoveAt(0);
+                                }
                             }
                         }
 

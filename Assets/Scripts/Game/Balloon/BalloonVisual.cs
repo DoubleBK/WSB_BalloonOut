@@ -57,6 +57,48 @@ namespace BalloonOut.Game.Balloon
             return _currentColor;
         }
 
+        // ========== Marked 상태 (Connected 기믹용) ==========
+
+        /// <summary>
+        /// Marked 상태 설정 (Connected 기믹용)
+        /// Marked 풍선은 검은색/회색으로 변경되고 체크마크 표시
+        /// </summary>
+        /// <param name="isMarked">Marked 상태 여부</param>
+        /// <param name="def">기믹 정의 (null 가능)</param>
+        public void SetMarkedState(bool isMarked, GimmickDefinitionSO def = null)
+        {
+            if (isMarked)
+            {
+                // Marked 상태 - 검은색/어두운 회색으로 변경
+                if (_baseImage != null)
+                {
+                    _baseImage.color = new Color(0.2f, 0.2f, 0.2f, 1f);
+                }
+
+                // 체크마크 오버레이 표시
+                EnsureOverlayText();
+                _overlayText.text = "✓";
+                _overlayText.fontSize = def?.fontSize ?? 48f;
+                _overlayText.color = Color.white;
+                _overlayText.gameObject.SetActive(true);
+            }
+            else
+            {
+                // Normal 상태 - 원래 색상 복원
+                if (_baseImage != null)
+                {
+                    _baseImage.color = ColorHelper.GetColor(_currentColor);
+                }
+
+                // 체크마크 숨기기 (다른 기믹 텍스트는 유지)
+                // 단, Number 기믹 텍스트가 없을 때만 숨김
+                if (_overlayText != null && _overlayText.text == "✓")
+                {
+                    _overlayText.gameObject.SetActive(false);
+                }
+            }
+        }
+
         // ========== 오버레이 ==========
 
         /// <summary>

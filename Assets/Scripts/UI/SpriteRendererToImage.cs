@@ -12,6 +12,7 @@ namespace BalloonOut.UI
     {
         private SpriteRenderer _spriteRenderer;
         private Image _image;
+        private Sprite _lastSprite;  // 캐싱용
 
         private void Awake()
         {
@@ -27,9 +28,13 @@ namespace BalloonOut.UI
 
         private void LateUpdate()
         {
-            if (_spriteRenderer != null && _image != null && _spriteRenderer.sprite != null)
+            if (_spriteRenderer == null || _image == null) return;
+
+            // 스프라이트가 변경된 경우에만 할당 (매 프레임 불필요한 할당 방지)
+            if (_spriteRenderer.sprite != _lastSprite)
             {
-                _image.sprite = _spriteRenderer.sprite;
+                _lastSprite = _spriteRenderer.sprite;
+                _image.sprite = _lastSprite;
             }
         }
     }

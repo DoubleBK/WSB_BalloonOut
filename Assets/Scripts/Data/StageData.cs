@@ -76,7 +76,46 @@ namespace BalloonOut.Data
             gridSize = levelData.gridSize;
             gridWidth = levelData.gridWidth;
             gridHeight = levelData.gridHeight;
-            lanes = levelData.lanes != null ? new List<LaneData>(levelData.lanes) : new List<LaneData>();
+
+            // Lanes 딥 카피 (기믹 데이터 직렬화 보장)
+            lanes = new List<LaneData>();
+            if (levelData.lanes != null)
+            {
+                foreach (var srcLane in levelData.lanes)
+                {
+                    var newLane = new LaneData
+                    {
+                        balloons = srcLane.balloons != null ? new List<string>(srcLane.balloons) : new List<string>(),
+                        balloonData = new List<BalloonData>()
+                    };
+
+                    // BalloonData 딥 카피
+                    if (srcLane.balloonData != null)
+                    {
+                        foreach (var srcBalloon in srcLane.balloonData)
+                        {
+                            var newBalloon = new BalloonData(srcBalloon.color);
+
+                            // Gimmicks 딥 카피 및 SyncToLists 호출
+                            if (srcBalloon.gimmicks != null)
+                            {
+                                newBalloon.gimmicks = new List<GimmickInstanceData>();
+                                foreach (var srcGimmick in srcBalloon.gimmicks)
+                                {
+                                    var newGimmick = srcGimmick.Clone();
+                                    newGimmick.SyncToLists();  // 직렬화 전 파라미터 리스트 동기화
+                                    newBalloon.gimmicks.Add(newGimmick);
+                                }
+                            }
+
+                            newLane.balloonData.Add(newBalloon);
+                        }
+                    }
+
+                    lanes.Add(newLane);
+                }
+            }
+
             arrows = levelData.arrows != null ? new List<ArrowData>(levelData.arrows) : new List<ArrowData>();
             stats = levelData.stats;
         }

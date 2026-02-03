@@ -11,7 +11,9 @@
       "Bash(pip install:*)",
       "Bash(grep:*)",
       "Bash(xxd:*)",
-      "Bash(find:*)"
+      "Bash(find:*)",
+      "Bash(findstr:*)",
+      "Bash(\"C:\\\\Program Files\\\\Unity\\\\Hub\\\\Editor\\\\2022.3.69f1\\\\Editor\\\\Data\\\\Tools\\\\ScriptUpdater\\\\APIUpdater.exe\" --check-only)"
     ]
   }
 }

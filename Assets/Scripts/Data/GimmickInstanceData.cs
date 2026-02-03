@@ -7,9 +7,10 @@ namespace BalloonOut.Data
     /// <summary>
     /// 기믹 인스턴스 데이터 (직렬화 가능)
     /// 풍선에 적용된 개별 기믹의 상태를 저장
+    /// ISerializationCallbackReceiver로 딕셔너리-리스트 동기화 타이밍 보장
     /// </summary>
     [Serializable]
-    public class GimmickInstanceData
+    public class GimmickInstanceData : ISerializationCallbackReceiver
     {
         /// <summary>
         /// 기믹 고유 ID (예: "surprise", "number")
@@ -171,5 +172,30 @@ namespace BalloonOut.Data
             clone.SyncToLists();
             return clone;
         }
+
+        #region ISerializationCallbackReceiver
+
+        /// <summary>
+        /// Unity 직렬화 직전 호출 - 딕셔너리 → 리스트 동기화
+        /// </summary>
+        public void OnBeforeSerialize()
+        {
+            // _parameters가 초기화되어 있으면 리스트로 동기화
+            if (_parameters != null)
+            {
+                SyncToLists();
+            }
+        }
+
+        /// <summary>
+        /// Unity 역직렬화 직후 호출 - 리스트 → 딕셔너리 재구축
+        /// </summary>
+        public void OnAfterDeserialize()
+        {
+            // 리스트에서 딕셔너리 재구축
+            RebuildDictionary();
+        }
+
+        #endregion
     }
 }

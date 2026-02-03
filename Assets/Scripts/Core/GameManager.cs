@@ -566,6 +566,15 @@ namespace BalloonOut.Core
         }
 
         /// <summary>
+        /// 외부에서 승리 조건 체크를 요청할 때 사용
+        /// (Connected 그룹 POP 등 QueueUI 이벤트 핸들러에서 호출)
+        /// </summary>
+        public void RequestWinConditionCheck()
+        {
+            CheckWinCondition();
+        }
+
+        /// <summary>
         /// 승리 조건 확인
         /// </summary>
         private void CheckWinCondition()
@@ -653,7 +662,44 @@ namespace BalloonOut.Core
             if (_queueUI != null)
                 _queueUI.gameObject.SetActive(false);
 
+            // 남은 화살표 숨김
+            HideRemainingArrows();
+
+            // 비행 중인 HomingArrow 숨김
+            HideRemainingHomingArrows();
+
             Debug.Log("[GameManager] UI hidden for Confetti effect");
+        }
+
+        /// <summary>
+        /// 남은 그리드 화살표 숨김
+        /// </summary>
+        private void HideRemainingArrows()
+        {
+            foreach (var arrow in _arrows)
+            {
+                if (arrow != null)
+                {
+                    arrow.HideImmediate();
+                }
+            }
+            Debug.Log($"[GameManager] Hidden {_arrows.Count} remaining arrows");
+        }
+
+        /// <summary>
+        /// 비행 중인 HomingArrow 숨김
+        /// </summary>
+        private void HideRemainingHomingArrows()
+        {
+            var homingArrows = FindObjectsOfType<HomingArrow>();
+            foreach (var homing in homingArrows)
+            {
+                if (homing != null)
+                {
+                    homing.gameObject.SetActive(false);
+                }
+            }
+            Debug.Log($"[GameManager] Hidden {homingArrows.Length} remaining homing arrows");
         }
 
         /// <summary>

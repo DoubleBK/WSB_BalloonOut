@@ -14,14 +14,55 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   stageName: 000001
   gridSize: 0
+  gridWidth: 9
+  gridHeight: 9
   lanes:
   - balloons:
-    - K
-    - K
+    - O
+    - P
+    - B
+    - P
+    - R
     balloonData:
-    - color: K
+    - color: O
       gimmicks: []
-    - color: K
+    - color: P
+      gimmicks:
+      - gimmickId: surprise
+        _paramKeys:
+        - isRevealed
+        _paramValues:
+        - False
+    - color: B
+      gimmicks:
+      - gimmickId: surprise
+        _paramKeys:
+        - isRevealed
+        _paramValues:
+        - False
+    - color: P
+      gimmicks: []
+    - color: R
+      gimmicks: []
+  - balloons:
+    - R
+    - R
+    - P
+    - P
+    - B
+    - G
+    balloonData:
+    - color: R
+      gimmicks: []
+    - color: R
+      gimmicks: []
+    - color: P
+      gimmicks: []
+    - color: P
+      gimmicks: []
+    - color: B
+      gimmicks: []
+    - color: G
       gimmicks:
       - gimmickId: surprise
         _paramKeys:
@@ -29,83 +70,333 @@ MonoBehaviour:
         _paramValues:
         - False
   - balloons:
+    - G
+    - R
+    - B
     - P
-    - C
     balloonData:
+    - color: G
+      gimmicks: []
+    - color: R
+      gimmicks: []
+    - color: B
+      gimmicks: []
     - color: P
       gimmicks: []
-    - color: C
-      gimmicks:
-      - gimmickId: surprise
-        _paramKeys:
-        - isRevealed
-        _paramValues:
-        - False
   arrows:
+  - x: 8
+    y: 3
+    color: G
+    direction: R
+    length: 3
+    path:
+    - x: 6
+      y: 3
+    - x: 7
+      y: 3
+    - x: 8
+      y: 3
+    order: 3
+    isFiller: 0
+    isDecoy: 0
+  - x: 7
+    y: 2
+    color: P
+    direction: U
+    length: 6
+    path:
+    - x: 8
+      y: 2
+    - x: 8
+      y: 1
+    - x: 8
+      y: 0
+    - x: 7
+      y: 0
+    - x: 7
+      y: 1
+    - x: 7
+      y: 2
+    order: 10
+    isFiller: 0
+    isDecoy: 0
+  - x: 5
+    y: 0
+    color: R
+    direction: D
+    length: 3
+    path:
+    - x: 5
+      y: 2
+    - x: 5
+      y: 1
+    - x: 5
+      y: 0
+    order: 11
+    isFiller: 0
+    isDecoy: 0
+  - x: 2
+    y: 0
+    color: O
+    direction: D
+    length: 9
+    path:
+    - x: 2
+      y: 8
+    - x: 2
+      y: 7
+    - x: 2
+      y: 6
+    - x: 2
+      y: 5
+    - x: 2
+      y: 4
+    - x: 2
+      y: 3
+    - x: 2
+      y: 2
+    - x: 2
+      y: 1
+    - x: 2
+      y: 0
+    order: 14
+    isFiller: 0
+    isDecoy: 0
   - x: 1
+    y: 8
+    color: R
+    direction: U
+    length: 4
+    path:
+    - x: 1
+      y: 5
+    - x: 1
+      y: 6
+    - x: 1
+      y: 7
+    - x: 1
+      y: 8
+    order: 5
+    isFiller: 0
+    isDecoy: 0
+  - x: 1
+    y: 0
+    color: B
+    direction: R
+    length: 3
+    path:
+    - x: 0
+      y: 1
+    - x: 0
+      y: 0
+    - x: 1
+      y: 0
+    order: 12
+    isFiller: 0
+    isDecoy: 0
+  - x: 8
+    y: 5
+    color: R
+    direction: R
+    length: 6
+    path:
+    - x: 3
+      y: 5
+    - x: 4
+      y: 5
+    - x: 5
+      y: 5
+    - x: 6
+      y: 5
+    - x: 7
+      y: 5
+    - x: 8
+      y: 5
+    order: 6
+    isFiller: 0
+    isDecoy: 0
+  - x: 0
+    y: 2
+    color: P
+    direction: L
+    length: 6
+    path:
+    - x: 0
+      y: 3
+    - x: 0
+      y: 4
+    - x: 1
+      y: 4
+    - x: 1
+      y: 3
+    - x: 1
+      y: 2
+    - x: 0
+      y: 2
+    order: 7
+    isFiller: 0
+    isDecoy: 0
+  - x: 7
+    y: 8
+    color: B
+    direction: U
+    length: 6
+    path:
+    - x: 4
+      y: 6
+    - x: 5
+      y: 6
+    - x: 6
+      y: 6
+    - x: 7
+      y: 6
+    - x: 7
+      y: 7
+    - x: 7
+      y: 8
+    order: 2
+    isFiller: 0
+    isDecoy: 0
+  - x: 8
+    y: 4
+    color: P
+    direction: R
+    length: 6
+    path: []
+    order: 8
+    isFiller: 0
+    isDecoy: 0
+  - x: 4
     y: 0
     color: P
     direction: D
     length: 3
     path:
-    - x: 1
+    - x: 4
       y: 2
-    - x: 1
+    - x: 4
       y: 1
-    - x: 1
+    - x: 4
       y: 0
+    order: 13
+    isFiller: 0
+    isDecoy: 0
+  - x: 6
+    y: 8
+    color: B
+    direction: U
+    length: 3
+    path:
+    - x: 5
+      y: 7
+    - x: 6
+      y: 7
+    - x: 6
+      y: 8
     order: 4
     isFiller: 0
     isDecoy: 0
   - x: 3
-    y: 1
-    color: K
-    direction: R
-    length: 6
+    y: 8
+    color: G
+    direction: U
+    length: 3
     path:
-    - x: 0
-      y: 3
-    - x: 1
-      y: 3
-    - x: 2
-      y: 3
-    - x: 2
-      y: 2
-    - x: 2
-      y: 1
     - x: 3
-      y: 1
+      y: 6
+    - x: 3
+      y: 7
+    - x: 3
+      y: 8
+    order: 15
+    isFiller: 0
+    isDecoy: 0
+  - x: 4
+    y: 7
+    color: R
+    direction: D
+    length: 3
+    path:
+    - x: 5
+      y: 8
+    - x: 4
+      y: 8
+    - x: 4
+      y: 7
+    order: 9
+    isFiller: 0
+    isDecoy: 0
+  - x: 8
+    y: 8
+    color: P
+    direction: U
+    length: 3
+    path:
+    - x: 8
+      y: 6
+    - x: 8
+      y: 7
+    - x: 8
+      y: 8
     order: 1
     isFiller: 0
     isDecoy: 0
-  - x: 3
-    y: 3
-    color: K
-    direction: U
-    length: 2
+  - x: 6
+    y: 0
+    color: R
+    direction: D
+    length: 3
     path:
-    - x: 3
+    - x: 6
       y: 2
-    - x: 3
-      y: 3
-    order: 2
-    isFiller: 0
-    isDecoy: 0
-  - x: 0
-    y: 1
-    color: C
-    direction: U
-    length: 2
-    path:
-    - x: 0
-      y: 0
-    - x: 0
+    - x: 6
       y: 1
-    order: 3
+    - x: 6
+      y: 0
+    order: 16
     isFiller: 0
-    isDecoy: 0
+    isDecoy: 1
   stats:
-    density: 0.8125
-    mainArrows: 4
+    density: 0.86419755
+    mainArrows: 16
     fillers: 0
-    totalArrows: 4
+    totalArrows: 16
+  genLaneCount: 3
+  genBalloonsPerLane: 4
+  genMissArrowCount: 3
+  genDecoyArrowCount: 1
+  genMinLength: 3
+  genMaxLength: 9
+  genTargetDensity: 0.9
+  genBendingEnabled: 1
+  genBendingChance: 0.9
+  genBranchingMode: 1
+  genBranchingChance: 0.4
+  genColorCount: 6
+  genFillerEnabled: 0
+  genBalloonGimmicks:
+  - gimmickId: surprise
+    enabled: 1
+    count: 3
+    hitCounts: 
+    groupSizes: 
+    intParam1: 0
+    floatParam1: 0
+    stringParam1: 
+  - gimmickId: number
+    enabled: 0
+    count: 0
+    hitCounts: 
+    groupSizes: 
+    intParam1: 0
+    floatParam1: 0
+    stringParam1: 
+  - gimmickId: connected
+    enabled: 0
+    count: 0
+    hitCounts: 
+    groupSizes: 0200000002000000
+    intParam1: 0
+    floatParam1: 0
+    stringParam1: 
+  genArrowGimmicks: []

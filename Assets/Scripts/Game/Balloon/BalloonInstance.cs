@@ -77,11 +77,15 @@ namespace BalloonOut.Game.Balloon
 
             if (Data.gimmicks == null || Data.gimmicks.Count == 0)
             {
+                Debug.Log($"[BalloonInstance] Lane {LaneIndex}, Pos {PositionInLane}: No gimmicks (gimmicks is {(Data.gimmicks == null ? "null" : "empty")})");
                 return;
             }
 
+            Debug.Log($"[BalloonInstance] Lane {LaneIndex}, Pos {PositionInLane}: Found {Data.gimmicks.Count} gimmicks");
+
             foreach (var gimmickData in Data.gimmicks)
             {
+                Debug.Log($"[BalloonInstance] Lane {LaneIndex}: Processing gimmick '{gimmickData.gimmickId}'");
                 var behavior = GimmickRegistry.Instance.GetBehavior(gimmickData.gimmickId);
                 if (behavior != null)
                 {
@@ -244,6 +248,16 @@ namespace BalloonOut.Game.Balloon
         /// 기믹 개수
         /// </summary>
         public int GimmickCount => _activeGimmicks.Count;
+
+        /// <summary>
+        /// Connected 기믹의 Marked 상태 확인
+        /// Marked 풍선은 Target에서 제외되어야 함
+        /// </summary>
+        public bool IsMarked()
+        {
+            var connectedData = GetGimmickData("connected");
+            return connectedData?.GetParamBool("isMarked") ?? false;
+        }
 
         // ========== 비주얼 ==========
 

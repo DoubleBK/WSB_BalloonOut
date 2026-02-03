@@ -113,6 +113,12 @@ namespace BalloonOut.Data
                     balloonGimmicks.Add(new GimmickGeneratorConfig("number"));
                 }
 
+                // Connected 기믹 기본 설정
+                if (!balloonGimmicks.Exists(g => g.gimmickId == "connected"))
+                {
+                    balloonGimmicks.Add(new GimmickGeneratorConfig("connected"));
+                }
+
                 if (arrowGimmicks == null)
                     arrowGimmicks = new List<GimmickGeneratorConfig>();
             }
@@ -454,6 +460,126 @@ namespace BalloonOut.Data
                 if (result.extraArrowsByColor.Count > 0)
                 {
                     Debug.Log($"  [Gimmick] Extra arrows by color: {string.Join(", ", result.extraArrowsByColor.Select(kv => $"{kv.Key}:{kv.Value}"))}");
+                }
+            }
+
+            // Connected 기믹 적용
+            // 깊이 밴드(Depth Band) 방식: 그룹별로 다른 깊이 범위를 사용하여 교차 시 데드락 방지
+            // 같은 그룹의 풍선들은 동일한 깊이(인덱스)에 배치되어 순서 충돌 없음
+            var connectedConfig = gimmickConfigs.Find(g => g.gimmickId == "connected" && g.enabled);
+            if (connectedConfig != null && connectedConfig.groupSizes != null && connectedConfig.groupSizes.Count > 0)
+            {
+                int groupsApplied = 0;
+                int balloonsApplied = 0;
+
+                // 최소 레인 길이 계산 (가능한 깊이 범위)
+                int minLaneLength = int.MaxValue;
+                foreach (var lane in balloonLanes)
+                {
+                    if (lane.Count > 0 && lane.Count < minLaneLength)
+                    {
+                        minLaneLength = lane.Count;
+                    }
+                }
+
+                if (minLaneLength == int.MaxValue || minLaneLength < 1)
+                {
+                    Debug.LogWarning($"  [Gimmick] No valid lanes for Connected gimmick");
+                }
+                else
+                {
+                    // 사용된 깊이 인덱스 추적 (데드락 방지)
+                    var usedDepthIndices = new HashSet<int>();
+
+                    // 활성 위치(맨 앞) 제외 - Surprise와 동일하게 처리
+                    int maxDepthIndex = minLaneLength - 1;  // 마지막 인덱스는 활성 위치
+
+                    foreach (var groupSize in connectedConfig.groupSizes)
+                    {
+                        int actualGroupSize = Mathf.Max(2, groupSize);  // 최소 2개
+
+                        // 그룹 크기가 레인 수보다 크면 스킵
+                        if (actualGroupSize > balloonLanes.Count)
+                        {
+                            Debug.LogWarning($"  [Gimmick] Connected group size {actualGroupSize} exceeds lane count {balloonLanes.Count}, skipping");
+                            continue;
+                        }
+
+                        // 사용 가능한 깊이 인덱스 찾기 (활성 위치 제외, 이미 사용된 깊이 제외)
+                        var availableDepths = new List<int>();
+                        for (int depth = 0; depth < maxDepthIndex; depth++)
+                        {
+                            if (!usedDepthIndices.Contains(depth))
+                            {
+                                // 모든 레인에서 해당 깊이에 Connected가 없는 풍선이 있는지 확인
+                                bool validForAllLanes = true;
+                                int validLaneCount = 0;
+                                for (int laneIdx = 0; laneIdx < balloonLanes.Count; laneIdx++)
+                                {
+                                    var lane = balloonLanes[laneIdx];
+                                    if (depth < lane.Count && !lane[depth].HasGimmick("connected"))
+                                    {
+                                        validLaneCount++;
+                                    }
+                                }
+                                if (validLaneCount >= actualGroupSize)
+                                {
+                                    availableDepths.Add(depth);
+                                }
+                            }
+                        }
+
+                        if (availableDepths.Count == 0)
+                        {
+                            Debug.LogWarning($"  [Gimmick] No available depth index for Connected group of size {actualGroupSize}");
+                            continue;
+                        }
+
+                        // 랜덤 깊이 선택
+                        int targetDepth = RandomPick(availableDepths);
+                        usedDepthIndices.Add(targetDepth);
+
+                        // 그룹 ID 생성
+                        string groupId = $"connected_{groupsApplied}_{System.Guid.NewGuid().ToString().Substring(0, 8)}";
+
+                        // 사용할 레인 선택 (셔플 후 필요한 수만큼)
+                        var availableLaneIndices = new List<int>();
+                        for (int laneIdx = 0; laneIdx < balloonLanes.Count; laneIdx++)
+                        {
+                            var lane = balloonLanes[laneIdx];
+                            if (targetDepth < lane.Count && !lane[targetDepth].HasGimmick("connected"))
+                            {
+                                availableLaneIndices.Add(laneIdx);
+                            }
+                        }
+                        Shuffle(availableLaneIndices);
+
+                        // 각 레인에서 동일 깊이의 풍선 선택
+                        int appliedInGroup = 0;
+                        for (int i = 0; i < Mathf.Min(actualGroupSize, availableLaneIndices.Count); i++)
+                        {
+                            int laneIdx = availableLaneIndices[i];
+                            var lane = balloonLanes[laneIdx];
+                            var balloon = lane[targetDepth];
+
+                            // Connected 기믹 적용
+                            balloon.AddGimmick(connectedConfig.CreateConnectedInstance(groupId, actualGroupSize));
+                            balloonsApplied++;
+                            appliedInGroup++;
+                        }
+
+                        if (appliedInGroup >= 2)
+                        {
+                            groupsApplied++;
+                            Debug.Log($"  [Gimmick] Connected group '{groupId}' applied at depth {targetDepth} with {appliedInGroup} balloons");
+                        }
+                        else
+                        {
+                            Debug.LogWarning($"  [Gimmick] Connected group failed - only {appliedInGroup} balloons applied (need at least 2)");
+                        }
+                    }
+
+                    Debug.Log($"  [Gimmick] Applied {groupsApplied} Connected groups ({balloonsApplied} balloons total)");
                 }
             }
 

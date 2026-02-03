@@ -154,6 +154,13 @@ namespace BalloonOut.Core
         {
             if (!_isInputEnabled) return;
 
+            // 마우스 휠 줌 (에뮬레이터/마우스 연결 태블릿 지원)
+            float scroll = Input.mouseScrollDelta.y;
+            if (scroll != 0f)
+            {
+                Zoom(-scroll * _zoomSpeed);
+            }
+
             int touchCount = Input.touchCount;
 
             if (touchCount == 1)

@@ -168,7 +168,8 @@ namespace BalloonOut.Editor
             _genBalloonGimmicks = new List<GimmickGeneratorConfig>
             {
                 new GimmickGeneratorConfig("surprise"),
-                new GimmickGeneratorConfig("number")
+                new GimmickGeneratorConfig("number"),
+                new GimmickGeneratorConfig("connected")
             };
             _genArrowGimmicks = new List<GimmickGeneratorConfig>();
 
@@ -658,7 +659,149 @@ namespace BalloonOut.Editor
                 }
             }
 
+            menu.AddSeparator("");
+
+            // Connected 기믹 토글
+            bool hasConnected = balloonData.HasGimmick("connected");
+            menu.AddItem(new GUIContent("Connected Gimmick"), hasConnected, () =>
+            {
+                if (hasConnected)
+                {
+                    RemoveGimmick(balloonData, "connected");
+                }
+                else
+                {
+                    // 새 그룹으로 추가 (groupId는 임시로 생성)
+                    string groupId = $"manual_{System.Guid.NewGuid().ToString().Substring(0, 8)}";
+                    var gimmick = new GimmickInstanceData("connected");
+                    gimmick.SetParam("groupId", groupId);
+                    gimmick.SetParam("isMarked", false);
+                    gimmick.SetParam("groupSize", 1);
+                    balloonData.AddGimmick(gimmick);
+                }
+            });
+
+            // Connected 그룹 선택 (이미 있는 경우)
+            if (hasConnected)
+            {
+                var connectedGimmick = balloonData.gimmicks.Find(g => g.gimmickId == "connected");
+                string currentGroupId = connectedGimmick?.GetParam("groupId", "") ?? "";
+                menu.AddSeparator("Connected Group/");
+                menu.AddDisabledItem(new GUIContent($"Connected Group/Current: {currentGroupId}"));
+
+                // 기존 그룹 목록 표시 (현재 레벨의 모든 Connected 그룹 ID 수집)
+                var existingGroupIds = GetExistingConnectedGroupIds();
+                if (existingGroupIds.Count > 0)
+                {
+                    menu.AddSeparator("Connected Group/");
+                    foreach (var groupId in existingGroupIds)
+                    {
+                        bool isCurrent = groupId == currentGroupId;
+                        string gid = groupId; // 클로저 캡처용
+                        menu.AddItem(new GUIContent($"Connected Group/Join: {groupId}"), isCurrent, () =>
+                        {
+                            SetConnectedGroupId(balloonData, gid);
+                        });
+                    }
+                }
+
+                // 새 그룹 생성 옵션
+                menu.AddSeparator("Connected Group/");
+                menu.AddItem(new GUIContent("Connected Group/Create New Group"), false, () =>
+                {
+                    string newGroupId = $"group_{System.Guid.NewGuid().ToString().Substring(0, 8)}";
+                    SetConnectedGroupId(balloonData, newGroupId);
+                });
+            }
+
             menu.ShowAsContext();
+        }
+
+        /// <summary>
+        /// 현재 레벨의 모든 Connected 그룹 ID 수집
+        /// </summary>
+        private HashSet<string> GetExistingConnectedGroupIds()
+        {
+            var groupIds = new HashSet<string>();
+            if (_currentLevel?.lanes == null) return groupIds;
+
+            foreach (var lane in _currentLevel.lanes)
+            {
+                if (lane.balloonData == null) continue;
+                foreach (var balloon in lane.balloonData)
+                {
+                    var connectedGimmick = balloon.gimmicks?.Find(g => g.gimmickId == "connected");
+                    if (connectedGimmick != null)
+                    {
+                        string groupId = connectedGimmick.GetParam("groupId", "");
+                        if (!string.IsNullOrEmpty(groupId))
+                        {
+                            groupIds.Add(groupId);
+                        }
+                    }
+                }
+            }
+            return groupIds;
+        }
+
+        /// <summary>
+        /// Connected 그룹 ID 변경
+        /// </summary>
+        private void SetConnectedGroupId(BalloonData balloonData, string groupId)
+        {
+            var connectedGimmick = balloonData.gimmicks?.Find(g => g.gimmickId == "connected");
+            if (connectedGimmick != null)
+            {
+                connectedGimmick.SetParam("groupId", groupId);
+                // 그룹 크기 업데이트 (같은 groupId를 가진 풍선 수 계산)
+                int groupSize = CountBalloonsInGroup(groupId);
+                connectedGimmick.SetParam("groupSize", groupSize);
+                UpdateAllConnectedGroupSizes(groupId, groupSize);
+            }
+        }
+
+        /// <summary>
+        /// 특정 그룹의 풍선 수 계산
+        /// </summary>
+        private int CountBalloonsInGroup(string groupId)
+        {
+            int count = 0;
+            if (_currentLevel?.lanes == null) return count;
+
+            foreach (var lane in _currentLevel.lanes)
+            {
+                if (lane.balloonData == null) continue;
+                foreach (var balloon in lane.balloonData)
+                {
+                    var connectedGimmick = balloon.gimmicks?.Find(g => g.gimmickId == "connected");
+                    if (connectedGimmick != null && connectedGimmick.GetParam("groupId", "") == groupId)
+                    {
+                        count++;
+                    }
+                }
+            }
+            return count;
+        }
+
+        /// <summary>
+        /// 특정 그룹의 모든 풍선 groupSize 업데이트
+        /// </summary>
+        private void UpdateAllConnectedGroupSizes(string groupId, int groupSize)
+        {
+            if (_currentLevel?.lanes == null) return;
+
+            foreach (var lane in _currentLevel.lanes)
+            {
+                if (lane.balloonData == null) continue;
+                foreach (var balloon in lane.balloonData)
+                {
+                    var connectedGimmick = balloon.gimmicks?.Find(g => g.gimmickId == "connected");
+                    if (connectedGimmick != null && connectedGimmick.GetParam("groupId", "") == groupId)
+                    {
+                        connectedGimmick.SetParam("groupSize", groupSize);
+                    }
+                }
+            }
         }
 
         /// <summary>
@@ -1118,6 +1261,10 @@ namespace BalloonOut.Editor
                     DrawNumberGimmickUI(config);
                     break;
 
+                case "connected":
+                    DrawConnectedGimmickUI(config);
+                    break;
+
                 default:
                     EditorGUILayout.LabelField("  (설정 없음)", EditorStyles.miniLabel);
                     break;
@@ -1194,6 +1341,54 @@ namespace BalloonOut.Editor
         }
 
         /// <summary>
+        /// Connected 기믹 UI (groupSizes 리스트)
+        /// </summary>
+        private void DrawConnectedGimmickUI(GimmickGeneratorConfig config)
+        {
+            // groupSizes가 null이면 초기화
+            if (config.groupSizes == null)
+            {
+                config.groupSizes = new List<int>();
+            }
+
+            EditorGUILayout.LabelField("Group Sizes (풍선 수/그룹):", EditorStyles.miniLabel);
+
+            // Add 버튼
+            EditorGUILayout.BeginHorizontal();
+            if (GUILayout.Button("[+] Add Group", GUILayout.Width(100)))
+            {
+                config.groupSizes.Add(2); // 기본값 2개 (최소값)
+            }
+            EditorGUILayout.EndHorizontal();
+
+            // 각 groupSize 항목
+            for (int i = 0; i < config.groupSizes.Count; i++)
+            {
+                EditorGUILayout.BeginHorizontal();
+                EditorGUILayout.LabelField($"  Group #{i + 1}:", GUILayout.Width(70));
+                config.groupSizes[i] = EditorGUILayout.IntField(config.groupSizes[i], GUILayout.Width(40));
+                config.groupSizes[i] = Mathf.Clamp(config.groupSizes[i], 2, 5); // 2~5개
+                EditorGUILayout.LabelField("balloons", GUILayout.Width(50));
+
+                // 삭제 버튼
+                if (GUILayout.Button("x", GUILayout.Width(20)))
+                {
+                    config.groupSizes.RemoveAt(i);
+                    i--;
+                    continue;
+                }
+                EditorGUILayout.EndHorizontal();
+            }
+
+            // 요약 정보
+            int groupCount = config.groupSizes.Count;
+            int totalBalloons = config.GetConnectedTotalBalloonCount();
+            EditorGUILayout.Space(3);
+            EditorGUILayout.LabelField($"  → {groupCount}개 그룹, 총 {totalBalloons}개 Connected 풍선", EditorStyles.miniLabel);
+            EditorGUILayout.LabelField($"  (각 그룹은 서로 다른 레인에 배치됨)", EditorStyles.miniLabel);
+        }
+
+        /// <summary>
         /// 기믹 표시 이름 반환
         /// </summary>
         private string GetGimmickDisplayName(string gimmickId)
@@ -1202,6 +1397,7 @@ namespace BalloonOut.Editor
             {
                 case "surprise": return "🎁 Surprise";
                 case "number": return "🔢 Number";
+                case "connected": return "🔗 Connected";
                 default: return gimmickId;
             }
         }
@@ -2787,14 +2983,15 @@ namespace BalloonOut.Editor
         }
 
         /// <summary>
-        /// 기본 기믹 설정 초기화 (Surprise, Number)
+        /// 기본 기믹 설정 초기화 (Surprise, Number, Connected)
         /// </summary>
         private void InitializeDefaultGimmickConfigs()
         {
             _genBalloonGimmicks = new List<GimmickGeneratorConfig>
             {
                 new GimmickGeneratorConfig { gimmickId = "surprise", enabled = false, count = 0 },
-                new GimmickGeneratorConfig { gimmickId = "number", enabled = false, hitCounts = new List<int>() }
+                new GimmickGeneratorConfig { gimmickId = "number", enabled = false, hitCounts = new List<int>() },
+                new GimmickGeneratorConfig { gimmickId = "connected", enabled = false, groupSizes = new List<int>() }
             };
         }
 

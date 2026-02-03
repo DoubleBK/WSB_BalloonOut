@@ -91,6 +91,9 @@ namespace BalloonOut.Game.Gimmick
 
             // Number 기믹
             RegisterBehavior(new Behaviors.NumberGimmickBehavior());
+
+            // Connected 기믹
+            RegisterBehavior(new Behaviors.ConnectedGimmickBehavior());
         }
 
         // ========== 공개 인터페이스 ==========

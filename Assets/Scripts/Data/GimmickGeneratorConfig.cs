@@ -38,6 +38,13 @@ namespace BalloonOut.Data
         /// </summary>
         public List<int> hitCounts;
 
+        /// <summary>
+        /// Connected 기믹: 각 그룹별 풍선 수
+        /// 리스트 크기 = 생성할 그룹 개수
+        /// 예: [3, 2] → 2개 그룹 (3개짜리 1그룹, 2개짜리 1그룹)
+        /// </summary>
+        public List<int> groupSizes;
+
         // ========== 예비 파라미터 (향후 확장용) ==========
 
         public int intParam1;
@@ -52,6 +59,7 @@ namespace BalloonOut.Data
             enabled = false;
             count = 0;
             hitCounts = new List<int>();
+            groupSizes = new List<int>();
             intParam1 = 0;
             floatParam1 = 0f;
             stringParam1 = "";
@@ -63,6 +71,7 @@ namespace BalloonOut.Data
             enabled = false;
             count = 0;
             hitCounts = new List<int>();
+            groupSizes = new List<int>();
             intParam1 = 0;
             floatParam1 = 0f;
             stringParam1 = "";
@@ -86,6 +95,10 @@ namespace BalloonOut.Data
 
                 case "number":
                     hitCounts = new List<int>();  // 기본: 빈 리스트
+                    break;
+
+                case "connected":
+                    groupSizes = new List<int>();  // 기본: 빈 리스트
                     break;
             }
         }
@@ -143,6 +156,13 @@ namespace BalloonOut.Data
                 case "surprise":
                     data.SetParam("isRevealed", false);
                     break;
+
+                case "connected":
+                    // Connected는 CreateConnectedInstance 사용 권장
+                    data.SetParam("groupId", "");
+                    data.SetParam("isMarked", false);
+                    data.SetParam("groupSize", 0);
+                    break;
             }
 
             return data;
@@ -181,6 +201,7 @@ namespace BalloonOut.Data
                 enabled = this.enabled,
                 count = this.count,
                 hitCounts = this.hitCounts != null ? new List<int>(this.hitCounts) : new List<int>(),
+                groupSizes = this.groupSizes != null ? new List<int>(this.groupSizes) : new List<int>(),
                 intParam1 = this.intParam1,
                 floatParam1 = this.floatParam1,
                 stringParam1 = this.stringParam1
@@ -210,9 +231,51 @@ namespace BalloonOut.Data
                     return count;
                 case "number":
                     return hitCounts?.Count ?? 0;
+                case "connected":
+                    return GetConnectedTotalBalloonCount();
                 default:
                     return 0;
             }
+        }
+
+        // ========== Connected 기믹 전용 메서드 ==========
+
+        /// <summary>
+        /// Connected 기믹의 총 풍선 수 (모든 그룹의 풍선 수 합계)
+        /// </summary>
+        public int GetConnectedTotalBalloonCount()
+        {
+            if (gimmickId != "connected" || groupSizes == null || groupSizes.Count == 0)
+                return 0;
+
+            int total = 0;
+            foreach (var size in groupSizes)
+            {
+                total += Mathf.Max(2, size);  // 최소 2개
+            }
+            return total;
+        }
+
+        /// <summary>
+        /// Connected 기믹의 그룹 수
+        /// </summary>
+        public int GetConnectedGroupCount()
+        {
+            return groupSizes?.Count ?? 0;
+        }
+
+        /// <summary>
+        /// Connected 기믹용 GimmickInstanceData 생성
+        /// </summary>
+        /// <param name="groupId">그룹 고유 ID</param>
+        /// <param name="groupSize">그룹 내 총 풍선 수</param>
+        public GimmickInstanceData CreateConnectedInstance(string groupId, int groupSize)
+        {
+            var data = new GimmickInstanceData("connected");
+            data.SetParam("groupId", groupId);
+            data.SetParam("isMarked", false);
+            data.SetParam("groupSize", groupSize);
+            return data;
         }
     }
 }

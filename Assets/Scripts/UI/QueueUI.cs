@@ -78,6 +78,120 @@ namespace BalloonOut.UI
             Instance = this;
         }
 
+        private void OnEnable()
+        {
+            // Connected 기믹 그룹 POP 이벤트 구독
+            if (ConnectedBalloonManager.Instance != null)
+            {
+                ConnectedBalloonManager.Instance.OnGroupPop += HandleConnectedGroupPop;
+            }
+        }
+
+        private void OnDisable()
+        {
+            // Connected 기믹 그룹 POP 이벤트 구독 해제
+            if (ConnectedBalloonManager.Instance != null)
+            {
+                ConnectedBalloonManager.Instance.OnGroupPop -= HandleConnectedGroupPop;
+            }
+        }
+
+        /// <summary>
+        /// Connected 그룹 전체 POP 핸들러
+        /// 직접 Hit된 풍선 외의 나머지 풍선들을 POP 처리
+        /// </summary>
+        private void HandleConnectedGroupPop(string groupId, List<BalloonInstance> balloons)
+        {
+            Debug.Log($"[QueueUI] Handling connected group pop: {groupId}, Count: {balloons?.Count ?? 0}");
+
+            if (balloons == null) return;
+
+            foreach (var balloon in balloons)
+            {
+                // 직접 Hit된 풍선은 TryPopBalloonWithGimmick에서 이미 처리됨
+                // 여기서는 나머지 Marked 풍선들만 처리
+                PopBalloonInstance(balloon);
+            }
+
+            // 그룹 POP 완료 알림
+            ConnectedBalloonManager.Instance?.FinishGroupPop(groupId);
+
+            // 그룹 POP 후 레벨 클리어 체크 요청
+            if (GameManager.Instance != null)
+            {
+                GameManager.Instance.RequestWinConditionCheck();
+            }
+        }
+
+        /// <summary>
+        /// 특정 BalloonInstance를 직접 POP 처리
+        /// Connected 기믹 그룹 POP용
+        /// </summary>
+        public void PopBalloonInstance(BalloonInstance balloon)
+        {
+            if (balloon == null) return;
+
+            int laneIdx = balloon.LaneIndex;
+            if (laneIdx < 0 || laneIdx >= _balloonInstances.Count) return;
+
+            var instanceLane = _balloonInstances[laneIdx];
+            int balloonIndex = instanceLane.IndexOf(balloon);
+            if (balloonIndex < 0) return;
+
+            // Connected 렌더러에서 제거
+            var connectedData = balloon.GetGimmickData("connected");
+            if (connectedData != null)
+            {
+                string groupId = connectedData.GetParam("groupId", "");
+                ConnectedLineRenderer.RemoveBalloonFromGroup(groupId, balloon);
+            }
+
+            // 기믹 알림
+            balloon.NotifyPop();
+
+            // 데이터에서 제거
+            if (laneIdx < _lanes.Count && balloonIndex < _lanes[laneIdx].Count)
+            {
+                _lanes[laneIdx].RemoveAt(balloonIndex);
+            }
+            instanceLane.RemoveAt(balloonIndex);
+
+            // UI 제거 및 애니메이션
+            if (laneIdx < _balloonImages.Count && balloonIndex < _balloonImages[laneIdx].Count)
+            {
+                var balloonList = _balloonImages[laneIdx];
+                var balloonImage = balloonList[balloonIndex];
+                balloonList.RemoveAt(balloonIndex);
+
+                if (balloonImage != null)
+                {
+                    // 팝 애니메이션
+                    AnimatePop(balloonImage.gameObject);
+                }
+
+                // 남은 풍선들 위치 애니메이션 (활성 풍선이 제거된 경우)
+                if (balloonIndex == 0 && balloonList.Count > 0)
+                {
+                    AnimateRemainingBalloons(balloonList, balloonImage, laneIdx);
+
+                    // 다음 풍선에게 활성화 알림
+                    if (instanceLane.Count > 0)
+                    {
+                        instanceLane[0].PositionInLane = 0;
+                        instanceLane[0].NotifyBecomeActive();
+                    }
+                }
+            }
+
+            // 나머지 인스턴스들의 PositionInLane 업데이트
+            for (int i = 0; i < instanceLane.Count; i++)
+            {
+                instanceLane[i].PositionInLane = i;
+            }
+
+            UpdateHeadHighlights();
+        }
+
         // ========== 공개 인터페이스 ==========
 
         /// <summary>
@@ -95,6 +209,22 @@ namespace BalloonOut.UI
                 var lane = lanesData[laneIdx];
                 var balloonDataList = lane.GetBalloonDataList();
 
+                // 디버그: balloonData와 gimmicks 확인
+                Debug.Log($"[QueueUI] Lane {laneIdx}: balloonData count={lane.balloonData?.Count ?? 0}, balloons count={lane.balloons?.Count ?? 0}");
+                for (int b = 0; b < balloonDataList.Count; b++)
+                {
+                    var bd = balloonDataList[b];
+                    int gimmickCount = bd.gimmicks?.Count ?? 0;
+                    Debug.Log($"[QueueUI] Lane {laneIdx}, Balloon {b}: color={bd.color}, gimmicks={gimmickCount}");
+                    if (gimmickCount > 0)
+                    {
+                        foreach (var g in bd.gimmicks)
+                        {
+                            Debug.Log($"[QueueUI]   -> Gimmick: {g.gimmickId}, params: {string.Join(", ", g.Parameters)}");
+                        }
+                    }
+                }
+
                 _lanes.Add(lane.GetColors());
 
                 // BalloonInstance 생성
@@ -108,6 +238,9 @@ namespace BalloonOut.UI
             }
 
             CreateUI();
+
+            // Connected 기믹 실타래 렌더러 설정
+            SetupConnectedRenderers();
 
             // 첫 번째 풍선들(활성 위치)에 OnBecomeActive 호출
             NotifyActiveBalloons();
@@ -126,6 +259,38 @@ namespace BalloonOut.UI
                     lane[0].NotifyBecomeActive();
                 }
             }
+        }
+
+        /// <summary>
+        /// Connected 기믹 실타래 렌더러 설정
+        /// 연결된 풍선들 사이에 시각적 연결선 표시
+        /// </summary>
+        private void SetupConnectedRenderers()
+        {
+            int totalBalloons = 0;
+            int connectedBalloons = 0;
+
+            foreach (var lane in _balloonInstances)
+            {
+                foreach (var balloon in lane)
+                {
+                    totalBalloons++;
+                    var connectedData = balloon.GetGimmickData("connected");
+                    if (connectedData != null)
+                    {
+                        connectedBalloons++;
+                        string groupId = connectedData.GetParam("groupId", "");
+                        Debug.Log($"[QueueUI] Found Connected balloon at lane {balloon.LaneIndex}, groupId: '{groupId}'");
+                        if (!string.IsNullOrEmpty(groupId))
+                        {
+                            var renderer = ConnectedLineRenderer.GetOrCreate(groupId, _lanesContainer);
+                            renderer.AddBalloon(balloon);
+                        }
+                    }
+                }
+            }
+
+            Debug.Log($"[QueueUI] SetupConnectedRenderers: Total balloons: {totalBalloons}, Connected balloons: {connectedBalloons}");
         }
 
         /// <summary>
@@ -177,6 +342,12 @@ namespace BalloonOut.UI
                 var lane = _lanes[laneIdx];
                 var instanceLane = _balloonInstances.Count > laneIdx ? _balloonInstances[laneIdx] : null;
 
+                // Connected 기믹: Marked 풍선은 Target에서 제외
+                if (instanceLane != null && instanceLane.Count > 0 && instanceLane[0].IsMarked())
+                {
+                    continue;  // 이 레인은 스킵
+                }
+
                 // balloons[0]이 활성 풍선 (가장 아래)
                 if (lane.Count > 0 && lane[0] == color)
                 {
@@ -194,6 +365,14 @@ namespace BalloonOut.UI
                         {
                             // 기믹에 의해 팝 방지됨 (Number 기믹 등)
                             return PopResult.Hit;
+                        }
+
+                        // Connected 렌더러에서 제거
+                        var connectedData = balloon.GetGimmickData("connected");
+                        if (connectedData != null)
+                        {
+                            string groupId = connectedData.GetParam("groupId", "");
+                            ConnectedLineRenderer.RemoveBalloonFromGroup(groupId, balloon);
                         }
 
                         // 팝 진행 - 기믹 알림
@@ -261,12 +440,21 @@ namespace BalloonOut.UI
         /// <summary>
         /// 특정 색상의 풍선 월드 좌표 반환 (HomingArrow 타겟용)
         /// 해당 색상의 활성 풍선(첫 번째 풍선, 가장 아래) 위치를 반환
+        /// Connected 기믹의 Marked 풍선은 제외
         /// </summary>
         public Vector3 GetBalloonWorldPosition(GameColor color)
         {
             for (int laneIdx = 0; laneIdx < _lanes.Count; laneIdx++)
             {
                 var lane = _lanes[laneIdx];
+                var instanceLane = _balloonInstances.Count > laneIdx ? _balloonInstances[laneIdx] : null;
+
+                // Connected 기믹: Marked 풍선은 Target에서 제외
+                if (instanceLane != null && instanceLane.Count > 0 && instanceLane[0].IsMarked())
+                {
+                    continue;  // 이 레인은 스킵
+                }
+
                 // balloons[0]이 활성 풍선 (가장 아래)
                 if (lane.Count > 0 && lane[0] == color)
                 {
@@ -915,13 +1103,23 @@ namespace BalloonOut.UI
         /// <summary>
         /// 활성 풍선 색상 목록 반환 (Hint용)
         /// 각 레인의 첫 번째 풍선(활성) 색상들
+        /// Connected 기믹의 Marked 풍선은 제외
         /// </summary>
         public List<GameColor> GetActiveBalloonColors()
         {
             var colors = new List<GameColor>();
 
-            foreach (var lane in _lanes)
+            for (int laneIdx = 0; laneIdx < _lanes.Count; laneIdx++)
             {
+                var lane = _lanes[laneIdx];
+                var instanceLane = _balloonInstances.Count > laneIdx ? _balloonInstances[laneIdx] : null;
+
+                // Connected 기믹: Marked 풍선은 Target에서 제외
+                if (instanceLane != null && instanceLane.Count > 0 && instanceLane[0].IsMarked())
+                {
+                    continue;  // 이 레인은 스킵
+                }
+
                 if (lane.Count > 0)
                 {
                     colors.Add(lane[0]);
@@ -1145,12 +1343,21 @@ namespace BalloonOut.UI
 
         /// <summary>
         /// 특정 색상의 활성 풍선이 있는 레인 인덱스 반환
+        /// Connected 기믹의 Marked 풍선은 제외
         /// </summary>
         public int FindLaneWithActiveBalloon(GameColor color)
         {
             for (int laneIdx = 0; laneIdx < _lanes.Count; laneIdx++)
             {
                 var lane = _lanes[laneIdx];
+                var instanceLane = _balloonInstances.Count > laneIdx ? _balloonInstances[laneIdx] : null;
+
+                // Connected 기믹: Marked 풍선은 Target에서 제외
+                if (instanceLane != null && instanceLane.Count > 0 && instanceLane[0].IsMarked())
+                {
+                    continue;  // 이 레인은 스킵
+                }
+
                 if (lane.Count > 0 && lane[0] == color)
                 {
                     return laneIdx;
@@ -1442,6 +1649,9 @@ namespace BalloonOut.UI
         /// </summary>
         private void Clear()
         {
+            // Connected 실타래 렌더러 정리
+            ConnectedLineRenderer.ClearAll();
+
             foreach (var lane in _balloonImages)
             {
                 foreach (var balloon in lane)
