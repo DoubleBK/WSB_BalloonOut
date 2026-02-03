@@ -126,6 +126,7 @@ namespace BalloonOut.UI
                 BoosterManager.Instance.OnUndoAvailabilityChanged += OnUndoAvailabilityChanged;
                 BoosterManager.Instance.OnHintArrowSelected += OnHintArrowSelected;
                 BoosterManager.Instance.OnHintCleared += OnHintCleared;
+                BoosterManager.Instance.OnTripleArrowStateChanged += OnTripleArrowStateChanged;
             }
 
             if (GameManager.Instance != null)
@@ -142,6 +143,7 @@ namespace BalloonOut.UI
                 BoosterManager.Instance.OnUndoAvailabilityChanged -= OnUndoAvailabilityChanged;
                 BoosterManager.Instance.OnHintArrowSelected -= OnHintArrowSelected;
                 BoosterManager.Instance.OnHintCleared -= OnHintCleared;
+                BoosterManager.Instance.OnTripleArrowStateChanged -= OnTripleArrowStateChanged;
             }
 
             if (GameManager.Instance != null)
@@ -185,8 +187,11 @@ namespace BalloonOut.UI
 
             PlayClickAnimation(_tripleArrowButton.transform, () =>
             {
-                // TODO: TripleArrow 구현 (2차 개발)
-                Debug.Log("[BoosterBottomBarUI] TripleArrow not implemented yet");
+                if (BoosterManager.Instance != null)
+                {
+                    BoosterManager.Instance.UseTripleArrow();
+                    UpdateTripleArrowButtonState();
+                }
             });
         }
 
@@ -238,13 +243,14 @@ namespace BalloonOut.UI
 
         private void UpdateTripleArrowButtonState()
         {
+            bool canUse = BoosterManager.Instance?.CanUseTripleArrow() ?? false;
             UpdateButtonState(
                 ITEM_TYPE.TRIPLEARROW,
                 _tripleArrowButton,
                 _tripleArrowQuantityText,
                 _tripleArrowCanvasGroup,
                 _tripleArrowLockIcon,
-                false // 2차 개발 - 항상 비활성
+                canUse
             );
         }
 
@@ -304,6 +310,9 @@ namespace BalloonOut.UI
             // 모든 부스터는 Playing 상태에서만 사용 가능
             if (GameManager.Instance?.State != GameState.Playing) return false;
 
+            // 부스터 실행 중 다른 부스터 사용 불가
+            if (GameManager.Instance?.IsUILockedForBooster ?? false) return false;
+
             bool hasQuantity = BoosterManager.Instance.GetBoosterQuantity(itemType) > 0;
             bool isUnlocked = BoosterManager.Instance.IsBoosterUnlocked(itemType);
 
@@ -318,6 +327,12 @@ namespace BalloonOut.UI
             {
                 return hasQuantity && isUnlocked
                     && !(BoosterManager.Instance?.IsHintActive ?? false);
+            }
+
+            // Triple Arrow 추가 조건: 유효 타겟 존재 & 실행 중 아님
+            if (itemType == ITEM_TYPE.TRIPLEARROW)
+            {
+                return BoosterManager.Instance.CanUseTripleArrow();
             }
 
             return hasQuantity && isUnlocked;
@@ -361,6 +376,11 @@ namespace BalloonOut.UI
         private void OnGameStateChanged(GameState newState)
         {
             UpdateAllButtonStates();
+        }
+
+        private void OnTripleArrowStateChanged()
+        {
+            UpdateTripleArrowButtonState();
         }
 
         // ========== 애니메이션 ==========

@@ -127,6 +127,9 @@ namespace BalloonOut.Core
         {
             if (!_isInputEnabled) return;
 
+            // 부스터 실행 중 입력 차단
+            if (GameManager.Instance?.IsUILockedForBooster ?? false) return;
+
             // 마우스 휠 줌
             float scroll = Input.mouseScrollDelta.y;
             if (scroll != 0f)
@@ -153,6 +156,9 @@ namespace BalloonOut.Core
         private void HandleTouchInput()
         {
             if (!_isInputEnabled) return;
+
+            // 부스터 실행 중 입력 차단
+            if (GameManager.Instance?.IsUILockedForBooster ?? false) return;
 
             // 마우스 휠 줌 (에뮬레이터/마우스 연결 태블릿 지원)
             float scroll = Input.mouseScrollDelta.y;

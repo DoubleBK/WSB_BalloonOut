@@ -51,14 +51,23 @@ namespace BalloonOut.Game.Gimmick.Behaviors
 
         public bool OnHit(BalloonInstance balloon, GimmickInstanceData data, GameColor arrowColor, out GimmickHitResult result)
         {
-            // Surprise 기믹은 공개되지 않은 상태에서 히트 불가
+            // 공개되지 않은 상태면 즉시 공개 처리 (Triple Arrow 등 비활성 풍선 Hit 지원)
             if (!data.GetParamBool(PARAM_IS_REVEALED))
             {
-                result = GimmickHitResult.Reject("Not revealed yet!");
-                return false;
+                // 즉시 공개 (애니메이션 없이)
+                data.SetParam(PARAM_IS_REVEALED, true);
+
+                // 비주얼 업데이트
+                if (balloon.Visual != null)
+                {
+                    balloon.Visual.SetGrayOverlay(false);
+                    balloon.Visual.HideOverlayText();
+                }
+
+                Debug.Log($"[SurpriseGimmick] Force revealed on hit: {balloon.Color} at lane {balloon.LaneIndex}");
             }
 
-            // 공개된 상태면 정상 처리
+            // 정상 처리 - Pop 허용
             result = GimmickHitResult.DefaultPop;
             return true;
         }

@@ -59,6 +59,7 @@ namespace BalloonOut.Core
         private List<ArrowController> _arrows = new List<ArrowController>();
         private bool _isProcessing = false;
         private int _pendingHomingArrows = 0;  // 비행 중인 HomingArrow 개수
+        private bool _isUILockedForBooster = false;  // 부스터 실행 중 UI 락
 
         // Undo용 이동 전 스냅샷 저장
         private Dictionary<int, ArrowSnapshot> _preMoveSnapshots = new Dictionary<int, ArrowSnapshot>();
@@ -84,6 +85,7 @@ namespace BalloonOut.Core
         public int CurrentLevelIdx => _currentLevelIdx;
         public StageTableEntry CurrentStageEntry => _currentStageEntry;
         public int TotalLevelCount => StageLoader.GetTotalLevelCount();
+        public bool IsUILockedForBooster => _isUILockedForBooster;
 
         // ========== 유니티 라이프사이클 ==========
         private void Awake()
@@ -396,10 +398,11 @@ namespace BalloonOut.Core
         /// </summary>
         private void OnArrowTapped(ArrowController arrow)
         {
-            Debug.Log($"[GameManager] OnArrowTapped: Arrow={arrow?.Id}, State={_state}, IsProcessing={_isProcessing}, CanLaunch={arrow?.CanLaunch}");
+            Debug.Log($"[GameManager] OnArrowTapped: Arrow={arrow?.Id}, State={_state}, IsProcessing={_isProcessing}, UILocked={_isUILockedForBooster}, CanLaunch={arrow?.CanLaunch}");
 
             if (_state != GameState.Playing) return;
             if (_isProcessing) return;
+            if (_isUILockedForBooster) return;  // 부스터 실행 중 입력 차단
             if (!arrow.CanLaunch) return;
 
             _isProcessing = true;
@@ -572,6 +575,27 @@ namespace BalloonOut.Core
         public void RequestWinConditionCheck()
         {
             CheckWinCondition();
+        }
+
+        // ========== 부스터 UI 락 ==========
+
+        /// <summary>
+        /// 부스터 실행 중 UI 인터랙션 락
+        /// (Triple Arrow 등 부스터 발사 중 다른 입력 차단)
+        /// </summary>
+        public void LockUIForBooster()
+        {
+            _isUILockedForBooster = true;
+            Debug.Log("[GameManager] UI locked for booster");
+        }
+
+        /// <summary>
+        /// 부스터 실행 완료 후 UI 인터랙션 해제
+        /// </summary>
+        public void UnlockUIForBooster()
+        {
+            _isUILockedForBooster = false;
+            Debug.Log("[GameManager] UI unlocked after booster");
         }
 
         /// <summary>

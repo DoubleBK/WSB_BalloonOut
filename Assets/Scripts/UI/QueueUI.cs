@@ -169,17 +169,17 @@ namespace BalloonOut.UI
                     AnimatePop(balloonImage.gameObject);
                 }
 
-                // 남은 풍선들 위치 애니메이션 (활성 풍선이 제거된 경우)
-                if (balloonIndex == 0 && balloonList.Count > 0)
+                // 남은 풍선들 위치 재배치 애니메이션 (어떤 풍선이든 제거 후)
+                if (balloonList.Count > 0)
                 {
                     AnimateRemainingBalloons(balloonList, balloonImage, laneIdx);
+                }
 
-                    // 다음 풍선에게 활성화 알림
-                    if (instanceLane.Count > 0)
-                    {
-                        instanceLane[0].PositionInLane = 0;
-                        instanceLane[0].NotifyBecomeActive();
-                    }
+                // 활성 풍선이 제거된 경우에만 다음 풍선에게 활성화 알림
+                if (balloonIndex == 0 && instanceLane.Count > 0)
+                {
+                    instanceLane[0].PositionInLane = 0;
+                    instanceLane[0].NotifyBecomeActive();
                 }
             }
 
@@ -1099,6 +1099,55 @@ namespace BalloonOut.UI
         }
 
         // ========== 부스터 지원 메서드 ==========
+
+        /// <summary>
+        /// Triple Arrow용 유효 타겟 풍선 목록 반환
+        /// 모든 레인의 모든 풍선 중 Marked 상태가 아닌 풍선을 랜덤하게 선택
+        /// </summary>
+        /// <param name="maxCount">최대 선택 개수 (기본 3)</param>
+        /// <returns>랜덤하게 선택된 유효 타겟 풍선 목록</returns>
+        public List<BalloonInstance> GetValidTargetsForTripleArrow(int maxCount = 3)
+        {
+            var validTargets = new List<BalloonInstance>();
+
+            // 모든 레인의 모든 풍선 수집
+            foreach (var lane in _balloonInstances)
+            {
+                foreach (var balloon in lane)
+                {
+                    // Marked 풍선 제외 (Connected 기믹)
+                    if (balloon.IsMarked()) continue;
+
+                    validTargets.Add(balloon);
+                }
+            }
+
+            // 셔플
+            ShuffleList(validTargets);
+
+            // 최대 개수만큼 반환
+            if (validTargets.Count > maxCount)
+            {
+                return validTargets.GetRange(0, maxCount);
+            }
+
+            return validTargets;
+        }
+
+        /// <summary>
+        /// 리스트 셔플 (Fisher-Yates 알고리즘)
+        /// </summary>
+        private void ShuffleList<T>(List<T> list)
+        {
+            int n = list.Count;
+            for (int i = n - 1; i > 0; i--)
+            {
+                int j = Random.Range(0, i + 1);
+                T temp = list[i];
+                list[i] = list[j];
+                list[j] = temp;
+            }
+        }
 
         /// <summary>
         /// 활성 풍선 색상 목록 반환 (Hint용)

@@ -2,6 +2,7 @@ using System;
 using UnityEngine;
 using BalloonOut.Core;
 using BalloonOut.UI;
+using BalloonOut.Game.Balloon;
 using DG.Tweening;
 
 namespace BalloonOut.Game.Arrow
@@ -34,6 +35,10 @@ namespace BalloonOut.Game.Arrow
         [SerializeField] private float _trailTimePerCell = 0.08f;
         [SerializeField] private float _baseTrailTime = 0.15f;
 
+        [Header("무지개 모드")]
+        [SerializeField] private Gradient _rainbowGradient;
+        [SerializeField] private float _rainbowCycleSpeed = 2f;
+
         // ========== 내부 상태 변수 ==========
         private Vector3 _originalScale;
         private int _originalArrowLength = 3;
@@ -48,16 +53,23 @@ namespace BalloonOut.Game.Arrow
         private Vector3 _targetPosition;
         private QueueUI _queueUI;
 
+        // Triple Arrow용: 특정 풍선 타겟팅
+        private BalloonInstance _targetBalloon;
+        private bool _isRainbowMode;
+
         // 원본 화살표 스냅샷 (Undo용)
         private ArrowSnapshot _sourceArrowSnapshot;
 
         // ========== 이벤트 ==========
         public event Action<HomingArrow, GameColor> OnHitTarget;
+        public event Action<HomingArrow, BalloonInstance> OnHitBalloonTarget;
 
         // ========== 프로퍼티 ==========
         public GameColor Color => _color;
         public bool IsHoming => _isHoming;
         public ArrowSnapshot SourceArrowSnapshot => _sourceArrowSnapshot;
+        public BalloonInstance TargetBalloon => _targetBalloon;
+        public bool IsRainbowMode => _isRainbowMode;
 
         // ========== 유니티 라이프사이클 ==========
         private void Awake()
@@ -91,7 +103,37 @@ namespace BalloonOut.Game.Arrow
             if (_isHoming)
             {
                 UpdateHoming();
+
+                // 무지개 모드: 매 프레임 비주얼 업데이트
+                if (_isRainbowMode)
+                {
+                    UpdateRainbowVisual();
+                }
             }
+        }
+
+        /// <summary>
+        /// 무지개 모드 비주얼 업데이트 (색상 애니메이션)
+        /// </summary>
+        private void UpdateRainbowVisual()
+        {
+            if (_spriteRenderer == null) return;
+
+            // 시간에 따른 무지개색 변화
+            float t = (Time.time * _rainbowCycleSpeed) % 1f;
+            Color rainbowColor;
+
+            if (_rainbowGradient != null && _rainbowGradient.colorKeys.Length > 0)
+            {
+                rainbowColor = _rainbowGradient.Evaluate(t);
+            }
+            else
+            {
+                // 기본 무지개색 생성 (HSV 기반)
+                rainbowColor = UnityEngine.Color.HSVToRGB(t, 0.8f, 1f);
+            }
+
+            _spriteRenderer.color = rainbowColor;
         }
 
         // ========== 공개 인터페이스 ==========
@@ -169,6 +211,49 @@ namespace BalloonOut.Game.Arrow
         }
 
         /// <summary>
+        /// Triple Arrow용: 특정 BalloonInstance 타겟 호밍 시작 (무지개 모드)
+        /// </summary>
+        public void StartHomingToBalloon(Vector2 startPos, BalloonInstance targetBalloon, bool isRainbow = true)
+        {
+            if (targetBalloon == null || targetBalloon.Visual == null)
+            {
+                Debug.LogWarning("[HomingArrow] StartHomingToBalloon: Invalid target balloon or visual");
+                Destroy(gameObject);
+                return;
+            }
+
+            _startPosition = startPos;
+            _targetBalloon = targetBalloon;
+            _color = targetBalloon.Color;
+            _isRainbowMode = isRainbow;
+            _queueUI = null;
+            _progress = 0f;
+            _isHoming = true;
+
+            transform.position = startPos;
+
+            // 초기 타겟 위치
+            _targetPosition = targetBalloon.Visual.transform.position;
+
+            // 컨트롤 포인트: 위쪽으로 곡선
+            Vector2 midPoint = (_startPosition + (Vector2)_targetPosition) * 0.5f;
+            Vector2 toTarget = ((Vector2)_targetPosition - _startPosition).normalized;
+            Vector2 perpendicular = new Vector2(-toTarget.y, toTarget.x);
+            _controlPoint = midPoint + perpendicular * _curveStrength;
+
+            // 초기 회전
+            float initialAngle = Mathf.Atan2(toTarget.y, toTarget.x) * Mathf.Rad2Deg - 90f;
+            transform.rotation = Quaternion.Euler(0, 0, initialAngle);
+
+            SetTrailLength(_originalArrowLength);
+            UpdateVisual();
+            PlayLaunchAnimation();
+            SpawnLaunchParticle();
+
+            Debug.Log($"[HomingArrow] StartHomingToBalloon: target lane {targetBalloon.LaneIndex}, color {_color}, rainbow={isRainbow}");
+        }
+
+        /// <summary>
         /// Trail 길이를 Arrow 길이에 따라 설정
         /// </summary>
         private void SetTrailLength(int arrowLength)
@@ -182,8 +267,13 @@ namespace BalloonOut.Game.Arrow
         // ========== 내부 유틸리티 ==========
         private void UpdateHoming()
         {
+            // BalloonInstance 타겟이 있으면 해당 위치 추적
+            if (_targetBalloon != null && _targetBalloon.Visual != null)
+            {
+                _targetPosition = _targetBalloon.Visual.transform.position;
+            }
             // QueueUI 참조가 있으면 매 프레임 위치 업데이트 (카메라 이동 대응)
-            if (_queueUI != null)
+            else if (_queueUI != null)
             {
                 Vector3 newTargetPos = _queueUI.GetBalloonWorldPosition(_color);
                 if (newTargetPos != Vector3.zero)
@@ -225,8 +315,17 @@ namespace BalloonOut.Game.Arrow
 
             SpawnHitParticle();
 
-            OnHitTarget?.Invoke(this, _color);
-            Debug.Log($"[HomingArrow] Hit target, color: {_color}");
+            // BalloonInstance 타겟이 있으면 해당 이벤트 발생
+            if (_targetBalloon != null)
+            {
+                OnHitBalloonTarget?.Invoke(this, _targetBalloon);
+                Debug.Log($"[HomingArrow] Hit balloon target, lane: {_targetBalloon.LaneIndex}, color: {_color}");
+            }
+            else
+            {
+                OnHitTarget?.Invoke(this, _color);
+                Debug.Log($"[HomingArrow] Hit target, color: {_color}");
+            }
 
             Destroy(gameObject, 0.1f);
         }
@@ -277,7 +376,25 @@ namespace BalloonOut.Game.Arrow
 
         private void UpdateVisual()
         {
-            Color unityColor = ColorHelper.GetColor(_color);
+            Color unityColor;
+
+            if (_isRainbowMode)
+            {
+                // 무지개 모드: 그라디언트 사용 또는 기본 무지개색
+                if (_rainbowGradient != null && _rainbowGradient.colorKeys.Length > 0)
+                {
+                    unityColor = _rainbowGradient.Evaluate(Time.time * _rainbowCycleSpeed % 1f);
+                }
+                else
+                {
+                    // 기본 무지개색 (마젠타)
+                    unityColor = new Color(1f, 0.4f, 0.8f, 1f);
+                }
+            }
+            else
+            {
+                unityColor = ColorHelper.GetColor(_color);
+            }
 
             if (_spriteRenderer != null)
             {
@@ -286,9 +403,45 @@ namespace BalloonOut.Game.Arrow
 
             if (_trailRenderer != null)
             {
-                _trailRenderer.startColor = unityColor;
-                _trailRenderer.endColor = new Color(unityColor.r, unityColor.g, unityColor.b, 0f);
+                if (_isRainbowMode)
+                {
+                    // 무지개 Trail: 그라디언트 사용
+                    SetRainbowTrail();
+                }
+                else
+                {
+                    _trailRenderer.startColor = unityColor;
+                    _trailRenderer.endColor = new Color(unityColor.r, unityColor.g, unityColor.b, 0f);
+                }
             }
+        }
+
+        /// <summary>
+        /// Trail에 무지개 그라디언트 적용
+        /// </summary>
+        private void SetRainbowTrail()
+        {
+            if (_trailRenderer == null) return;
+
+            // 무지개 색상 그라디언트
+            Gradient gradient = new Gradient();
+            gradient.SetKeys(
+                new GradientColorKey[]
+                {
+                    new GradientColorKey(UnityEngine.Color.red, 0f),
+                    new GradientColorKey(UnityEngine.Color.yellow, 0.25f),
+                    new GradientColorKey(UnityEngine.Color.green, 0.5f),
+                    new GradientColorKey(UnityEngine.Color.cyan, 0.75f),
+                    new GradientColorKey(new UnityEngine.Color(1f, 0.4f, 0.8f), 1f)  // 마젠타
+                },
+                new GradientAlphaKey[]
+                {
+                    new GradientAlphaKey(1f, 0f),
+                    new GradientAlphaKey(0.8f, 0.5f),
+                    new GradientAlphaKey(0f, 1f)
+                }
+            );
+            _trailRenderer.colorGradient = gradient;
         }
     }
 }

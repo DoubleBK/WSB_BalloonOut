@@ -21,21 +21,25 @@ namespace BalloonOut.Core
         public event Action<bool> OnUndoAvailabilityChanged;
         public event Action<ArrowController> OnHintArrowSelected;
         public event Action OnHintCleared;
+        public event Action OnTripleArrowStateChanged;  // Triple Arrow 실행 완료 시 발생
 
         // ========== 참조 ==========
         [Header("References")]
         [SerializeField] private QueueUI _queueUI;
+        [SerializeField] private TripleArrowController _tripleArrowController;
 
         // ========== 내부 상태 ==========
         private UndoHistoryManager _undoHistory;
         private HintCalculator _hintCalculator;
         private ArrowController _currentHintArrow;
         private bool _isUndoInProgress;
+        private bool _isTripleArrowInProgress;
 
         // ========== 프로퍼티 ==========
         public bool CanUndo => !_isUndoInProgress && _undoHistory != null && _undoHistory.HasHistory;
         public int UndoHistoryCount => _undoHistory?.HistoryCount ?? 0;
         public bool IsHintActive => _currentHintArrow != null;
+        public bool IsTripleArrowInProgress => _isTripleArrowInProgress;
 
         // ========== 유니티 라이프사이클 ==========
         private void Awake()
@@ -63,6 +67,18 @@ namespace BalloonOut.Core
             if (_queueUI == null)
             {
                 _queueUI = FindObjectOfType<QueueUI>();
+            }
+
+            // TripleArrowController 참조 확인
+            if (_tripleArrowController == null)
+            {
+                _tripleArrowController = FindObjectOfType<TripleArrowController>();
+            }
+
+            // TripleArrowController 초기화
+            if (_tripleArrowController != null)
+            {
+                _tripleArrowController.Initialize(_queueUI);
             }
         }
 
@@ -272,6 +288,90 @@ namespace BalloonOut.Core
                 _currentHintArrow = null;
                 OnHintCleared?.Invoke();
             }
+        }
+
+        // ========== Triple Arrow 부스터 ==========
+
+        /// <summary>
+        /// Triple Arrow 사용 가능 여부
+        /// </summary>
+        public bool CanUseTripleArrow()
+        {
+            if (_isTripleArrowInProgress)
+                return false;
+
+            if (!BoosterInventory.Instance.CanUse(ITEM_TYPE.TRIPLEARROW))
+                return false;
+
+            // 유효 타겟이 1개 이상 있어야 함
+            if (_queueUI == null)
+                return false;
+
+            var validTargets = _queueUI.GetValidTargetsForTripleArrow(1);
+            return validTargets.Count > 0;
+        }
+
+        /// <summary>
+        /// Triple Arrow 부스터 사용
+        /// </summary>
+        public bool UseTripleArrow()
+        {
+            if (!CanUseTripleArrow())
+            {
+                Debug.Log("[BoosterManager] Cannot use Triple Arrow");
+                return false;
+            }
+
+            if (_tripleArrowController == null)
+            {
+                Debug.LogError("[BoosterManager] TripleArrowController not found!");
+                return false;
+            }
+
+            // 수량 차감
+            if (!BoosterInventory.Instance.TryUse(ITEM_TYPE.TRIPLEARROW))
+            {
+                Debug.Log("[BoosterManager] Cannot use Triple Arrow: no boosters remaining");
+                return false;
+            }
+
+            _isTripleArrowInProgress = true;
+
+            // UI 락
+            GameManager.Instance?.LockUIForBooster();
+
+            // 타겟 선택
+            var targets = _queueUI.GetValidTargetsForTripleArrow(3);
+
+            Debug.Log($"[BoosterManager] Using Triple Arrow with {targets.Count} targets");
+
+            // 발사 완료 이벤트 구독
+            _tripleArrowController.OnTripleArrowComplete += OnTripleArrowComplete;
+
+            // 발사
+            _tripleArrowController.Execute(targets);
+
+            return true;
+        }
+
+        /// <summary>
+        /// Triple Arrow 완료 핸들러
+        /// </summary>
+        private void OnTripleArrowComplete()
+        {
+            _tripleArrowController.OnTripleArrowComplete -= OnTripleArrowComplete;
+            _isTripleArrowInProgress = false;
+
+            // UI 락 해제
+            GameManager.Instance?.UnlockUIForBooster();
+
+            // Triple Arrow 상태 변경 알림 (버튼 상태 업데이트용)
+            OnTripleArrowStateChanged?.Invoke();
+
+            // 승리 조건 체크
+            GameManager.Instance?.RequestWinConditionCheck();
+
+            Debug.Log("[BoosterManager] Triple Arrow complete");
         }
 
         // ========== 부스터 수량 조회 ==========
