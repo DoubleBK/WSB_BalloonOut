@@ -910,9 +910,11 @@ namespace BalloonOut.Data
                             x = b.x,
                             y = gridHeight - 1 - b.y,  // Generator → Game 좌표계 변환 (Y 플립)
                             color = b.color,
-                            // 직선 화살표: Y축 반전에 따라 U↔D 플립
-                            // Bending 화살표: path에서 방향 재계산되므로 원본 유지 (나중에 덮어씌워짐)
-                            direction = (b.path != null && b.path.Count > 0) ? b.dir : FlipYDirection(b.dir),
+                            // 방향은 플립하지 않음!
+                            // Generator "U" = 상단 가장자리로 탈출 = Game "U" (동일한 의미)
+                            // Y좌표만 플립하고 방향은 유지해야 ArrowData.GetCells()가 올바른 셀을 계산함
+                            // Bending 화살표: path에서 방향 재계산됨
+                            direction = b.dir,
                             length = b.length,
                             order = orderMap.ContainsKey(idx) ? orderMap[idx] : 0,
                             isFiller = b.isFiller,
