@@ -21,9 +21,9 @@ MonoBehaviour:
   defaultText: 
   font: {fileID: 0}
   fontSize: 36
-  textColor: {r: 1, g: 1, b: 1, a: 1}
+  textColor: {r: 0, g: 0, b: 0, a: 1}
   textOutlineWidth: 0.2
-  textOutlineColor: {r: 0, g: 0, b: 0, a: 1}
+  textOutlineColor: {r: 0.5019608, g: 0.5019608, b: 0.5019608, a: 1}
   animationDuration: 0.3
   particleEffectPrefab: {fileID: 0}
   defaultParameters: []
