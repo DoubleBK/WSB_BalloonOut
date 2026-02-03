@@ -360,24 +360,27 @@ namespace BalloonOut.Game.Arrow
         }
 
         /// <summary>
-        /// GameColor → Unity Color 변환
+        /// GameColor → Unity Color 변환 (HDR NEON 색상)
         /// </summary>
         public static Color GetUnityColor(GameColor gameColor)
         {
+            // HDR 강도 적용 (NEON 효과)
+            const float neonIntensity = 2.0f;
+
             return gameColor switch
             {
-                GameColor.Red => new Color(0.9f, 0.2f, 0.2f),
-                GameColor.Blue => new Color(0.2f, 0.4f, 0.9f),
-                GameColor.Green => new Color(0.2f, 0.8f, 0.3f),
-                GameColor.Yellow => new Color(0.95f, 0.85f, 0.2f),
-                GameColor.Purple => new Color(0.7f, 0.3f, 0.9f),
-                GameColor.Orange => new Color(1f, 0.65f, 0f),
-                GameColor.Cyan => new Color(0f, 0.9f, 0.9f),
-                GameColor.Pink => new Color(1f, 0.75f, 0.8f),
-                GameColor.Brown => new Color(0.55f, 0.27f, 0.07f),
-                GameColor.Lime => new Color(0.2f, 0.8f, 0.2f),
-                GameColor.Navy => new Color(0.1f, 0.1f, 0.5f),
-                GameColor.Magenta => new Color(1f, 0f, 1f),
+                GameColor.Red => new Color(0.9f * neonIntensity, 0.2f * neonIntensity, 0.2f * neonIntensity),
+                GameColor.Blue => new Color(0.2f * neonIntensity, 0.4f * neonIntensity, 0.9f * neonIntensity),
+                GameColor.Green => new Color(0.2f * neonIntensity, 0.8f * neonIntensity, 0.3f * neonIntensity),
+                GameColor.Yellow => new Color(0.95f * neonIntensity, 0.85f * neonIntensity, 0.2f * neonIntensity),
+                GameColor.Purple => new Color(0.7f * neonIntensity, 0.3f * neonIntensity, 0.9f * neonIntensity),
+                GameColor.Orange => new Color(1f * neonIntensity, 0.65f * neonIntensity, 0f),
+                GameColor.Cyan => new Color(0f, 0.9f * neonIntensity, 0.9f * neonIntensity),
+                GameColor.Pink => new Color(1f * neonIntensity, 0.75f * neonIntensity, 0.8f * neonIntensity),
+                GameColor.Brown => new Color(0.55f * 1.5f, 0.27f * 1.5f, 0.07f * 1.5f),  // 갈색은 약하게
+                GameColor.Lime => new Color(0.2f * neonIntensity, 0.8f * neonIntensity, 0.2f * neonIntensity),
+                GameColor.Navy => new Color(0.1f * neonIntensity, 0.1f * neonIntensity, 0.5f * neonIntensity),
+                GameColor.Magenta => new Color(1f * neonIntensity, 0f, 1f * neonIntensity),
                 _ => Color.white
             };
         }

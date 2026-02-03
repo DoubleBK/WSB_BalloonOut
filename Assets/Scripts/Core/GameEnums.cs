@@ -140,7 +140,15 @@ namespace BalloonOut.Core
     /// </summary>
     public static class ColorHelper
     {
-        public static readonly Dictionary<GameColor, Color> Colors = new()
+        /// <summary>
+        /// NEON HDR 색상 강도 (1.0 = 일반, 2.0+ = 발광)
+        /// </summary>
+        public static float NeonIntensity = 2.0f;
+
+        /// <summary>
+        /// 기본 색상 (HDR 적용 전)
+        /// </summary>
+        private static readonly Dictionary<GameColor, Color> BaseColors = new()
         {
             { GameColor.Red, new Color(1f, 0.275f, 0.341f) },
             { GameColor.Blue, new Color(0.325f, 0.322f, 0.929f) },
@@ -155,6 +163,26 @@ namespace BalloonOut.Core
             { GameColor.Navy, new Color(0f, 0f, 0.5f) },
             { GameColor.Magenta, new Color(1f, 0f, 1f) },
             { GameColor.Black, new Color(0.2f, 0.2f, 0.2f) }
+        };
+
+        /// <summary>
+        /// HDR 색상 (NEON 효과용 - Bloom과 함께 사용)
+        /// </summary>
+        public static readonly Dictionary<GameColor, Color> Colors = new()
+        {
+            { GameColor.Red, new Color(1f * 2f, 0.275f * 2f, 0.341f * 2f) },
+            { GameColor.Blue, new Color(0.325f * 2f, 0.322f * 2f, 0.929f * 2f) },
+            { GameColor.Green, new Color(0.18f * 2f, 0.835f * 2f, 0.451f * 2f) },
+            { GameColor.Yellow, new Color(1f * 2f, 0.647f * 2f, 0.008f * 2f) },
+            { GameColor.Purple, new Color(0.557f * 2f, 0.267f * 2f, 0.678f * 2f) },
+            { GameColor.Orange, new Color(1f * 2f, 0.5f * 2f, 0f) },
+            { GameColor.Cyan, new Color(0f, 0.8f * 2f, 0.8f * 2f) },
+            { GameColor.Pink, new Color(1f * 2f, 0.4f * 2f, 0.7f * 2f) },
+            { GameColor.Brown, new Color(0.6f * 1.5f, 0.4f * 1.5f, 0.2f * 1.5f) },
+            { GameColor.Lime, new Color(0.25f * 2f, 0.65f * 2f, 0.65f * 2f) },
+            { GameColor.Navy, new Color(0f, 0f, 0.5f * 2f) },
+            { GameColor.Magenta, new Color(1f * 2f, 0f, 1f * 2f) },
+            { GameColor.Black, new Color(0.2f, 0.2f, 0.2f) }  // Black은 발광 안 함
         };
 
         public static GameColor FromString(string color)
@@ -181,6 +209,31 @@ namespace BalloonOut.Core
         public static Color GetColor(GameColor gameColor)
         {
             return Colors.TryGetValue(gameColor, out var color) ? color : Color.white;
+        }
+
+        /// <summary>
+        /// 기본 색상 반환 (HDR 미적용)
+        /// </summary>
+        public static Color GetBaseColor(GameColor gameColor)
+        {
+            return BaseColors.TryGetValue(gameColor, out var color) ? color : Color.white;
+        }
+
+        /// <summary>
+        /// HDR 강도를 적용한 색상 반환
+        /// </summary>
+        public static Color GetColorWithIntensity(GameColor gameColor, float intensity)
+        {
+            if (BaseColors.TryGetValue(gameColor, out var baseColor))
+            {
+                return new Color(
+                    baseColor.r * intensity,
+                    baseColor.g * intensity,
+                    baseColor.b * intensity,
+                    baseColor.a
+                );
+            }
+            return Color.white;
         }
 
         public static string ToString(GameColor gameColor)
