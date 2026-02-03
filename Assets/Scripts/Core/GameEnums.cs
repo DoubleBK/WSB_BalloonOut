@@ -146,43 +146,43 @@ namespace BalloonOut.Core
         public static float NeonIntensity = 2.0f;
 
         /// <summary>
-        /// 기본 색상 (HDR 적용 전)
+        /// 기본 색상 (표준 게임용 색상)
         /// </summary>
         private static readonly Dictionary<GameColor, Color> BaseColors = new()
         {
-            { GameColor.Red, new Color(1f, 0.275f, 0.341f) },
-            { GameColor.Blue, new Color(0.325f, 0.322f, 0.929f) },
-            { GameColor.Green, new Color(0.18f, 0.835f, 0.451f) },
-            { GameColor.Yellow, new Color(1f, 0.647f, 0.008f) },
-            { GameColor.Purple, new Color(0.557f, 0.267f, 0.678f) },
-            { GameColor.Orange, new Color(1f, 0.5f, 0f) },
-            { GameColor.Cyan, new Color(0f, 0.8f, 0.8f) },
-            { GameColor.Pink, new Color(1f, 0.4f, 0.7f) },
-            { GameColor.Brown, new Color(0.6f, 0.4f, 0.2f) },
-            { GameColor.Lime, new Color(0.25f, 0.65f, 0.65f) },  // Teal - Green과 구별되는 청록색
-            { GameColor.Navy, new Color(0f, 0f, 0.5f) },
-            { GameColor.Magenta, new Color(1f, 0f, 1f) },
-            { GameColor.Black, new Color(0.2f, 0.2f, 0.2f) }
+            { GameColor.Red, new Color(0.95f, 0.2f, 0.2f) },      // 선명한 빨강
+            { GameColor.Blue, new Color(0.2f, 0.4f, 0.95f) },     // 선명한 파랑
+            { GameColor.Green, new Color(0.2f, 0.85f, 0.3f) },    // 선명한 초록
+            { GameColor.Yellow, new Color(1f, 0.9f, 0.15f) },     // 선명한 노랑
+            { GameColor.Purple, new Color(0.6f, 0.25f, 0.85f) },  // 선명한 보라
+            { GameColor.Orange, new Color(1f, 0.55f, 0.1f) },     // 선명한 주황
+            { GameColor.Cyan, new Color(0.1f, 0.9f, 0.9f) },      // 선명한 청록
+            { GameColor.Pink, new Color(1f, 0.5f, 0.7f) },        // 선명한 분홍
+            { GameColor.Brown, new Color(0.6f, 0.35f, 0.15f) },   // 갈색
+            { GameColor.Lime, new Color(0.7f, 1f, 0.2f) },        // 라임 (연두)
+            { GameColor.Navy, new Color(0.15f, 0.2f, 0.6f) },     // 네이비
+            { GameColor.Magenta, new Color(0.95f, 0.1f, 0.9f) },  // 마젠타
+            { GameColor.Black, new Color(0.2f, 0.2f, 0.2f) }      // 검정
         };
 
         /// <summary>
-        /// HDR 색상 (NEON 효과용 - Bloom과 함께 사용)
+        /// 게임용 색상 (HDR 밝기 2배 적용 - 세련된 느낌)
         /// </summary>
         public static readonly Dictionary<GameColor, Color> Colors = new()
         {
-            { GameColor.Red, new Color(1f * 2f, 0.275f * 2f, 0.341f * 2f) },
-            { GameColor.Blue, new Color(0.325f * 2f, 0.322f * 2f, 0.929f * 2f) },
-            { GameColor.Green, new Color(0.18f * 2f, 0.835f * 2f, 0.451f * 2f) },
-            { GameColor.Yellow, new Color(1f * 2f, 0.647f * 2f, 0.008f * 2f) },
-            { GameColor.Purple, new Color(0.557f * 2f, 0.267f * 2f, 0.678f * 2f) },
-            { GameColor.Orange, new Color(1f * 2f, 0.5f * 2f, 0f) },
-            { GameColor.Cyan, new Color(0f, 0.8f * 2f, 0.8f * 2f) },
-            { GameColor.Pink, new Color(1f * 2f, 0.4f * 2f, 0.7f * 2f) },
-            { GameColor.Brown, new Color(0.6f * 1.5f, 0.4f * 1.5f, 0.2f * 1.5f) },
-            { GameColor.Lime, new Color(0.25f * 2f, 0.65f * 2f, 0.65f * 2f) },
-            { GameColor.Navy, new Color(0f, 0f, 0.5f * 2f) },
-            { GameColor.Magenta, new Color(1f * 2f, 0f, 1f * 2f) },
-            { GameColor.Black, new Color(0.2f, 0.2f, 0.2f) }  // Black은 발광 안 함
+            { GameColor.Red, new Color(0.95f * 2f, 0.2f * 2f, 0.2f * 2f) },
+            { GameColor.Blue, new Color(0.2f * 2f, 0.4f * 2f, 0.95f * 2f) },
+            { GameColor.Green, new Color(0.2f * 2f, 0.85f * 2f, 0.3f * 2f) },
+            { GameColor.Yellow, new Color(1f * 2f, 0.9f * 2f, 0.15f * 2f) },
+            { GameColor.Purple, new Color(0.6f * 2f, 0.25f * 2f, 0.85f * 2f) },
+            { GameColor.Orange, new Color(1f * 2f, 0.55f * 2f, 0.1f * 2f) },
+            { GameColor.Cyan, new Color(0.1f * 2f, 0.9f * 2f, 0.9f * 2f) },
+            { GameColor.Pink, new Color(1f * 2f, 0.5f * 2f, 0.7f * 2f) },
+            { GameColor.Brown, new Color(0.6f * 1.5f, 0.35f * 1.5f, 0.15f * 1.5f) },  // 갈색은 약하게
+            { GameColor.Lime, new Color(0.7f * 2f, 1f * 2f, 0.2f * 2f) },
+            { GameColor.Navy, new Color(0.15f * 2f, 0.2f * 2f, 0.6f * 2f) },
+            { GameColor.Magenta, new Color(0.95f * 2f, 0.1f * 2f, 0.9f * 2f) },
+            { GameColor.Black, new Color(0.2f, 0.2f, 0.2f) }
         };
 
         public static GameColor FromString(string color)
