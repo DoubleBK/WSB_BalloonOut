@@ -371,6 +371,250 @@ namespace BalloonOut.Data
             }
         }
 
+        /// <summary>
+        /// BlockData 리스트 검증 (BalloonData 버전 - 기믹 지원) - 정사각형 호환
+        /// </summary>
+        public static ValidationResult ValidateBlocks(List<BlockData> blocks, List<List<BalloonData>> balloonLanes, int gridSize)
+        {
+            return ValidateBlocks(blocks, balloonLanes, gridSize, gridSize);
+        }
+
+        /// <summary>
+        /// BlockData 리스트 검증 (BalloonData 버전 - 기믹 지원) - 직사각형 지원
+        /// Number 풍선의 requiredHits를 고려하여 검증
+        /// </summary>
+        public static ValidationResult ValidateBlocks(List<BlockData> blocks, List<List<BalloonData>> balloonLanes, int gridWidth, int gridHeight)
+        {
+            try
+            {
+                if (blocks == null || blocks.Count == 0)
+                {
+                    return new ValidationResult { valid = false, reason = "no blocks" };
+                }
+
+                var remaining = new List<BlockData>();
+                var colorMap = new Dictionary<int, string>();
+                for (int idx = 0; idx < blocks.Count; idx++)
+                {
+                    var b = blocks[idx];
+                    if (b.cells == null || b.cells.Count == 0)
+                    {
+                        return new ValidationResult { valid = false, reason = "invalid block cells" };
+                    }
+                    remaining.Add(new BlockData
+                    {
+                        x = b.x,
+                        y = b.y,
+                        color = b.color,
+                        dir = b.dir,
+                        length = b.length,
+                        cells = new List<Vector2Int>(b.cells),
+                        originalIndex = idx,
+                        isFiller = b.isFiller,
+                        isDecoy = b.isDecoy
+                    });
+                    colorMap[idx] = b.color;
+                }
+
+                // 마주보는 화살표 검사
+                var facingCheck = CheckFacingArrows(remaining);
+                if (!facingCheck.valid)
+                {
+                    return new ValidationResult { valid = false, reason = facingCheck.reason };
+                }
+
+                // BalloonData 딥카피 (remainingHits 초기화 포함)
+                var queuesCopy = new List<List<BalloonData>>();
+                foreach (var lane in balloonLanes)
+                {
+                    var laneCopy = new List<BalloonData>();
+                    foreach (var balloon in lane)
+                    {
+                        var copy = balloon.Clone();
+                        copy.remainingHits = balloon.GetRequiredHits();  // Number 기믹의 requiredHits 반영
+                        laneCopy.Add(copy);
+                    }
+                    queuesCopy.Add(laneCopy);
+                }
+
+                var escapeSequence = new List<int>();
+
+                int iterations = 0;
+                int maxIterations = 100;
+
+                while (remaining.Count > 0 && iterations < maxIterations)
+                {
+                    iterations++;
+
+                    var occupied = new HashSet<string>();
+                    foreach (var b in remaining)
+                    {
+                        foreach (var c in b.cells)
+                        {
+                            occupied.Add(CellKey(c));
+                        }
+                    }
+
+                    bool escaped = false;
+
+                    // 탈출 가능한 화살표 목록 수집
+                    var canEscape = new List<(int index, BlockData block, bool canPop)>();
+
+                    for (int i = 0; i < remaining.Count; i++)
+                    {
+                        var b = remaining[i];
+
+                        // Filler: 풍선이 활성화되어야만 탈출 가능
+                        if (b.isFiller)
+                        {
+                            bool balloonActive = false;
+                            foreach (var lane in queuesCopy)
+                            {
+                                if (lane.Count > 0 && lane[0].color == b.color)
+                                {
+                                    balloonActive = true;
+                                    break;
+                                }
+                            }
+                            if (!balloonActive) continue;
+                        }
+
+                        var d = DIR_VECTORS[b.dir];
+                        var head = b.cells[0];
+
+                        int cx = head.x + d.x;
+                        int cy = head.y + d.y;
+
+                        bool pathBlocked = false;
+                        while (IsInBounds(cx, cy, gridWidth, gridHeight))
+                        {
+                            if (occupied.Contains(CellKey(cx, cy)))
+                            {
+                                pathBlocked = true;
+                                break;
+                            }
+                            cx += d.x;
+                            cy += d.y;
+                        }
+
+                        if (!pathBlocked)
+                        {
+                            bool canPop = false;
+                            foreach (var lane in queuesCopy)
+                            {
+                                if (lane.Count > 0 && lane[0].color == b.color)
+                                {
+                                    canPop = true;
+                                    break;
+                                }
+                            }
+                            canEscape.Add((i, b, canPop));
+                        }
+                    }
+
+                    // 스마트 선택: 다른 화살표를 언블록하는 화살표 우선
+                    var blockedArrows = remaining.Where((b, idx) => !canEscape.Any(e => e.index == idx)).ToList();
+
+                    var escapePriority = new List<(int index, BlockData block, bool canPop, int unblockCount)>();
+                    foreach (var escape in canEscape)
+                    {
+                        int unblockCount = 0;
+                        foreach (var blockedArrow in blockedArrows)
+                        {
+                            var d = DIR_VECTORS[blockedArrow.dir];
+                            var head = blockedArrow.cells[0];
+                            int cx = head.x + d.x;
+                            int cy = head.y + d.y;
+
+                            while (IsInBounds(cx, cy, gridWidth, gridHeight))
+                            {
+                                if (escape.block.cells.Any(c => c.x == cx && c.y == cy))
+                                {
+                                    unblockCount++;
+                                    break;
+                                }
+                                cx += d.x;
+                                cy += d.y;
+                            }
+                        }
+                        escapePriority.Add((escape.index, escape.block, escape.canPop, unblockCount));
+                    }
+
+                    var selectedEscape = escapePriority
+                        .OrderByDescending(e => e.canPop && e.unblockCount > 0 ? 2 : 0)
+                        .ThenByDescending(e => e.unblockCount)
+                        .ThenByDescending(e => e.canPop ? 1 : 0)
+                        .Select(e => (e.index, e.block, e.canPop))
+                        .FirstOrDefault();
+
+                    if (selectedEscape.block == null && canEscape.Count > 0)
+                    {
+                        selectedEscape = canEscape[0];
+                    }
+
+                    if (selectedEscape.block != null)
+                    {
+                        var b = selectedEscape.block;
+                        int i = selectedEscape.index;
+
+                        // Number 기믹 지원: remainingHits 감소, 0이면 제거
+                        foreach (var lane in queuesCopy)
+                        {
+                            if (lane.Count > 0 && lane[0].color == b.color)
+                            {
+                                var balloon = lane[0];
+                                balloon.remainingHits--;
+
+                                if (balloon.remainingHits <= 0)
+                                {
+                                    lane.RemoveAt(0);  // 히트 완료 시에만 제거
+                                }
+                                break;
+                            }
+                        }
+
+                        escapeSequence.Add(b.originalIndex);
+                        remaining.RemoveAt(i);
+                        escaped = true;
+                    }
+
+                    if (!escaped)
+                    {
+                        return new ValidationResult { valid = false, reason = "deadlock" };
+                    }
+                }
+
+                if (remaining.Count > 0)
+                {
+                    return new ValidationResult { valid = false, reason = "timeout" };
+                }
+
+                bool queueEmpty = queuesCopy.TrueForAll(l => l.Count == 0);
+
+                var escapeColors = new List<string>();
+                foreach (var idx in escapeSequence)
+                {
+                    if (colorMap.TryGetValue(idx, out var color))
+                    {
+                        escapeColors.Add(color);
+                    }
+                }
+
+                return new ValidationResult
+                {
+                    valid = true,
+                    queueCleared = queueEmpty,
+                    escapeSequence = escapeSequence,
+                    escapeColors = escapeColors
+                };
+            }
+            catch (Exception e)
+            {
+                Debug.LogError($"ValidateBlocks (BalloonData) error: {e.Message}");
+                return new ValidationResult { valid = false, reason = "exception" };
+            }
+        }
+
         // ========== Facing Check ==========
         /// <summary>
         /// 마주보는 화살표 검사 (Head끼리 인접하고 서로를 향하는 경우)

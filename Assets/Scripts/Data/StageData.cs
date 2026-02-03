@@ -25,6 +25,30 @@ namespace BalloonOut.Data
         [Header("통계")]
         public LevelStats stats;
 
+        [Header("Generator 설정 (로드 시 복원용)")]
+        public int genLaneCount;
+        public int genBalloonsPerLane;
+        public int genMissArrowCount;
+        public int genDecoyArrowCount;
+        public int genMinLength;
+        public int genMaxLength;
+        public float genTargetDensity;
+        public bool genBendingEnabled;
+        public float genBendingChance;
+        public bool genBranchingMode;
+        public float genBranchingChance;
+        public int genColorCount;
+        public bool genFillerEnabled;
+
+        [Header("Gimmick 설정 (로드 시 복원용)")]
+        public List<GimmickGeneratorConfig> genBalloonGimmicks = new List<GimmickGeneratorConfig>();
+        public List<GimmickGeneratorConfig> genArrowGimmicks = new List<GimmickGeneratorConfig>();
+
+        /// <summary>
+        /// Generator 설정이 저장되어 있는지 확인
+        /// </summary>
+        public bool HasGeneratorConfig => genLaneCount > 0;
+
         /// <summary>
         /// LevelData로 변환 (직사각형 지원, 하위 호환성 유지)
         /// </summary>

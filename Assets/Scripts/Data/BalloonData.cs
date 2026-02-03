@@ -22,6 +22,12 @@ namespace BalloonOut.Data
         /// </summary>
         public List<GimmickInstanceData> gimmicks;
 
+        /// <summary>
+        /// 검증용 남은 히트 수 (런타임 전용, 직렬화 안 됨)
+        /// </summary>
+        [NonSerialized]
+        public int remainingHits = 1;
+
         public BalloonData()
         {
             color = "";
@@ -90,6 +96,15 @@ namespace BalloonOut.Data
                 clone.gimmicks = gimmicks.Select(g => g.Clone()).ToList();
             }
             return clone;
+        }
+
+        /// <summary>
+        /// 필요한 총 히트 수 반환 (Number 기믹 고려)
+        /// </summary>
+        public int GetRequiredHits()
+        {
+            var numberGimmick = GetGimmick("number");
+            return numberGimmick?.GetParamInt("requiredHits", 1) ?? 1;
         }
 
         /// <summary>

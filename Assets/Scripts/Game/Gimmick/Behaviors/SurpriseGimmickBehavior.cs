@@ -139,6 +139,9 @@ namespace BalloonOut.Game.Gimmick.Behaviors
                         {
                             balloon.Visual.SpawnParticleEffect(def.particleEffectPrefab);
                         }
+
+                        // 모든 기믹 비주얼 새로고침 (Number 텍스트 등 복원)
+                        balloon.RefreshVisual();
                     }
                 );
             }

@@ -151,7 +151,7 @@ namespace BalloonOut.Core
             { GameColor.Cyan, new Color(0f, 0.8f, 0.8f) },
             { GameColor.Pink, new Color(1f, 0.4f, 0.7f) },
             { GameColor.Brown, new Color(0.6f, 0.4f, 0.2f) },
-            { GameColor.Lime, new Color(0.5f, 1f, 0f) },
+            { GameColor.Lime, new Color(0.25f, 0.65f, 0.65f) },  // Teal - Green과 구별되는 청록색
             { GameColor.Navy, new Color(0f, 0f, 0.5f) },
             { GameColor.Magenta, new Color(1f, 0f, 1f) },
             { GameColor.Black, new Color(0.2f, 0.2f, 0.2f) }

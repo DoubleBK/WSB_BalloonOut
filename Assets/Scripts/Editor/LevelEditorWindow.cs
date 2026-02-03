@@ -55,6 +55,7 @@ namespace BalloonOut.Editor
         private int _genGridHeight = DEFAULT_GEN_GRID_SIZE;
         private float _genTargetDensity = DEFAULT_TARGET_DENSITY;
         private bool _genBendingEnabled = true;
+        private float _genBendingChance = 0.5f;  // Bending 확률 (0~1)
         private bool _genFillerEnabled = false;
         private int _genLaneCount = 3;
         private int _genBalloonsPerLane = 2;
@@ -830,6 +831,9 @@ namespace BalloonOut.Editor
             EditorGUILayout.Space(5);
 
             _genBendingEnabled = EditorGUILayout.Toggle("Bending Enabled", _genBendingEnabled);
+            GUI.enabled = _genBendingEnabled;
+            _genBendingChance = EditorGUILayout.Slider("Bending Chance", _genBendingChance, 0f, 1f);
+            GUI.enabled = true;
             _genFillerEnabled = EditorGUILayout.Toggle("Filler Enabled", _genFillerEnabled);
 
             EditorGUILayout.Space(5);
@@ -1261,7 +1265,7 @@ namespace BalloonOut.Editor
                 decoyArrowCount = _genDecoyArrowCount,
                 minBlockLength = _genMinLength,
                 maxBlockLength = _genMaxLength,
-                bendingChance = _genBendingEnabled ? 1.0f : 0f,
+                bendingChance = _genBendingEnabled ? _genBendingChance : 0f,
                 branchingMode = _genBranchingMode,
                 branchingChance = _genBranchingChance,
                 colorCount = _genColorCount,
@@ -2711,8 +2715,17 @@ namespace BalloonOut.Editor
                 _selectedArrowIndex = -1;
                 _validationDirty = true;
 
-                // LevelConfigTable에서 Params 복원
-                ApplyConfigFromTable(levelName);
+                // StageData에 저장된 Generator 설정이 있으면 우선 사용
+                if (stageData.HasGeneratorConfig)
+                {
+                    LoadGeneratorConfigFromStageData(stageData);
+                    Debug.Log($"[LevelEditor] Loaded generator config from StageData");
+                }
+                else
+                {
+                    // 폴백: LevelConfigTable에서 Params 복원
+                    ApplyConfigFromTable(levelName);
+                }
 
                 Debug.Log($"[LevelEditor] Loaded stage: {levelName}");
                 SceneView.RepaintAll();
@@ -2721,6 +2734,68 @@ namespace BalloonOut.Editor
             {
                 Debug.LogError($"[LevelEditor] Failed to load stage: {assetPath}");
             }
+        }
+
+        /// <summary>
+        /// StageData에서 Generator 설정을 에디터로 복원
+        /// </summary>
+        private void LoadGeneratorConfigFromStageData(StageData stageData)
+        {
+            // Generator 파라미터 복원
+            _genGridWidth = stageData.gridWidth > 0 ? stageData.gridWidth : stageData.gridSize;
+            _genGridHeight = stageData.gridHeight > 0 ? stageData.gridHeight : stageData.gridSize;
+            _genLaneCount = stageData.genLaneCount;
+            _genBalloonsPerLane = stageData.genBalloonsPerLane;
+            _genMissArrowCount = stageData.genMissArrowCount;
+            _genDecoyArrowCount = stageData.genDecoyArrowCount;
+            _genMinLength = stageData.genMinLength;
+            _genMaxLength = stageData.genMaxLength;
+            _genTargetDensity = stageData.genTargetDensity;
+            _genBendingEnabled = stageData.genBendingEnabled;
+            _genBendingChance = stageData.genBendingChance;
+            _genBranchingMode = stageData.genBranchingMode;
+            _genBranchingChance = stageData.genBranchingChance;
+            _genColorCount = stageData.genColorCount > 0 ? stageData.genColorCount : 6;
+            _genFillerEnabled = stageData.genFillerEnabled;
+            _genAutoCalculate = false; // 수동 모드로 전환
+
+            // Gimmick 설정 복원 (딥 카피)
+            _genBalloonGimmicks = new List<GimmickGeneratorConfig>();
+            if (stageData.genBalloonGimmicks != null && stageData.genBalloonGimmicks.Count > 0)
+            {
+                foreach (var gimmick in stageData.genBalloonGimmicks)
+                {
+                    _genBalloonGimmicks.Add(gimmick.Clone());
+                }
+            }
+            else
+            {
+                // 기본 기믹 설정 초기화
+                InitializeDefaultGimmickConfigs();
+            }
+
+            _genArrowGimmicks = new List<GimmickGeneratorConfig>();
+            if (stageData.genArrowGimmicks != null && stageData.genArrowGimmicks.Count > 0)
+            {
+                foreach (var gimmick in stageData.genArrowGimmicks)
+                {
+                    _genArrowGimmicks.Add(gimmick.Clone());
+                }
+            }
+
+            Debug.Log($"[LevelEditor] Generator config loaded - Grid: {_genGridWidth}x{_genGridHeight}, Lanes: {_genLaneCount}, BalloonGimmicks: {_genBalloonGimmicks?.Count ?? 0}");
+        }
+
+        /// <summary>
+        /// 기본 기믹 설정 초기화 (Surprise, Number)
+        /// </summary>
+        private void InitializeDefaultGimmickConfigs()
+        {
+            _genBalloonGimmicks = new List<GimmickGeneratorConfig>
+            {
+                new GimmickGeneratorConfig { gimmickId = "surprise", enabled = false, count = 0 },
+                new GimmickGeneratorConfig { gimmickId = "number", enabled = false, hitCounts = new List<int>() }
+            };
         }
 
         /// <summary>
@@ -2826,6 +2901,9 @@ namespace BalloonOut.Editor
                 var stageData = ScriptableObject.CreateInstance<StageData>();
                 stageData.CopyFrom(levelData);
 
+                // Generator 설정 저장 (로드 시 복원용)
+                SaveGeneratorConfigToStageData(stageData);
+
                 // 파일 저장
                 string assetPath = $"{stagesPath}/{fileName}";
 
@@ -2847,6 +2925,48 @@ namespace BalloonOut.Editor
                 Debug.LogError($"[LevelEditor] Save failed: {e.Message}");
                 return false;
             }
+        }
+
+        /// <summary>
+        /// 현재 에디터의 Generator 설정을 StageData에 저장
+        /// </summary>
+        private void SaveGeneratorConfigToStageData(StageData stageData)
+        {
+            // Generator 파라미터 저장
+            stageData.genLaneCount = _genLaneCount;
+            stageData.genBalloonsPerLane = _genBalloonsPerLane;
+            stageData.genMissArrowCount = _genMissArrowCount;
+            stageData.genDecoyArrowCount = _genDecoyArrowCount;
+            stageData.genMinLength = _genMinLength;
+            stageData.genMaxLength = _genMaxLength;
+            stageData.genTargetDensity = _genTargetDensity;
+            stageData.genBendingEnabled = _genBendingEnabled;
+            stageData.genBendingChance = _genBendingChance;
+            stageData.genBranchingMode = _genBranchingMode;
+            stageData.genBranchingChance = _genBranchingChance;
+            stageData.genColorCount = _genColorCount;
+            stageData.genFillerEnabled = _genFillerEnabled;
+
+            // Gimmick 설정 저장 (딥 카피)
+            stageData.genBalloonGimmicks = new List<GimmickGeneratorConfig>();
+            if (_genBalloonGimmicks != null)
+            {
+                foreach (var gimmick in _genBalloonGimmicks)
+                {
+                    stageData.genBalloonGimmicks.Add(gimmick.Clone());
+                }
+            }
+
+            stageData.genArrowGimmicks = new List<GimmickGeneratorConfig>();
+            if (_genArrowGimmicks != null)
+            {
+                foreach (var gimmick in _genArrowGimmicks)
+                {
+                    stageData.genArrowGimmicks.Add(gimmick.Clone());
+                }
+            }
+
+            Debug.Log($"[LevelEditor] Generator config saved - Lanes: {stageData.genLaneCount}, BalloonGimmicks: {stageData.genBalloonGimmicks?.Count ?? 0}");
         }
 
         private void RefreshLevelList()

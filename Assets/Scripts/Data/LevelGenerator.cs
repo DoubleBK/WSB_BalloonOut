@@ -342,8 +342,23 @@ namespace BalloonOut.Data
         /// <summary>
         /// 개수 기반 기믹 적용 및 Number 추가 색상 삽입
         /// </summary>
-        private static void ApplyGimmicksAndInsertExtraColors(List<List<BalloonData>> balloonLanes, List<GimmickGeneratorConfig> gimmickConfigs, string[] colors)
+        /// <summary>
+        /// 기믹 적용 결과
+        /// </summary>
+        public class GimmickApplicationResult
         {
+            public Dictionary<string, int> extraArrowsByColor = new Dictionary<string, int>();
+            public int totalExtraArrows = 0;
+        }
+
+        /// <summary>
+        /// 기믹 적용 및 추가 화살표 정보 반환
+        /// 주의: 추가 풍선은 삽입하지 않음 (화살표 개수/색상 할당으로 처리)
+        /// </summary>
+        private static GimmickApplicationResult ApplyGimmicks(List<List<BalloonData>> balloonLanes, List<GimmickGeneratorConfig> gimmickConfigs, string[] colors)
+        {
+            var result = new GimmickApplicationResult();
+
             // 전체 풍선을 1차원 리스트로 평탄화
             // 활성 위치(각 레인의 마지막 풍선)와 비활성 위치 분리
             // Generator: lane[end] = 활성 위치, 역순 후 lane[0] = 활성 위치
@@ -398,12 +413,12 @@ namespace BalloonOut.Data
                 Debug.Log($"  [Gimmick] Applied {applied} Surprise gimmicks (excluded active positions)");
             }
 
-            // Number 기믹 적용 및 추가 색상 삽입 (전체 풍선, 조합 가능)
+            // Number 기믹 적용 (전체 풍선, 조합 가능)
+            // 주의: 추가 풍선 삽입 대신 extraArrowsByColor에 추가 화살표 정보 저장
             var numberConfig = gimmickConfigs.Find(g => g.gimmickId == "number" && g.enabled);
             if (numberConfig != null && numberConfig.hitCounts != null && numberConfig.hitCounts.Count > 0)
             {
                 int numberCount = numberConfig.hitCounts.Count;
-                int totalExtraArrows = 0;
                 int applied = 0;
 
                 for (int i = 0; i < shuffledAllIndices.Count && applied < numberCount; i++)
@@ -420,24 +435,29 @@ namespace BalloonOut.Data
                     // Number 기믹 적용 (Surprise와 조합 가능)
                     balloon.AddGimmick(numberConfig.CreateNumberInstance(hitCount));
 
-                    // 추가 색상 삽입 (hitCount - 1개)
-                    int extraColors = hitCount - 1;
-                    totalExtraArrows += extraColors;
+                    // 추가 화살표 계산 (hitCount - 1개)
+                    int extraArrows = hitCount - 1;
+                    result.totalExtraArrows += extraArrows;
                     string balloonColor = balloon.color;
 
-                    for (int e = 0; e < extraColors; e++)
+                    // 색상별 추가 화살표 누적
+                    if (!result.extraArrowsByColor.ContainsKey(balloonColor))
                     {
-                        // 랜덤 레인의 랜덤 위치에 삽입 (기믹 없는 풍선)
-                        int targetLane = RandomInt(0, balloonLanes.Count - 1);
-                        int insertPos = RandomInt(0, balloonLanes[targetLane].Count);
-                        balloonLanes[targetLane].Insert(insertPos, new BalloonData(balloonColor));
+                        result.extraArrowsByColor[balloonColor] = 0;
                     }
+                    result.extraArrowsByColor[balloonColor] += extraArrows;
 
                     applied++;
                 }
 
-                Debug.Log($"  [Gimmick] Applied {applied} Number gimmicks (hitCounts: {string.Join(",", numberConfig.hitCounts.GetRange(0, applied))}), extra colors: {totalExtraArrows}");
+                Debug.Log($"  [Gimmick] Applied {applied} Number gimmicks (hitCounts: {string.Join(",", numberConfig.hitCounts.GetRange(0, applied))}), extra arrows: {result.totalExtraArrows}");
+                if (result.extraArrowsByColor.Count > 0)
+                {
+                    Debug.Log($"  [Gimmick] Extra arrows by color: {string.Join(", ", result.extraArrowsByColor.Select(kv => $"{kv.Key}:{kv.Value}"))}");
+                }
             }
+
+            return result;
         }
 
         // ========== Cell Calculation ==========
@@ -642,13 +662,24 @@ namespace BalloonOut.Data
         }
 
         /// <summary>
-        /// BlockData 리스트 검증 (내부 사용)
+        /// BlockData 리스트 검증 (내부 사용) - 문자열 버전 (하위 호환)
         /// </summary>
         private static LevelValidator.ValidationResult ValidateGeneratedLevel(List<BlockData> blocks, List<List<string>> lanes, int gridWidth, int gridHeight)
         {
             // BlockData를 LevelValidator.BlockData로 변환 (상속 관계이므로 캐스팅 가능)
             var validatorBlocks = blocks.Cast<LevelValidator.BlockData>().ToList();
             return LevelValidator.ValidateBlocks(validatorBlocks, lanes, gridWidth, gridHeight);
+        }
+
+        /// <summary>
+        /// BlockData 리스트 검증 (내부 사용) - BalloonData 버전 (기믹 지원)
+        /// Number 풍선의 requiredHits를 고려하여 검증
+        /// </summary>
+        private static LevelValidator.ValidationResult ValidateGeneratedLevel(List<BlockData> blocks, List<List<BalloonData>> balloonLanes, int gridWidth, int gridHeight)
+        {
+            // BlockData를 LevelValidator.BlockData로 변환 (상속 관계이므로 캐스팅 가능)
+            var validatorBlocks = blocks.Cast<LevelValidator.BlockData>().ToList();
+            return LevelValidator.ValidateBlocks(validatorBlocks, balloonLanes, gridWidth, gridHeight);
         }
 
         /// <summary>
@@ -728,10 +759,11 @@ namespace BalloonOut.Data
 
                 Debug.Log($"Lanes (with miss): {string.Join(", ", balloonLanes.ConvertAll(l => "[" + string.Join(",", l.ConvertAll(b => b.color)) + "]"))}");
 
-                // Step 2.5: 기믹 적용 (개수 기반) 및 Number 추가 색상 삽입
+                // Step 2.5: 기믹 적용 (개수 기반)
+                GimmickApplicationResult gimmickResult = null;
                 if (config.balloonGimmicks != null && config.balloonGimmicks.Count > 0)
                 {
-                    ApplyGimmicksAndInsertExtraColors(balloonLanes, config.balloonGimmicks, colors);
+                    gimmickResult = ApplyGimmicks(balloonLanes, config.balloonGimmicks, colors);
                 }
 
                 Debug.Log($"Lanes (with gimmicks): {string.Join(", ", balloonLanes.ConvertAll(l => "[" + string.Join(",", l.ConvertAll(b => b.color + (b.gimmicks?.Count > 0 ? "*" : ""))) + "]"))}");
@@ -739,15 +771,16 @@ namespace BalloonOut.Data
                 // string lanes로 변환 (기존 로직 호환용)
                 var lanes = balloonLanes.ConvertAll(lane => lane.ConvertAll(b => b.color));
 
-                // Step 3: 화살표 개수 = 총 풍선 개수 + Decoy 화살표
+                // Step 3: 화살표 개수 = 총 풍선 개수 + Decoy 화살표 + Number 추가 화살표
                 int mainArrowCount = 0;
                 foreach (var lane in lanes)
                 {
                     mainArrowCount += lane.Count;
                 }
                 int decoyCount = config.decoyArrowCount;
-                int arrowCount = mainArrowCount + decoyCount;
-                Debug.Log($"Arrow count: {arrowCount} (Main: {mainArrowCount}, Decoy: {decoyCount})");
+                int extraArrowCount = gimmickResult?.totalExtraArrows ?? 0;
+                int arrowCount = mainArrowCount + decoyCount + extraArrowCount;
+                Debug.Log($"Arrow count: {arrowCount} (Main: {mainArrowCount}, Decoy: {decoyCount}, Extra for Number: {extraArrowCount})");
 
                 // Step 4: 화살표 배치 (색상은 나중에 할당)
                 var blocks = new List<BlockData>();
@@ -836,7 +869,25 @@ namespace BalloonOut.Data
                 if (!success) continue;
 
                 // Step 5: 탈출 순서에 맞춰 색상 할당
-                if (!AssignColorsInEscapeOrder(blocks, lanes, gridWidth, gridHeight, colors))
+                // Number 기믹의 requiredHits를 고려하여 색상 목록 생성
+                // 예: Number(2) 풍선 → 해당 색상 2개로 확장
+                var lanesForColorAssignment = new List<List<string>>();
+                for (int laneIdx = 0; laneIdx < balloonLanes.Count; laneIdx++)
+                {
+                    var expandedLane = new List<string>();
+                    foreach (var balloon in balloonLanes[laneIdx])
+                    {
+                        int requiredHits = balloon.GetRequiredHits();
+                        for (int h = 0; h < requiredHits; h++)
+                        {
+                            expandedLane.Add(balloon.color);
+                        }
+                    }
+                    lanesForColorAssignment.Add(expandedLane);
+                }
+                Debug.Log($"  Lanes for color assignment (expanded): {string.Join(", ", lanesForColorAssignment.ConvertAll(l => "[" + string.Join(",", l) + "]"))}");
+
+                if (!AssignColorsInEscapeOrder(blocks, lanesForColorAssignment, gridWidth, gridHeight, colors))
                 {
                     Debug.Log("  Color assignment failed");
                     continue;
@@ -859,8 +910,8 @@ namespace BalloonOut.Data
                     }
                 }
 
-                // Step 7: 검증
-                var validation = ValidateGeneratedLevel(allBlocks, lanes, gridWidth, gridHeight);
+                // Step 7: 검증 (BalloonData 버전 - Number 기믹의 requiredHits 고려)
+                var validation = ValidateGeneratedLevel(allBlocks, balloonLanes, gridWidth, gridHeight);
                 Debug.Log($"Validation: valid={validation.valid}, reason={validation.reason}");
 
                 if (validation.valid)
