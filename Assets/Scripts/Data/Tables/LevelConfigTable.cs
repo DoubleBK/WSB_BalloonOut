@@ -24,12 +24,17 @@ namespace BalloonOut.Data
         public int difficultyScore;
         public int colorCount = 6;  // 사용할 색상 수 (4~12, 기본 6)
 
+        // === 기믹 설정 ===
+        public int surpriseCount = 0;               // Surprise 풍선 개수 (0이면 비활성)
+        public List<int> numberHitCounts = null;    // Number 풍선별 hit count (null/빈 배열이면 비활성)
+        public List<int> connectedGroupSizes = null; // Connected 그룹별 풍선 수 (null/빈 배열이면 비활성)
+
         /// <summary>
-        /// GeneratorConfig로 변환
+        /// GeneratorConfig로 변환 (기믹 설정 포함)
         /// </summary>
         public LevelGenerator.GeneratorConfig ToGeneratorConfig()
         {
-            return new LevelGenerator.GeneratorConfig
+            var config = new LevelGenerator.GeneratorConfig
             {
                 gridSize = gridSize,
                 laneCount = laneCount,
@@ -46,6 +51,35 @@ namespace BalloonOut.Data
                 branchingChance = 0.4f,
                 colorCount = colorCount > 0 ? colorCount : 6  // 기본값 6
             };
+
+            // 기믹 설정 변환
+            config.InitializeDefaultGimmicks();
+
+            // Surprise 기믹
+            var surpriseConfig = config.balloonGimmicks.Find(g => g.gimmickId == "surprise");
+            if (surpriseConfig != null)
+            {
+                surpriseConfig.enabled = surpriseCount > 0;
+                surpriseConfig.count = surpriseCount;
+            }
+
+            // Number 기믹
+            var numberConfig = config.balloonGimmicks.Find(g => g.gimmickId == "number");
+            if (numberConfig != null)
+            {
+                numberConfig.enabled = numberHitCounts != null && numberHitCounts.Count > 0;
+                numberConfig.hitCounts = numberHitCounts ?? new List<int>();
+            }
+
+            // Connected 기믹
+            var connectedConfig = config.balloonGimmicks.Find(g => g.gimmickId == "connected");
+            if (connectedConfig != null)
+            {
+                connectedConfig.enabled = connectedGroupSizes != null && connectedGroupSizes.Count > 0;
+                connectedConfig.groupSizes = connectedGroupSizes ?? new List<int>();
+            }
+
+            return config;
         }
     }
 
