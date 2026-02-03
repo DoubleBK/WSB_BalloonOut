@@ -545,6 +545,8 @@ MonoBehaviour:
   _fadeDuration: 1
   _autoPlayBGM: 1
   _balloonPopClip: {fileID: 8300000, guid: 29c115e89116063429865fd3915d16e5, type: 3}
+  _arrowPickClip: {fileID: 8300000, guid: 6696d05514626924c9e96856cf61f1e2, type: 3}
+  _balloonHitClip: {fileID: 8300000, guid: 5dff124cb6482f54591d78c10c2a2b9a, type: 3}
   _ingameBGMClip: {fileID: 8300000, guid: 501ae4d0c5291ec4cb0a74c17b4132e4, type: 3}
 --- !u!4 &284205945
 Transform:

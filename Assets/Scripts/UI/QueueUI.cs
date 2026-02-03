@@ -361,6 +361,9 @@ namespace BalloonOut.UI
                         // 기믹 처리
                         bool shouldPop = balloon.TryHit(color, out hitResult);
 
+                        // 풍선 HIT 효과음 재생
+                        SFXManager.Instance?.PlayBalloonHit();
+
                         if (!shouldPop)
                         {
                             // 기믹에 의해 팝 방지됨 (Number 기믹 등)

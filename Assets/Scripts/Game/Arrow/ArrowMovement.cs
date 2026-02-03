@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using UnityEngine;
+using BalloonOut.Core;
 using BalloonOut.Game.Grid;
 using DG.Tweening;
 
@@ -91,6 +92,10 @@ namespace BalloonOut.Game.Arrow
         {
             _ignoreCollision = false;
             BackupLaunchPosition();
+
+            // 화살표 탭/클릭 효과음 재생
+            SFXManager.Instance?.PlayArrowPick();
+
             TryMoveToNext();
         }
 

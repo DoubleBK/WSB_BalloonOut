@@ -26,6 +26,8 @@ namespace BalloonOut.Core
         // ========== 오디오 클립 ==========
         [Header("SFX Clips")]
         [SerializeField] private AudioClip _balloonPopClip;
+        [SerializeField] private AudioClip _arrowPickClip;
+        [SerializeField] private AudioClip _balloonHitClip;
 
         [Header("BGM Clips")]
         [SerializeField] private AudioClip _ingameBGMClip;
@@ -99,6 +101,24 @@ namespace BalloonOut.Core
                 }
             }
 
+            if (_arrowPickClip == null)
+            {
+                _arrowPickClip = Resources.Load<AudioClip>("Sound/SFX/AudioClip/SND_Ballon_pick");
+                if (_arrowPickClip == null)
+                {
+                    Debug.LogWarning("[SFXManager] Failed to load SND_Ballon_pick from Resources");
+                }
+            }
+
+            if (_balloonHitClip == null)
+            {
+                _balloonHitClip = Resources.Load<AudioClip>("Sound/SFX/AudioClip/SND_Hit");
+                if (_balloonHitClip == null)
+                {
+                    Debug.LogWarning("[SFXManager] Failed to load SND_Hit from Resources");
+                }
+            }
+
             // BGM 클립 로드
             if (_ingameBGMClip == null)
             {
@@ -118,6 +138,22 @@ namespace BalloonOut.Core
         public void PlayBalloonPop()
         {
             PlaySFX(_balloonPopClip);
+        }
+
+        /// <summary>
+        /// 화살표 탭/클릭 효과음 재생 (이동 시작)
+        /// </summary>
+        public void PlayArrowPick()
+        {
+            PlaySFX(_arrowPickClip);
+        }
+
+        /// <summary>
+        /// 풍선 HIT 효과음 재생
+        /// </summary>
+        public void PlayBalloonHit()
+        {
+            PlaySFX(_balloonHitClip);
         }
 
         /// <summary>
