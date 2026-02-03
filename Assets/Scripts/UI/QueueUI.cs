@@ -915,6 +915,9 @@ namespace BalloonOut.UI
         /// </summary>
         private void AnimatePop(GameObject balloon)
         {
+            // 풍선 팝 효과음 재생
+            SFXManager.Instance?.PlayBalloonPop();
+
             // 간단한 팝 애니메이션 (스케일 업 후 사라짐)
             StartCoroutine(PopCoroutine(balloon));
         }
