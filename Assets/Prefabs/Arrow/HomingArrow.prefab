@@ -211,7 +211,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: a9eaae8469752e0408900fd51087e7a5, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  _homingSpeed: 40
+  _homingSpeed: 50
   _curveStrength: 4
   _arrivalThreshold: 0.2
   _spriteRenderer: {fileID: 0}

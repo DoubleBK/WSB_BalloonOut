@@ -153,9 +153,9 @@ namespace BalloonOut.Core
             { GameColor.Red, new Color(0.95f, 0.2f, 0.2f) },      // 선명한 빨강
             { GameColor.Blue, new Color(0.2f, 0.4f, 0.95f) },     // 선명한 파랑
             { GameColor.Green, new Color(0.2f, 0.85f, 0.3f) },    // 선명한 초록
-            { GameColor.Yellow, new Color(1f, 0.9f, 0.15f) },     // 선명한 노랑
+            { GameColor.Yellow, new Color(1f, 0.95f, 0.1f) },     // 순수한 노랑 (Green 높임)
             { GameColor.Purple, new Color(0.6f, 0.25f, 0.85f) },  // 선명한 보라
-            { GameColor.Orange, new Color(1f, 0.55f, 0.1f) },     // 선명한 주황
+            { GameColor.Orange, new Color(1f, 0.4f, 0f) },        // 진한 주황 (Red+Orange, Green 낮춤)
             { GameColor.Cyan, new Color(0.1f, 0.9f, 0.9f) },      // 선명한 청록
             { GameColor.Pink, new Color(1f, 0.5f, 0.7f) },        // 선명한 분홍
             { GameColor.Brown, new Color(0.6f, 0.35f, 0.15f) },   // 갈색
@@ -173,9 +173,9 @@ namespace BalloonOut.Core
             { GameColor.Red, new Color(0.95f * 2f, 0.2f * 2f, 0.2f * 2f) },
             { GameColor.Blue, new Color(0.2f * 2f, 0.4f * 2f, 0.95f * 2f) },
             { GameColor.Green, new Color(0.2f * 2f, 0.85f * 2f, 0.3f * 2f) },
-            { GameColor.Yellow, new Color(1f * 2f, 0.9f * 2f, 0.15f * 2f) },
+            { GameColor.Yellow, new Color(1f * 2f, 0.95f * 2f, 0.1f * 2f) },
             { GameColor.Purple, new Color(0.6f * 2f, 0.25f * 2f, 0.85f * 2f) },
-            { GameColor.Orange, new Color(1f * 2f, 0.55f * 2f, 0.1f * 2f) },
+            { GameColor.Orange, new Color(1f * 2f, 0.4f * 2f, 0f) },
             { GameColor.Cyan, new Color(0.1f * 2f, 0.9f * 2f, 0.9f * 2f) },
             { GameColor.Pink, new Color(1f * 2f, 0.5f * 2f, 0.7f * 2f) },
             { GameColor.Brown, new Color(0.6f * 1.5f, 0.35f * 1.5f, 0.15f * 1.5f) },  // 갈색은 약하게

@@ -31,6 +31,10 @@ namespace BalloonOut.Game.Arrow
         [SerializeField, Range(0, 20)] private int _numCapVertices = 10;
         [SerializeField, Range(0, 10)] private int _numCornerVertices = 5;  // 5 = 부드러운 코너
 
+        [Header("성능 설정")]
+        [SerializeField, Tooltip("SpriteShape 대신 LineRenderer만 사용 (성능 향상)")]
+        private bool _forceLineRenderer = true;  // 기본값: true (성능 우선)
+
         // ========== 내부 상태 ==========
         private Color _currentColor = Color.white;
         private List<Vector3> _currentSplinePoints = new List<Vector3>();
@@ -54,8 +58,8 @@ namespace BalloonOut.Game.Arrow
             Color unityColor = GetUnityColor(color);
             _currentColor = unityColor;
 
-            // SpriteShapeController가 있으면 SpriteShape 사용
-            if (_shapeController != null)
+            // _forceLineRenderer가 true면 SpriteShape 사용 안함 (성능 우선)
+            if (!_forceLineRenderer && _shapeController != null)
             {
                 _useSpriteShape = true;
                 SetupSpriteShape(unityColor);
@@ -90,7 +94,8 @@ namespace BalloonOut.Game.Arrow
             // Tail 방향 계산
             Vector2 tailOffsetVec = CalculateTailOffset(cellWorldPositions, headOffsetVec, offsetAmount);
 
-            if (_useSpriteShape)
+            // _forceLineRenderer 체크 추가 (이중 안전장치)
+            if (!_forceLineRenderer && _useSpriteShape)
             {
                 SetSplinePositions(cellWorldPositions, headOffsetVec, tailOffsetVec);
             }

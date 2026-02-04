@@ -97,7 +97,21 @@ namespace BalloonOut.Core
             }
             Instance = this;
 
-            // 릴리스 빌드 성능 최적화: Stack Trace 비활성화
+            InitializePerformanceSettings();
+        }
+
+        /// <summary>
+        /// 성능 관련 초기 설정
+        /// </summary>
+        private void InitializePerformanceSettings()
+        {
+            // 타겟 프레임 레이트 설정 (60fps)
+            Application.targetFrameRate = 60;
+
+            // VSync 비활성화 (모바일/에뮬레이터에서 더 부드러움)
+            QualitySettings.vSyncCount = 0;
+
+            // 릴리스 빌드: Stack Trace 비활성화
 #if !UNITY_EDITOR
             Application.SetStackTraceLogType(LogType.Log, StackTraceLogType.None);
             Application.SetStackTraceLogType(LogType.Warning, StackTraceLogType.None);
@@ -563,6 +577,10 @@ namespace BalloonOut.Core
         /// </summary>
         public void RecordMissedArrowEscape(ArrowSnapshot arrowSnapshot, GameColor color)
         {
+            // HomingArrow가 생성되지 않았으므로 pending 카운터 감소
+            _pendingHomingArrows--;
+            Debug.Log($"[GameManager] Missed arrow escape, pending reduced to: {_pendingHomingArrows}");
+
             if (BoosterManager.Instance != null)
             {
                 BoosterManager.Instance.RecordArrowEscapeFromSnapshot(arrowSnapshot, false, -1);

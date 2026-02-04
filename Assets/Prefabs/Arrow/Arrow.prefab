@@ -79,6 +79,7 @@ MonoBehaviour:
   _headScale: 1
   _numCapVertices: 10
   _numCornerVertices: 5
+  _forceLineRenderer: 1
 --- !u!114 &-6855559475930686023
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -271,7 +272,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 2d4e04b33c1579d4d93ac0bca431c94e, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  _moveSpeed: 25
+  _moveSpeed: 30
   _moveEase: 6
 --- !u!1 &7952769600429014614
 GameObject:
