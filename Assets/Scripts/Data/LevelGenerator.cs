@@ -18,11 +18,11 @@ namespace BalloonOut.Data
     {
         // ========== Constants ==========
         /// <summary>
-        /// 사용 가능한 전체 색상 (12색, Black 제외)
+        /// 사용 가능한 전체 색상 (11색, Black 제외)
         /// R=Red, G=Green, B=Blue, Y=Yellow, P=Purple, O=Orange
-        /// C=Cyan, K=Pink, W=Brown, L=Lime, N=Navy, M=Magenta
+        /// C=Cyan, K=Pink, W=Brown, N=Navy, M=Magenta
         /// </summary>
-        private static readonly string[] ALL_COLORS = { "R", "G", "B", "Y", "P", "O", "C", "K", "W", "L", "N", "M" };
+        private static readonly string[] ALL_COLORS = { "R", "G", "B", "Y", "P", "O", "C", "K", "W", "N", "M" };
 
         // ========== Auto-Calc Constants ==========
         private const int MIN_BLOCK_LENGTH_BENDING = 3;

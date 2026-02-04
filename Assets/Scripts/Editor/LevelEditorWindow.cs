@@ -70,7 +70,7 @@ namespace BalloonOut.Editor
         // 색상 설정
         private int _genColorCount = DEFAULT_COLOR_COUNT;
         private bool _genUseSpecificColors = false;  // 특정 색상 선택 모드
-        private bool[] _genColorEnabled = new bool[12] { true, true, true, true, true, true, false, false, false, false, false, false };
+        private bool[] _genColorEnabled = new bool[11] { true, true, true, true, true, true, false, false, false, false, false };
 
         // 기믹 생성 설정
         private const float GIMMICK_PANEL_WIDTH = 220f;
@@ -79,19 +79,18 @@ namespace BalloonOut.Editor
         private List<GimmickGeneratorConfig> _genBalloonGimmicks = new List<GimmickGeneratorConfig>();
         private List<GimmickGeneratorConfig> _genArrowGimmicks = new List<GimmickGeneratorConfig>();
         private bool _gimmicksInitialized = false;
-        private static readonly string[] COLOR_CODES = { "R", "G", "B", "Y", "P", "O", "C", "K", "W", "L", "N", "M" };
-        private static readonly string[] COLOR_NAMES = { "Red", "Green", "Blue", "Yellow", "Purple", "Orange", "Cyan", "Pink", "Brown", "Lime", "Navy", "Magenta" };
+        private static readonly string[] COLOR_CODES = { "R", "G", "B", "Y", "P", "O", "C", "K", "W", "N", "M" };
+        private static readonly string[] COLOR_NAMES = { "Red", "Green", "Blue", "Yellow", "Purple", "Orange", "Cyan", "Pink", "Brown", "Navy", "Magenta" };
         private static readonly Color[] COLOR_VALUES = {
             new Color(1f, 0.3f, 0.3f),      // Red
             new Color(0.3f, 0.8f, 0.3f),    // Green
             new Color(0.3f, 0.5f, 1f),      // Blue
             new Color(1f, 0.9f, 0.2f),      // Yellow
-            new Color(0.7f, 0.3f, 0.9f),    // Purple
-            new Color(1f, 0.6f, 0.2f),      // Orange
+            new Color(0.35f, 0f, 1f),       // Purple (진짜 보라)
+            new Color(1f, 0.5f, 0.1f),      // Orange (더 진한 주황)
             new Color(0.2f, 0.9f, 0.9f),    // Cyan
             new Color(1f, 0.5f, 0.7f),      // Pink
             new Color(0.6f, 0.4f, 0.2f),    // Brown
-            new Color(0.6f, 1f, 0.3f),      // Lime
             new Color(0.2f, 0.3f, 0.6f),    // Navy
             new Color(1f, 0.3f, 0.8f)       // Magenta
         };
@@ -1016,9 +1015,9 @@ namespace BalloonOut.Editor
                 GUILayout.FlexibleSpace();
                 GUILayout.EndHorizontal();
 
-                // 두 번째 줄 (6색)
+                // 두 번째 줄 (5색)
                 GUILayout.BeginHorizontal();
-                for (int i = 6; i < 12; i++)
+                for (int i = 6; i < COLOR_CODES.Length; i++)
                 {
                     DrawColorToggle(i);
                 }
@@ -1026,7 +1025,7 @@ namespace BalloonOut.Editor
                 GUILayout.EndHorizontal();
 
                 int selectedCount = 0;
-                for (int i = 0; i < 12; i++) if (_genColorEnabled[i]) selectedCount++;
+                for (int i = 0; i < COLOR_CODES.Length; i++) if (_genColorEnabled[i]) selectedCount++;
                 EditorGUILayout.LabelField($"Selected: {selectedCount} colors (min 2)", EditorStyles.miniLabel);
 
                 if (selectedCount < 2)
@@ -1037,7 +1036,7 @@ namespace BalloonOut.Editor
             else
             {
                 // 색상 수 선택 모드
-                _genColorCount = EditorGUILayout.IntSlider("Color Count", _genColorCount, 2, 12);
+                _genColorCount = EditorGUILayout.IntSlider("Color Count", _genColorCount, 2, COLOR_CODES.Length);
                 EditorGUILayout.LabelField($"  → {_genColorCount} random colors will be used", EditorStyles.miniLabel);
             }
 
@@ -1432,7 +1431,7 @@ namespace BalloonOut.Editor
             if (_genUseSpecificColors)
             {
                 selectedColors = new List<string>();
-                for (int i = 0; i < 12; i++)
+                for (int i = 0; i < COLOR_CODES.Length; i++)
                 {
                     if (_genColorEnabled[i])
                     {
@@ -2878,10 +2877,13 @@ namespace BalloonOut.Editor
                 "G" => new Color(0.3f, 0.8f, 0.4f),
                 "B" => new Color(0.3f, 0.5f, 1f),
                 "Y" => new Color(1f, 0.85f, 0.2f),
-                "P" => new Color(0.7f, 0.3f, 0.9f),
-                "O" => new Color(1f, 0.6f, 0.2f),
+                "P" => new Color(0.35f, 0f, 1f),      // 진짜 보라
+                "O" => new Color(1f, 0.5f, 0.1f),    // 더 진한 주황
                 "C" => new Color(0.2f, 0.9f, 0.9f),
                 "K" => new Color(1f, 0.5f, 0.7f),
+                "W" => new Color(0.6f, 0.4f, 0.2f),  // Brown
+                "N" => new Color(0.2f, 0.3f, 0.6f),  // Navy
+                "M" => new Color(1f, 0.3f, 0.8f),    // Magenta
                 _ => new Color(0.5f, 0.5f, 0.5f)
             };
         }
