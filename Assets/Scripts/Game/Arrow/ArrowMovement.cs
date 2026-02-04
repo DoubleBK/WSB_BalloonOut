@@ -25,6 +25,10 @@ namespace BalloonOut.Game.Arrow
         private float _moveProgress;
         private Tween _moveTween;
 
+        // ========== 성능 최적화: 재사용 리스트 ==========
+        private List<Vector2> _animatedPositions = new List<Vector2>();
+        private List<Vector2> _fullPath = new List<Vector2>();
+
         // ========== 위치 데이터 ==========
         private List<Vector2Int> _occupiedCells;
         private List<Vector2> _cellWorldPositions;
@@ -216,6 +220,7 @@ namespace BalloonOut.Game.Arrow
                 duration
             )
             .SetEase(_moveEase)
+            .SetUpdate(UpdateType.Late, true)  // LateUpdate + 시간 스케일 독립 = 부드러운 애니메이션
             .OnComplete(CompleteOneStep);
         }
 
@@ -224,7 +229,8 @@ namespace BalloonOut.Game.Arrow
             if (_previousWorldPositions == null || _previousWorldPositions.Count == 0)
                 return;
 
-            List<Vector2> animatedPositions = new List<Vector2>();
+            // 리스트 재사용 (GC 방지)
+            _animatedPositions.Clear();
             float cellSize = GridSystem.Instance.CellSize;
 
             Vector2 headStartPos = _previousWorldPositions[_previousWorldPositions.Count - 1];
@@ -238,7 +244,7 @@ namespace BalloonOut.Game.Arrow
                     : headTargetPos;
 
                 Vector2 shrinkingTailPos = Vector2.Lerp(_previousWorldPositions[0], tailTargetPos, t);
-                animatedPositions.Add(shrinkingTailPos);
+                _animatedPositions.Add(shrinkingTailPos);
 
                 for (int i = 1; i < _previousWorldPositions.Count; i++)
                 {
@@ -247,26 +253,27 @@ namespace BalloonOut.Game.Arrow
                         ? headTargetPos
                         : _previousWorldPositions[i + 1];
 
-                    animatedPositions.Add(Vector2.Lerp(startPos, targetPos, t));
+                    _animatedPositions.Add(Vector2.Lerp(startPos, targetPos, t));
                 }
             }
             else
             {
-                // 경로 기반 슬라이딩
-                List<Vector2> fullPath = new List<Vector2>(_previousWorldPositions);
-                fullPath.Add(headTargetPos);
+                // 경로 기반 슬라이딩 (리스트 재사용)
+                _fullPath.Clear();
+                _fullPath.AddRange(_previousWorldPositions);
+                _fullPath.Add(headTargetPos);
 
                 int cellCount = _cellWorldPositions.Count;
 
                 for (int i = 0; i < cellCount; i++)
                 {
                     float virtualIndex = i + t;
-                    Vector2 pos = GetPointOnPath(fullPath, virtualIndex);
-                    animatedPositions.Add(pos);
+                    Vector2 pos = GetPointOnPath(_fullPath, virtualIndex);
+                    _animatedPositions.Add(pos);
                 }
             }
 
-            OnPositionsChanged?.Invoke(animatedPositions);
+            OnPositionsChanged?.Invoke(_animatedPositions);
         }
 
         private Vector2 GetPointOnPath(List<Vector2> path, float index)
@@ -365,6 +372,7 @@ namespace BalloonOut.Game.Arrow
                 duration
             )
             .SetEase(_moveEase)
+            .SetUpdate(UpdateType.Late, true)  // LateUpdate + 시간 스케일 독립 = 부드러운 애니메이션
             .OnComplete(CompleteReverseStep);
         }
 
@@ -374,29 +382,31 @@ namespace BalloonOut.Game.Arrow
                 return;
 
             List<Vector2Int> targetCells = _movementHistory[_currentHistoryIndex - 1];
-            List<Vector2> targetPositions = new List<Vector2>();
+
+            // 리스트 재사용 (GC 방지)
+            _fullPath.Clear();
             foreach (var cell in targetCells)
             {
-                targetPositions.Add(GridSystem.Instance.GridToWorld(cell));
+                _fullPath.Add(GridSystem.Instance.GridToWorld(cell));
             }
 
-            List<Vector2> animatedPositions = new List<Vector2>();
-            int cellCount = Mathf.Max(_previousWorldPositions.Count, targetPositions.Count);
+            _animatedPositions.Clear();
+            int cellCount = Mathf.Max(_previousWorldPositions.Count, _fullPath.Count);
 
             for (int i = 0; i < cellCount; i++)
             {
                 Vector2 startPos = i < _previousWorldPositions.Count
                     ? _previousWorldPositions[i]
-                    : targetPositions[i];
+                    : _fullPath[i];
 
-                Vector2 targetPos = i < targetPositions.Count
-                    ? targetPositions[i]
+                Vector2 targetPos = i < _fullPath.Count
+                    ? _fullPath[i]
                     : startPos;
 
-                animatedPositions.Add(Vector2.Lerp(startPos, targetPos, t));
+                _animatedPositions.Add(Vector2.Lerp(startPos, targetPos, t));
             }
 
-            OnPositionsChanged?.Invoke(animatedPositions);
+            OnPositionsChanged?.Invoke(_animatedPositions);
         }
 
         private void CompleteReverseStep()

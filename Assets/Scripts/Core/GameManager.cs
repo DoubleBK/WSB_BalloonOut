@@ -96,6 +96,12 @@ namespace BalloonOut.Core
                 return;
             }
             Instance = this;
+
+            // 릴리스 빌드 성능 최적화: Stack Trace 비활성화
+#if !UNITY_EDITOR
+            Application.SetStackTraceLogType(LogType.Log, StackTraceLogType.None);
+            Application.SetStackTraceLogType(LogType.Warning, StackTraceLogType.None);
+#endif
         }
 
         private void Start()
