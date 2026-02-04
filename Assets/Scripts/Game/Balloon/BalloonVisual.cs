@@ -102,29 +102,41 @@ namespace BalloonOut.Game.Balloon
         // ========== 오버레이 ==========
 
         /// <summary>
-        /// 회색 오버레이 설정 (Surprise 기믹용)
+        /// 회색 오버레이 설정 (Surprise 기믹용) - 기본 회색
         /// </summary>
         public void SetGrayOverlay(bool show, float alpha = 0.8f)
         {
-            SetGrayOverlay(show, null, alpha);
+            SetGrayOverlay(show, null, null, alpha);
         }
 
         /// <summary>
-        /// 회색 오버레이 설정 (스프라이트 지정 가능)
+        /// 회색 오버레이 설정 (스프라이트 지정 가능) - GimmickDefinitionSO 사용
+        /// </summary>
+        public void SetGrayOverlay(bool show, Sprite overlaySprite)
+        {
+            SetGrayOverlay(show, overlaySprite, null, 0.8f);
+        }
+
+        /// <summary>
+        /// 오버레이 설정 (GimmickDefinitionSO 기반 색상 사용)
         /// </summary>
         /// <param name="show">오버레이 표시 여부</param>
         /// <param name="overlaySprite">오버레이 스프라이트 (null이면 기본 이미지 색상만 변경)</param>
-        /// <param name="alpha">오버레이 알파값</param>
-        public void SetGrayOverlay(bool show, Sprite overlaySprite, float alpha = 0.8f)
+        /// <param name="overlayColor">오버레이 색상 (null이면 기본 회색)</param>
+        /// <param name="alpha">오버레이 알파값 (overlayColor가 null일 때만 사용)</param>
+        public void SetGrayOverlay(bool show, Sprite overlaySprite, Color? overlayColor, float alpha = 0.8f)
         {
             _isOverlayVisible = show;
 
+            // 기본 색상: 회색 (0.5, 0.5, 0.5)
+            Color effectiveColor = overlayColor ?? new Color(0.5f, 0.5f, 0.5f, alpha);
+
             if (show)
             {
-                // 기본 이미지를 회색으로 변경
+                // 기본 이미지를 오버레이 색상으로 변경
                 if (_baseImage != null)
                 {
-                    _baseImage.color = new Color(0.5f, 0.5f, 0.5f, 1f);
+                    _baseImage.color = new Color(effectiveColor.r, effectiveColor.g, effectiveColor.b, 1f);
                 }
 
                 // 오버레이 스프라이트가 있으면 오버레이 이미지 표시
@@ -132,7 +144,7 @@ namespace BalloonOut.Game.Balloon
                 {
                     EnsureOverlayImage();
                     _overlayImage.sprite = overlaySprite;
-                    _overlayImage.color = new Color(0.5f, 0.5f, 0.5f, alpha);
+                    _overlayImage.color = effectiveColor;
                     _overlayImage.gameObject.SetActive(true);
                 }
                 else
@@ -229,7 +241,49 @@ namespace BalloonOut.Game.Balloon
 
             _overlayText.outlineWidth = def.textOutlineWidth;
             _overlayText.outlineColor = def.textOutlineColor;
+
+            // 수직 정렬 적용
+            ApplyTextVerticalAlignment(def.textVerticalAlignment);
+
             _overlayText.gameObject.SetActive(true);
+        }
+
+        /// <summary>
+        /// 텍스트 수직 정렬 적용
+        /// </summary>
+        private void ApplyTextVerticalAlignment(TextVerticalAlignment verticalAlignment)
+        {
+            if (_overlayText == null) return;
+
+            var rect = _overlayText.GetComponent<RectTransform>();
+
+            switch (verticalAlignment)
+            {
+                case TextVerticalAlignment.Top:
+                    _overlayText.alignment = TextAlignmentOptions.Top;
+                    rect.anchorMin = new Vector2(0f, 0.5f);
+                    rect.anchorMax = new Vector2(1f, 1f);
+                    rect.offsetMin = new Vector2(0f, 0f);
+                    rect.offsetMax = new Vector2(0f, 0f);
+                    break;
+
+                case TextVerticalAlignment.Bottom:
+                    _overlayText.alignment = TextAlignmentOptions.Bottom;
+                    rect.anchorMin = new Vector2(0f, 0f);
+                    rect.anchorMax = new Vector2(1f, 0.5f);
+                    rect.offsetMin = new Vector2(0f, 0f);
+                    rect.offsetMax = new Vector2(0f, 0f);
+                    break;
+
+                case TextVerticalAlignment.Middle:
+                default:
+                    _overlayText.alignment = TextAlignmentOptions.Center;
+                    rect.anchorMin = Vector2.zero;
+                    rect.anchorMax = Vector2.one;
+                    rect.offsetMin = Vector2.zero;
+                    rect.offsetMax = Vector2.zero;
+                    break;
+            }
         }
 
         /// <summary>
@@ -282,7 +336,8 @@ namespace BalloonOut.Game.Balloon
 
         private IEnumerator RevealCoroutine(float duration, System.Action onComplete)
         {
-            Color startColor = new Color(0.5f, 0.5f, 0.5f, 1f);
+            // 현재 baseImage 색상을 시작점으로 사용 (overlayColor 적용된 상태)
+            Color startColor = _baseImage != null ? _baseImage.color : new Color(0.5f, 0.5f, 0.5f, 1f);
             Color targetColor = ColorHelper.GetColor(_currentColor);
             Color? overlayStartColor = null;
 

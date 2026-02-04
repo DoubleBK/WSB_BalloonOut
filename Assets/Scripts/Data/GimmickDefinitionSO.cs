@@ -53,6 +53,9 @@ namespace BalloonOut.Data
         [Tooltip("텍스트 아웃라인 색상")]
         public Color textOutlineColor = Color.black;
 
+        [Tooltip("텍스트 수직 정렬 (Top, Middle, Bottom)")]
+        public TextVerticalAlignment textVerticalAlignment = TextVerticalAlignment.Middle;
+
         [Header("Animation")]
         [Tooltip("공개/변화 애니메이션 시간")]
         public float animationDuration = 0.3f;
@@ -122,5 +125,15 @@ namespace BalloonOut.Data
         Int,
         Float,
         Bool
+    }
+
+    /// <summary>
+    /// 텍스트 수직 정렬
+    /// </summary>
+    public enum TextVerticalAlignment
+    {
+        Top,
+        Middle,
+        Bottom
     }
 }

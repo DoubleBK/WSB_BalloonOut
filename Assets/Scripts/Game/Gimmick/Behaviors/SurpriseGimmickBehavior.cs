@@ -28,11 +28,11 @@ namespace BalloonOut.Game.Gimmick.Behaviors
                 data.SetParam(PARAM_IS_REVEALED, false);
             }
 
-            // 비주얼 설정 (회색 + "?")
+            // 비주얼 설정 (오버레이 색상 + "?")
             if (balloon.Visual != null && !data.GetParamBool(PARAM_IS_REVEALED))
             {
                 var def = GetDefinition();
-                balloon.Visual.SetGrayOverlay(true, def?.overlaySprite);
+                balloon.Visual.SetGrayOverlay(true, def?.overlaySprite, def?.overlayColor);
                 balloon.Visual.SetOverlayText("?", def);
             }
         }
@@ -119,8 +119,8 @@ namespace BalloonOut.Game.Gimmick.Behaviors
             }
             else
             {
-                // 숨겨짐 - 회색 + "?" (오버레이 스프라이트 사용)
-                visual.SetGrayOverlay(true, def?.overlaySprite);
+                // 숨겨짐 - 오버레이 색상 + "?" (오버레이 스프라이트 사용)
+                visual.SetGrayOverlay(true, def?.overlaySprite, def?.overlayColor);
                 visual.SetOverlayText("?", def);
             }
         }

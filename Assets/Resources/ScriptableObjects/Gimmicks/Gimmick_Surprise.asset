@@ -17,7 +17,7 @@ MonoBehaviour:
   description: "\uC0C9\uC0C1\uC774 \uC228\uACA8\uC9C4 \uD48D\uC120. Queue \uB9E8
     \uC55E\uC5D0 \uB3C4\uB2EC\uD558\uBA74 \uACF5\uAC1C\uB428."
   overlaySprite: {fileID: 21300000, guid: 0907be572540a664286879ef2720d154, type: 3}
-  overlayColor: {r: 0.5, g: 0.5, b: 0.5, a: 0.8}
+  overlayColor: {r: 0, g: 0, b: 0, a: 0.8}
   showText: 1
   defaultText: '?'
   font: {fileID: 0}
@@ -25,6 +25,7 @@ MonoBehaviour:
   textColor: {r: 1, g: 1, b: 1, a: 1}
   textOutlineWidth: 0.2
   textOutlineColor: {r: 0, g: 0, b: 0, a: 1}
+  textVerticalAlignment: 0
   animationDuration: 0.3
   particleEffectPrefab: {fileID: 0}
   defaultParameters: []
